@@ -193,16 +193,75 @@ function validateGuest(code, firstName, lastName) {
     };
   });
 
+  const familyName  = match.first_name + ' ' + match.last_name;
+  const existingRSVP = getExistingRSVP(match.invitation_code, familyName);
+
   return {
     id:             match.id,
     firstName:      match.first_name,
     lastName:       match.last_name,
-    familyName:     match.first_name + ' ' + match.last_name,
+    familyName,
     invitationCode: match.invitation_code,
     events:         eventIds,
     allocations,
     isOverseas:     String(match.is_overseas || '').toUpperCase() === 'TRUE',
+    existingRSVP,
   };
+}
+
+// ── getExistingRSVP ───────────────────────────────────────
+// Returns the most recent submission for a specific name + code combination.
+// Returns null if no matching submission exists.
+// Fails open — returns null on any error so guest flow is never blocked by a check failure.
+function getExistingRSVP(code, familyName) {
+  try {
+    const sheet = getSheet(TABS.rsvpByFamily);
+    if (sheet.getLastRow() < 2) return null;
+
+    const normCode = String(code || '').toUpperCase().trim();
+    const normName = normaliseName(familyName);
+
+    const rows = sheetToObjects(sheet).filter(function(r) {
+      return String(r.status || '').toUpperCase() !== 'DELETED' &&
+             String(r.invitation_code || '').toUpperCase().trim() === normCode &&
+             normaliseName(r.submission_name) === normName;
+    });
+
+    if (!rows.length) return null;
+
+    // Return the most recent matching submission
+    rows.sort(function(a, b) {
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+
+    const latest = rows[0];
+
+    // Build a clean per-event summary from the wide row
+    const eventSummary = [];
+    const activeEvents = getEvents();
+    activeEvents.forEach(function(evt) {
+      const attending = String(latest[evt.name + ' Attending'] || '').toLowerCase();
+      if (attending === 'yes' || attending === 'no') {
+        eventSummary.push({
+          id:       evt.id,
+          name:     evt.name,
+          icon:     evt.icon,
+          attending: attending === 'yes',
+          adults:   Number(latest[evt.name + ' Adults'])   || 0,
+          children: Number(latest[evt.name + ' Children']) || 0,
+        });
+      }
+    });
+
+    return {
+      submittedAt:    latest.timestamp,
+      submissionName: latest.submission_name,
+      eventSummary,
+    };
+  } catch (err) {
+    Logger.log('getExistingRSVP error: ' + err.message);
+    return null; // fail open — never block login due to a check error
+  }
 }
 
 // ── getGuests ─────────────────────────────────────────────
@@ -389,8 +448,18 @@ function bulkAddGuests(payload) {
 
 // ── submitRSVP ────────────────────────────────────────────
 function submitRSVP(payload) {
+  // ── Duplicate check — name + code ───────────────────
+  const normCode = String(payload.invitationCode || '').toUpperCase().trim();
+  const existing = getExistingRSVP(normCode, payload.submissionName);
+  if (existing) {
+    throw new Error(
+      'An RSVP has already been received for this name and invitation code. ' +
+      'Please contact the wedding team if you need to make any changes.'
+    );
+  }
+
   const { submissionName, events, submittedAt } = payload;
-  const invitationCode = String(payload.invitationCode || '').toUpperCase().trim();
+  const invitationCode = normCode;
   const ts = submittedAt || new Date().toISOString();
 
   // RSVPs_by_event (tall)

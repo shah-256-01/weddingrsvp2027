@@ -727,7 +727,7 @@ function renderRSVPStatusView(guests, container) {
     }).join('');
     dupHtml = '<div class="dup-section" style="margin-top:1.2rem;">' +
       '<div class="dup-title">\u26A0 Duplicate Submissions \u2014 Resolve Manually</div>' +
-      '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">These codes have more than one submission. Only the most recent is counted in stats. Review and decide which response is correct.</p>' +
+      '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">These codes have more than one submission for the same name. This may have occurred before duplicate protection was enabled. Only the most recent is counted in stats. To correct, edit the RSVPs_by_family sheet directly and mark the unwanted row status as DELETED.</p>' +
       dupItems + '</div>';
   }
 

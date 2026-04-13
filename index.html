@@ -271,12 +271,16 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
   <div class="submit-section" id="submit-section">
     <p class="submit-note">Please confirm by 30th November 2027</p>
     <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()" style="padding:1rem 2.4rem;">Submit RSVP ✦</button>
+    <span class="family-name-error hidden" id="submit-error" style="display:block;margin-top:.6rem;text-align:center;"></span>
   </div>
   <div class="success-screen hidden" id="success-screen">
     <div class="success-icon">🌸</div>
     <h2 class="success-title">Thank you!</h2>
     <p class="success-sub">Your RSVP has been received. We look forward to celebrating with you.</p>
     <a href="javascript:void(0)" class="hidden" id="overseas-success-link" onclick="showGuestSection('overseas',document.getElementById('subnav-overseas'))" style="margin-top:1rem;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.15em;color:var(--teal);text-decoration:underline;">&#9992; View Overseas Travel Info</a>
+  </div>
+  <div class="success-screen hidden" id="already-submitted-screen">
+    <!-- populated dynamically by showAlreadySubmittedScreen() -->
   </div>
   </div><!-- /section-rsvp -->
 
@@ -550,26 +554,88 @@ function loadGuestPage() {
   // Reset to RSVP tab
   showGuestSection('rsvp', document.querySelector('.subnav-btn'));
 
+  // ── Already submitted? ───────────────────────────────
+  if (currentGuest.existingRSVP) {
+    showAlreadySubmittedScreen(currentGuest.existingRSVP);
+    startCountdown();
+    return;
+  }
+
   // Filter out event IDs that don't exist in EVENTS array
   currentEventIds = currentEventIds.filter(id => EVENTS.find(e => e.id === id));
 
   eventRSVPs = {};
-  currentEventIds.forEach(id => {
-    var alloc = (currentGuest.allocations && currentGuest.allocations[id]) || {};
-    var maxAdults   = alloc.adults   || 1;
-    var maxChildren = alloc.children || 0;
+  currentEventIds.forEach(function(id) {
+    var alloc       = (currentGuest.allocations && currentGuest.allocations[id]) || {};
+    var maxAdults   = Number(alloc.adults)   || 1;
+    var maxChildren = Number(alloc.children) || 0;
     eventRSVPs[id] = {
       attending: null, adults: maxAdults, children: maxChildren,
       maxAdults: maxAdults, maxChildren: maxChildren, notes: '',
     };
   });
-  ['events-section', 'rsvp-summary', 'submit-section'].forEach(id => {
-    document.getElementById(id).classList.remove('hidden');
+
+  ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.remove('hidden');
   });
   document.getElementById('success-screen').classList.add('hidden');
+  document.getElementById('already-submitted-screen').classList.add('hidden');
   renderEventCards();
   renderSummary();
   startCountdown();
+}
+
+function showAlreadySubmittedScreen(existingRSVP) {
+  // Hide all RSVP form sections
+  ['events-section', 'rsvp-summary', 'submit-section', 'success-screen'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+
+  // Format submitted date
+  var submittedDate = 'a previous date';
+  try {
+    submittedDate = new Date(existingRSVP.submittedAt).toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    });
+  } catch (e) {}
+
+  // Build event summary rows
+  var eventRows = (existingRSVP.eventSummary || []).map(function(ev) {
+    var detail = ev.attending
+      ? (ev.adults + ' adult' + (ev.adults !== 1 ? 's' : '') +
+        (ev.children > 0
+          ? ', ' + ev.children + ' child' + (ev.children !== 1 ? 'ren' : '')
+          : ''))
+      : 'Declined';
+    var statusClass = ev.attending ? 'status-attending' : 'status-declined';
+    return '<div class="summary-row">' +
+      '<span>' + (ev.icon || '') + ' ' + ev.name + '</span>' +
+      '<span class="summary-status ' + statusClass + '">' + detail + '</span>' +
+    '</div>';
+  }).join('');
+
+  var screen = document.getElementById('already-submitted-screen');
+  screen.innerHTML =
+    '<div class="success-icon">\u2709\uFE0F</div>' +
+    '<h2 class="success-title">We have your RSVP</h2>' +
+    '<p class="success-sub" style="margin-bottom:1.5rem;">' +
+      'We received a response for <strong>' + (existingRSVP.submissionName || 'your family') + '</strong> ' +
+      'on ' + submittedDate + '.' +
+    '</p>' +
+    (eventRows
+      ? '<div class="summary-card" style="max-width:480px;margin:0 auto 1.5rem;text-align:left;">' +
+          '<div class="summary-title">Your responses</div>' +
+          eventRows +
+        '</div>'
+      : '') +
+    '<p style="font-size:.85rem;color:var(--muted);line-height:1.9;max-width:420px;margin:0 auto;">' +
+      'If you need to make any changes please get in touch:<br>' +
+      '<strong style="color:var(--wine);">[CONTACT EMAIL OR PHONE \u2014 edit in index.html]</strong>' +
+    '</p>';
+
+  screen.classList.remove('hidden');
 }
 
 function renderEventCards() {
@@ -662,7 +728,12 @@ function renderSummary() {
 
 async function submitRSVP() {
   if (currentEventIds.some(id => eventRSVPs[id].attending === null)) {
-    alert('Please respond to all events before submitting.');
+    var errEl = document.getElementById('submit-error');
+    if (errEl) {
+      errEl.textContent = 'Please respond to all events before submitting.';
+      errEl.classList.remove('hidden');
+      setTimeout(function() { errEl.classList.add('hidden'); }, 5000);
+    }
     return;
   }
   var btn = document.getElementById('submit-btn');
