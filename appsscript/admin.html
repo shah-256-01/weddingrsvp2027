@@ -208,6 +208,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">&#10003; RSVP Status</button>
         <button class="view-btn" onclick="setGuestView('event')" id="vbtn-event">&#128197; By Event</button>
       </div>
+      <button class="btn btn-secondary btn-sm" onclick="exportGuestListCSV()">&#8595; Export CSV</button>
       <button class="btn btn-primary btn-sm" onclick="openAddGuest()">+ Add Guest</button>
     </div>
 
@@ -1140,6 +1141,45 @@ function closeViewModal() {
 }
 
 // ══════════════════════════════════════════════
+//   EXPORT GUEST LIST
+// ══════════════════════════════════════════════
+
+function exportGuestListCSV() {
+  google.script.run
+    .withSuccessHandler(function(guests) {
+      if (!guests || !guests.length) { alert('No guests to export.'); return; }
+      var headers = [
+        'first_name','last_name','phone','email','relationship',
+        'notes','is_overseas','events','invitation_code','status',
+        'L_adults','L_children',
+        'S_adults','S_children',
+        'A_adults','A_children',
+        'G_adults','G_children',
+        'W_adults','W_children',
+        'B_adults','B_children'
+      ];
+      var rows = guests.map(function(g) {
+        return headers.map(function(h) {
+          var val = String(g[h] || '');
+          return val.indexOf(',') > -1 ? '"' + val + '"' : val;
+        }).join(',');
+      });
+      var csv  = [headers.join(',')].concat(rows).join('\n');
+      var blob = new Blob([csv], { type: 'text/csv' });
+      var url  = URL.createObjectURL(blob);
+      var a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'wedding-guests-' + new Date().toISOString().slice(0, 10) + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    })
+    .withFailureHandler(function(err) {
+      alert('Export failed: ' + err.message);
+    })
+    .getGuests();
+}
+
+// ══════════════════════════════════════════════
 //   CSV UPLOAD
 // ══════════════════════════════════════════════
 
@@ -1197,22 +1237,28 @@ function copyGenCode() {
 
 function downloadCSVTemplate() {
   var headers = [
-    'first_name','last_name','phone','email','relationship','notes','events',
-    'L_adults','L_children','S_adults','S_children',
-    'A_adults','A_children','G_adults','G_children',
-    'W_adults','W_children','B_adults','B_children'
+    'first_name','last_name','phone','email','relationship',
+    'notes','is_overseas','events',
+    'L_adults','L_children',
+    'S_adults','S_children',
+    'A_adults','A_children',
+    'G_adults','G_children',
+    'W_adults','W_children',
+    'B_adults','B_children'
   ];
   var exampleRow = [
-    'Priya','Sharma','+91 98765 43210','priya@email.com',"Bride's Family",'VIP guest','"L,S,W"',
-    '2','1','2','1','0','0','0','0','3','1','0','0'
+    'Priya','Sharma','+447700000000','priya@email.com',
+    "Bride's Family",'Any notes here','FALSE','"L,S,W"',
+    '4','2','4','2','0','0','4','0','4','2','0','0'
   ];
-  var csv = headers.join(',') + '\n' + exampleRow.join(',') + '\n';
+  var csv  = [headers.join(','), exampleRow.join(',')].join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'guest_template.csv';
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'wedding-guest-template.csv';
   a.click();
-  URL.revokeObjectURL(a.href);
+  URL.revokeObjectURL(url);
 }
 
 function handleCSVFile(file) {
@@ -1246,6 +1292,10 @@ function parseCSV(text) {
     headers.forEach(function(h, idx) {
       obj[h] = (vals[idx] || '').trim();
     });
+    // Normalise is_overseas to TRUE or FALSE regardless of how it was entered
+    var rawOverseas = String(obj.is_overseas || 'FALSE').trim().toUpperCase();
+    obj.is_overseas = (rawOverseas === 'TRUE' || rawOverseas === 'YES' || rawOverseas === '1')
+      ? 'TRUE' : 'FALSE';
     // Auto-generate invitation_code from events
     if (obj.events) {
       var evIds = obj.events.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
