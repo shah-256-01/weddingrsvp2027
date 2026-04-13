@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<meta http-equiv="X-Frame-Options" content="DENY"/>
+<meta http-equiv="Referrer-Policy" content="strict-origin"/>
 <title>The Wedding Day — 25th December 2027</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -13,7 +16,7 @@
   --gold:#b8924a;  --gold-lt:#e8c87a; --gold-pale:#f7edda;
   --green:#2d4a3e; --cream:#fdf6ef; --ink:#2a1f1a; --teal:#4a7c74;
   --muted:#8a7060; --border:rgba(184,146,74,.22);
-  --red:#8b2020;   --admin-bg:#f0ebe4; --card-bg:#fff;
+  --red:#8b2020;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;}
@@ -122,12 +125,6 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .counter-btn{width:28px;height:28px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:.95rem;color:var(--wine);display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
 .counter-btn:hover{background:var(--blush);}
 .counter-val{font-family:'Cormorant Garamond',serif;font-size:1.35rem;color:var(--wine);min-width:26px;text-align:center;}
-.dietary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:.4rem;margin-bottom:.65rem;}
-.dietary-chip{display:flex;align-items:center;gap:.38rem;padding:.45rem .6rem;border:1px solid var(--border);cursor:pointer;font-size:.72rem;color:var(--muted);transition:all .2s;background:transparent;border-radius:1px;text-align:left;width:100%;}
-.dietary-chip.selected{background:var(--blush);border-color:var(--rose);color:var(--wine);}
-.dietary-chip:hover:not(.selected){background:var(--gold-pale);}
-.dietary-other{width:100%;border:1px solid var(--border);background:transparent;padding:.6rem .82rem;font-family:'Jost',sans-serif;font-size:.8rem;color:var(--ink);outline:none;transition:border-color .2s;resize:none;}
-.dietary-other:focus{border-color:var(--gold);}
 .notes-field{width:100%;border:1px solid var(--border);background:transparent;padding:.68rem .88rem;font-family:'Jost',sans-serif;font-size:.8rem;color:var(--ink);outline:none;transition:border-color .2s;resize:vertical;min-height:62px;}
 .notes-field:focus{border-color:var(--gold);}
 .field-section{margin-bottom:1.2rem;}
@@ -151,126 +148,9 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .success-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:clamp(2rem,5vw,2.8rem);color:var(--wine);margin-bottom:.55rem;}
 .success-sub{font-size:.84rem;color:var(--muted);line-height:1.8;max-width:360px;}
 
-/* ════════════════════════════════════════════
-   ADMIN — SHARED
-════════════════════════════════════════════ */
-#page-admin{background:var(--admin-bg);}
-#page-admin.active{display:block;}
-.admin-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);}
-.admin-login-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:2.4rem;width:100%;max-width:330px;text-align:center;}
-.admin-login-title{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.25em;color:var(--gold-lt);text-transform:uppercase;margin-bottom:1.3rem;}
-.admin-login-input{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);padding:.78rem 1rem;color:#fff;font-family:'Jost',sans-serif;font-size:.88rem;outline:none;border-radius:2px;letter-spacing:.15em;text-align:center;transition:border-color .2s;margin-bottom:.75rem;}
-.admin-login-input:focus{border-color:var(--gold);}
-.admin-login-err{font-size:.7rem;color:#f87;margin-bottom:.7rem;min-height:1rem;display:block;}
-
-/* Admin nav */
-.admin-nav{background:var(--ink);padding:.9rem 1.8rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:60;}
-.admin-nav-title{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.2em;color:var(--gold-lt);}
-
-/* Admin tabs */
-.admin-tabs{background:var(--wine-d);display:flex;gap:0;overflow-x:auto;}
-.admin-tab{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;padding:.85rem 1.8rem;color:rgba(255,255,255,.45);cursor:pointer;border:none;background:transparent;white-space:nowrap;transition:all .2s;border-bottom:2px solid transparent;}
-.admin-tab:hover{color:rgba(255,255,255,.75);}
-.admin-tab.active{color:var(--gold-lt);border-bottom-color:var(--gold);}
-
-/* Admin tab panels */
-.admin-panel{display:none;max-width:1100px;margin:0 auto;padding:2rem 1.5rem;}
-.admin-panel.active{display:block;}
-
-/* Admin card */
-.admin-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);padding:1.5rem;border-radius:2px;margin-bottom:1.4rem;}
-.admin-card-title{font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:.2em;color:var(--wine);text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:.55rem;}
-.admin-card-title::after{content:'';flex:1;height:1px;background:rgba(184,146,74,.17);}
-
-/* Stats row */
-.stats-row{display:flex;gap:.85rem;margin-bottom:1.5rem;flex-wrap:wrap;}
-.stat-card{flex:1;min-width:100px;background:var(--card-bg);border:1px solid rgba(0,0,0,.07);padding:1rem;text-align:center;border-radius:2px;}
-.stat-num{font-family:'Cormorant Garamond',serif;font-size:1.85rem;color:var(--wine);line-height:1;}
-.stat-lbl{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:.22rem;}
-
-/* Form fields */
-.form-row{margin-bottom:.85rem;}
-.form-row label{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.32rem;}
-.form-row input,.form-row select,.form-row textarea{width:100%;border:1px solid rgba(0,0,0,.11);background:transparent;padding:.6rem .78rem;font-family:'Jost',sans-serif;font-size:.83rem;color:var(--ink);outline:none;transition:border-color .2s;border-radius:2px;}
-.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--gold);}
-.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
-@media(max-width:580px){.form-grid-2{grid-template-columns:1fr;}}
-
-/* Event checkboxes in form */
-.event-tick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.4rem;margin-top:.35rem;}
-.event-tick{display:flex;align-items:center;gap:.45rem;padding:.5rem .65rem;border:1px solid rgba(0,0,0,.09);background:#faf9f7;cursor:pointer;border-radius:2px;transition:all .18s;}
-.event-tick:hover{background:var(--blush);}
-.event-tick.selected{border-color:var(--wine);background:rgba(107,39,55,.06);}
-.event-tick input{accent-color:var(--wine);width:13px;height:13px;flex-shrink:0;}
-.event-tick span{font-size:.76rem;color:var(--ink);}
-
-/* ── GUEST TABLE ── */
-.guest-table-wrap{overflow-x:auto;}
-.guest-table{width:100%;border-collapse:collapse;font-size:.78rem;}
-.guest-table th{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;padding:.5rem .7rem;text-align:left;border-bottom:2px solid rgba(0,0,0,.07);white-space:nowrap;}
-.guest-table td{padding:.58rem .7rem;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle;}
-.guest-table tr:last-child td{border-bottom:none;}
-.guest-table tr:hover td{background:#faf8f5;}
-.guest-table .guest-name{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);font-weight:400;}
-.guest-table .guest-contact{font-size:.7rem;color:var(--muted);}
-.code-pill{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.13em;color:var(--wine);background:var(--gold-pale);padding:.16rem .5rem;border-radius:10px;white-space:nowrap;}
-.event-dot{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;font-size:.65rem;margin:.1rem;}
-.rsvp-pill{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.1em;padding:.2rem .6rem;border-radius:20px;white-space:nowrap;}
-.rsvp-submitted{background:rgba(45,74,62,.12);color:var(--green);}
-.rsvp-pending{background:rgba(184,146,74,.1);color:var(--gold);}
-.rsvp-partial{background:rgba(107,39,55,.08);color:var(--wine);}
-.row-actions{display:flex;gap:.35rem;justify-content:flex-end;}
-
-/* View switcher */
-.view-switcher{display:flex;gap:.4rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center;}
-.view-btn{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.14em;text-transform:uppercase;padding:.42rem .9rem;border:1px solid rgba(0,0,0,.1);background:transparent;cursor:pointer;border-radius:2px;color:var(--muted);transition:all .18s;}
-.view-btn.active{background:var(--wine);color:var(--gold-lt);border-color:var(--wine);}
-.view-btn:hover:not(.active){background:var(--blush);color:var(--wine);}
-
-/* Search / filter bar */
-.filter-bar{display:flex;gap:.6rem;margin-bottom:1.1rem;flex-wrap:wrap;}
-.filter-bar input{flex:1;min-width:160px;border:1px solid rgba(0,0,0,.1);background:var(--card-bg);padding:.55rem .8rem;font-family:'Jost',sans-serif;font-size:.8rem;color:var(--ink);outline:none;border-radius:2px;}
-.filter-bar input:focus{border-color:var(--gold);}
-.filter-bar select{border:1px solid rgba(0,0,0,.1);background:var(--card-bg);padding:.55rem .8rem;font-family:'Jost',sans-serif;font-size:.78rem;color:var(--ink);outline:none;border-radius:2px;cursor:pointer;}
-
-/* GROUPED view */
-.group-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);border-radius:2px;margin-bottom:1rem;overflow:hidden;}
-.group-card-header{padding:.9rem 1.1rem;background:var(--gold-pale);display:flex;align-items:center;justify-content:space-between;gap:.8rem;border-bottom:1px solid rgba(184,146,74,.2);}
-.group-code{font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.2em;color:var(--wine);}
-.group-events{display:flex;gap:.3rem;flex-wrap:wrap;}
-.group-card-body{padding:.8rem 1.1rem;}
-.group-guest-row{display:flex;align-items:center;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:.78rem;}
-.group-guest-row:last-child{border-bottom:none;}
-
-/* RSVP view */
-.rsvp-breakdown{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;}
-.event-rsvp-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);border-radius:2px;overflow:hidden;}
-.event-rsvp-header{padding:.7rem .9rem;display:flex;align-items:center;gap:.5rem;}
-.event-rsvp-title{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);}
-.event-rsvp-stats{padding:.6rem .9rem;display:flex;gap:.5rem;border-top:1px solid rgba(0,0,0,.05);}
-.ersvp-stat{flex:1;text-align:center;}
-.ersvp-num{font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:var(--wine);line-height:1;}
-.ersvp-lbl{font-size:.58rem;color:var(--muted);}
-
-/* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(42,31,26,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:lbFade .25s ease;}
-@keyframes lbFade{from{opacity:0}to{opacity:1}}
-.modal{background:var(--card-bg);width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:2px;animation:modalUp .3s cubic-bezier(0.23,1,0.32,1);}
-@keyframes modalUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
-.modal-header{padding:1.3rem 1.5rem;border-bottom:1px solid rgba(0,0,0,.07);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card-bg);z-index:1;}
-.modal-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.3rem;color:var(--wine);}
-.modal-close{width:30px;height:30px;border:none;background:transparent;font-size:1.1rem;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background .18s;}
-.modal-close:hover{background:var(--blush);}
-.modal-body{padding:1.5rem;}
-.modal-footer{padding:1rem 1.5rem;border-top:1px solid rgba(0,0,0,.07);display:flex;gap:.6rem;justify-content:flex-end;background:var(--card-bg);position:sticky;bottom:0;}
-
-/* Sheets config */
-.sheets-config{background:rgba(184,146,74,.06);border:1px solid var(--border);padding:.85rem 1.1rem;border-radius:2px;margin-top:.75rem;}
-.sheets-status{display:flex;align-items:center;gap:.38rem;font-size:.72rem;color:var(--muted);}
-.status-dot{width:7px;height:7px;border-radius:50%;background:#ccc;flex-shrink:0;}
-.status-dot.connected{background:#4caf50;}
-
-.empty-state{text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic;font-size:.84rem;}
+.loading-spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;margin:1rem auto;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.family-name-error{font-size:.73rem;color:var(--red);margin-top:.35rem;min-height:1rem;display:block;}
 </style>
 </head>
 <body>
@@ -289,7 +169,15 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
     </div>
     <p class="landing-date">25<sup>th</sup> December, 2027</p>
     <p class="landing-venue">Park Avenue Grand · Kochi</p>
-    <div class="code-box">
+    <div id="landing-loader" class="hidden" style="padding:1rem 0;">
+      <div class="loading-spinner"></div>
+      <p style="font-size:.72rem;color:var(--muted);margin-top:.5rem;">Loading events…</p>
+    </div>
+    <div id="landing-error" class="hidden" style="padding:1rem 0;">
+      <p style="font-size:.8rem;color:var(--red);">Unable to load event data. Please refresh the page.</p>
+      <button class="btn btn-secondary btn-sm" onclick="location.reload()" style="margin-top:.5rem;">Retry</button>
+    </div>
+    <div class="code-box" id="code-box">
       <span class="code-label">Enter Your Invitation Code</span>
       <div class="code-input-row">
         <input class="code-input" id="code-input" type="text" maxlength="12" placeholder="e.g. MW2027" autocomplete="off"/>
@@ -299,7 +187,6 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
       <p class="code-hint">Your unique code was included with your invitation.</p>
     </div>
   </div>
-  <a href="#" class="landing-admin-link" onclick="showAdminLogin(event)">Admin ↗</a>
 </div>
 
 <!-- ████  GUEST RSVP  ████ -->
@@ -322,16 +209,17 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
     <div class="cd-dot">·</div>
     <div class="cd-block"><span class="cd-num" id="cd-s">—</span><span class="cd-lbl">Secs</span></div>
   </div>
+  <div class="family-name-section" id="family-name-section">
+    <span class="family-name-label">Your Name / Family Name</span>
+    <input class="family-name-input" id="family-name-input" type="text" placeholder="e.g. The Sharma Family"/>
+    <span class="family-name-error" id="family-name-error"></span>
+  </div>
   <div class="events-section" id="events-section">
     <div class="events-section-header">
       <span class="section-tag">Your Invitations</span>
       <h2 class="section-title">RSVP for Each Event</h2>
     </div>
     <div id="events-list"></div>
-  </div>
-  <div class="family-name-section" id="family-name-section">
-    <span class="family-name-label">Your Family / Name</span>
-    <input class="family-name-input" id="family-name-input" type="text" placeholder="e.g. The Patel Family"/>
   </div>
   <div class="rsvp-summary" id="rsvp-summary">
     <div class="summary-card">
@@ -341,7 +229,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
   </div>
   <div class="submit-section" id="submit-section">
     <p class="submit-note">Please confirm by 30th November 2027</p>
-    <button class="btn btn-primary" onclick="submitRSVP()" style="padding:1rem 2.4rem;">Submit RSVP ✦</button>
+    <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()" style="padding:1rem 2.4rem;">Submit RSVP ✦</button>
   </div>
   <div class="success-screen hidden" id="success-screen">
     <div class="success-icon">🌸</div>
@@ -350,472 +238,266 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
   </div>
 </div>
 
-<!-- ████  ADMIN  ████ -->
-<div id="page-admin" class="page">
-
-  <!-- Login -->
-  <div class="admin-login" id="admin-login-screen">
-    <div class="admin-login-card">
-      <div class="admin-login-title">Admin Access</div>
-      <input class="admin-login-input" id="admin-pwd-input" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkAdminPwd()"/>
-      <span class="admin-login-err" id="admin-login-err"></span>
-      <button class="btn btn-primary" style="width:100%;margin-bottom:.7rem;" onclick="checkAdminPwd()">Enter</button>
-      <button class="btn btn-ghost" style="color:rgba(255,255,255,.38);width:100%;font-size:.56rem;" onclick="showPage('landing')">← Back to site</button>
-    </div>
-  </div>
-
-  <!-- Dashboard -->
-  <div id="admin-dashboard" class="hidden">
-    <nav class="admin-nav">
-      <span class="admin-nav-title">✦ Wedding Admin</span>
-      <div style="display:flex;gap:.6rem;align-items:center;">
-        <button class="btn btn-ghost" style="color:rgba(255,255,255,.4);font-size:.56rem;" onclick="showPage('landing')">← View Site</button>
-        <button class="btn btn-sm btn-danger" onclick="adminLogout()">Logout</button>
-      </div>
-    </nav>
-
-    <!-- Tabs -->
-    <div class="admin-tabs">
-      <button class="admin-tab active" onclick="switchTab('guests')">👥 Guest List</button>
-      <button class="admin-tab" onclick="switchTab('codes')">🔑 Codes</button>
-      <button class="admin-tab" onclick="switchTab('rsvps')">📋 RSVPs</button>
-      <button class="admin-tab" onclick="switchTab('settings')">⚙️ Settings</button>
-    </div>
-
-    <!-- ── TAB: GUESTS ── -->
-    <div class="admin-panel active" id="tab-guests">
-      <div class="stats-row" id="guest-stats"></div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
-        <div class="view-switcher">
-          <button class="view-btn active" onclick="setGuestView('table')" id="vbtn-table">☰ List</button>
-          <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">⊞ By Code</button>
-          <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">✓ RSVP Status</button>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openAddGuest()">+ Add Guest</button>
-      </div>
-
-      <div class="filter-bar">
-        <input type="text" id="guest-search" placeholder="Search name, contact, notes…" oninput="renderGuestView()"/>
-        <select id="filter-event" onchange="renderGuestView()">
-          <option value="">All Events</option>
-        </select>
-        <select id="filter-rsvp" onchange="renderGuestView()">
-          <option value="">All RSVP Status</option>
-          <option value="submitted">Submitted</option>
-          <option value="pending">Pending</option>
-        </select>
-      </div>
-
-      <div id="guest-view-container"></div>
-    </div>
-
-    <!-- ── TAB: CODES ── -->
-    <div class="admin-panel" id="tab-codes">
-      <div class="admin-card">
-        <div class="admin-card-title">Generate Invitation Code</div>
-        <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Select which events to generate a code for:</p>
-        <div class="event-tick-grid" id="code-gen-ticks" style="margin-bottom:.9rem;"></div>
-        <div class="generated-code-box" style="background:var(--gold-pale);border:1px solid rgba(184,146,74,.3);padding:1rem;text-align:center;border-radius:2px;margin:.7rem 0;">
-          <div style="font-family:'Cinzel',serif;font-size:1.55rem;letter-spacing:.3em;color:var(--wine);" id="gen-code-out">—</div>
-          <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Select events above</div>
-        </div>
-        <div style="display:flex;gap:.6rem;">
-          <button class="btn btn-primary btn-sm" style="flex:1" onclick="copyGenCode()">Copy Code</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="previewGenCode()">Preview as Guest</button>
-        </div>
-      </div>
-      <div class="admin-card">
-        <div class="admin-card-title">All Valid Codes</div>
-        <div style="overflow-x:auto;">
-          <table class="guest-table">
-            <thead><tr><th>Code</th><th>Events</th><th>Guests Assigned</th><th>Times Used</th></tr></thead>
-            <tbody id="all-codes-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── TAB: RSVPs ── -->
-    <div class="admin-panel" id="tab-rsvps">
-      <div style="margin-bottom:1.2rem;">
-        <div class="rsvp-breakdown" id="rsvp-event-breakdown"></div>
-      </div>
-      <div class="admin-card">
-        <div class="admin-card-title">Submitted RSVPs</div>
-        <div id="rsvp-responses-list"><div class="empty-state">No responses yet.</div></div>
-      </div>
-    </div>
-
-    <!-- ── TAB: SETTINGS ── -->
-    <div class="admin-panel" id="tab-settings">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.4rem;">
-        <div style="grid-column:1/-1;">
-          <div class="admin-card">
-            <div class="admin-card-title">Events Configuration</div>
-            <div id="events-config-list"></div>
-            <p style="font-size:.67rem;color:var(--muted);margin-top:.75rem;font-style:italic;">Edit event details in the CONFIG block at the top of the JS.</p>
-          </div>
-        </div>
-        <div>
-          <div class="admin-card">
-            <div class="admin-card-title">Google Sheets Integration</div>
-            <div class="form-row">
-              <label>Apps Script Web App URL</label>
-              <input type="text" id="sheets-url-input" placeholder="https://script.google.com/macros/s/.../exec"/>
-            </div>
-            <button class="btn btn-secondary btn-sm" onclick="saveSheetConfig()">Save</button>
-            <div class="sheets-config">
-              <div class="sheets-status">
-                <div class="status-dot" id="sheets-dot"></div>
-                <span id="sheets-status-text">Not configured</span>
-              </div>
-            </div>
-            <p style="font-size:.65rem;color:var(--muted);margin-top:.75rem;line-height:1.65;">See the JS comment block for the Apps Script template to deploy.</p>
-          </div>
-        </div>
-        <div>
-          <div class="admin-card">
-            <div class="admin-card-title">Danger Zone</div>
-            <p style="font-size:.76rem;color:var(--muted);margin-bottom:.9rem;">Clear all locally stored data. This cannot be undone.</p>
-            <div style="display:flex;flex-direction:column;gap:.5rem;">
-              <button class="btn btn-danger btn-sm" onclick="clearRSVPs()">Clear All RSVPs</button>
-              <button class="btn btn-danger btn-sm" onclick="clearGuests()">Clear All Guests</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /admin-dashboard -->
-</div><!-- /page-admin -->
-
-<!-- ████  ADD / EDIT GUEST MODAL  ████ -->
-<div class="modal-overlay hidden" id="guest-modal-overlay" onclick="closeModalOnBg(event)">
-  <div class="modal" id="guest-modal">
-    <div class="modal-header">
-      <span class="modal-title" id="modal-title">Add Guest</span>
-      <button class="modal-close" onclick="closeGuestModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-grid-2">
-        <div class="form-row" style="grid-column:1/-1;">
-          <label>Name / Family Name *</label>
-          <input type="text" id="m-name" placeholder="e.g. The Sharma Family"/>
-        </div>
-        <div class="form-row">
-          <label>Phone / WhatsApp</label>
-          <input type="text" id="m-phone" placeholder="+44 7700 000000"/>
-        </div>
-        <div class="form-row">
-          <label>Email</label>
-          <input type="email" id="m-email" placeholder="guest@email.com"/>
-        </div>
-        <div class="form-row">
-          <label>Relationship / Side</label>
-          <select id="m-relationship">
-            <option value="">— Select —</option>
-            <option>Bride's Family</option>
-            <option>Groom's Family</option>
-            <option>Bride's Friend</option>
-            <option>Groom's Friend</option>
-            <option>Colleague</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div class="form-row">
-          <label>Notes</label>
-          <input type="text" id="m-notes" placeholder="Any notes…"/>
-        </div>
-      </div>
-      <div class="form-row" style="margin-top:.3rem;">
-        <label>Invited to Events *</label>
-        <div class="event-tick-grid" id="modal-event-ticks"></div>
-      </div>
-      <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;text-align:center;" id="modal-code-preview">
-        <span style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.3rem;">Invitation Code</span>
-        <span style="font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:.25em;color:var(--wine);" id="modal-code-out">—</span>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeGuestModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveGuest()">Save Guest</button>
-    </div>
-  </div>
-</div>
-
-<!-- ████  VIEW GUEST MODAL  ████ -->
-<div class="modal-overlay hidden" id="view-modal-overlay" onclick="closeModalOnBg(event)">
-  <div class="modal" id="view-modal">
-    <div class="modal-header">
-      <span class="modal-title" id="view-modal-title">Guest Details</span>
-      <button class="modal-close" onclick="closeViewModal()">✕</button>
-    </div>
-    <div class="modal-body" id="view-modal-body"></div>
-  </div>
-</div>
-
 <script>
 /* ══════════════════════════════════════════════
-   ★  CONFIG
+   BACKEND CONFIG
 ══════════════════════════════════════════════ */
-const CONFIG = {
-  adminPassword: 'wedding2027',
-  sheetsWebAppUrl: '',
-  weddingDateTime: '2027-12-25T19:30:00+05:30',
+// Replace with your Apps Script Web App URL
+const SCRIPT_URL = 'YOUR_APPS_SCRIPT_WEB_APP_URL';
+const WEDDING_DATETIME = '2027-12-25T19:30:00+05:30';
 
-  events: [
-    { id:'M', name:'Mehendi & Haldi',  date:'Fri 24th Dec 2027', time:'10:00 AM – 2:00 PM',              venue:'Host Family Residence, Kochi', icon:'🌿', color:'#4a7c74' },
-    { id:'S', name:'Sangeet Night',     date:'Fri 24th Dec 2027', time:'7:00 PM – 11:00 PM',             venue:'Park Avenue Grand, Kochi',     icon:'🎶', color:'#b8924a' },
-    { id:'C', name:'Cocktail Evening',  date:'Sat 25th Dec 2027', time:'6:00 PM – 7:30 PM',              venue:'Park Avenue Grand – Terrace',  icon:'🥂', color:'#6b2737' },
-    { id:'W', name:'The Wedding Day',   date:'Sat 25th Dec 2027', time:'Baraat 7:30 PM · Dinner 9:00 PM',venue:'Park Avenue Grand, Kochi',     icon:'💍', color:'#6b2737' },
-  ],
+let EVENTS = [];
+let CODES_MAP = {};
 
-  dietaryOptions: [
-    { id:'veg',    label:'Vegetarian', icon:'🥦' },
-    { id:'vegan',  label:'Vegan',      icon:'🌱' },
-    { id:'jain',   label:'Jain',       icon:'🪔' },
-    { id:'gluten', label:'Gluten Free',icon:'🌾' },
-    { id:'halal',  label:'Halal',      icon:'☪️'  },
-    { id:'nut',    label:'Nut Allergy',icon:'🥜' },
-    { id:'dairy',  label:'Dairy Free', icon:'🥛' },
-    { id:'seafood',label:'No Seafood', icon:'🦐' },
-  ],
-};
+/* ══════════════════════════════════════════════
+   BACKEND COMMUNICATION
+══════════════════════════════════════════════ */
+async function fetchEvents() {
+  const res = await fetch(SCRIPT_URL);
+  if (!res.ok) throw new Error('Failed to load events');
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Failed to load events');
+  return json.data;
+}
 
-/*
-  ─────────────────────────────────────────────
-  GOOGLE APPS SCRIPT TEMPLATE
-  ─────────────────────────────────────────────
-  1. script.google.com → New project → paste:
-
-  function doPost(e) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sh = ss.getSheetByName('RSVPs') || ss.insertSheet('RSVPs');
-    const d = JSON.parse(e.postData.contents);
-    if (sh.getLastRow()===0) {
-      const h=['Timestamp','Family','Code'];
-      d.events.forEach(ev=>{h.push(ev.name+' Attending',ev.name+' Adults',ev.name+' Children',ev.name+' Dietary');});
-      sh.appendRow(h);
-    }
-    const row=[new Date(),d.familyName,d.code];
-    d.events.forEach(ev=>{
-      row.push(ev.attending?'Yes':'No', ev.attending?ev.adults:0,
-               ev.attending?ev.children:0, [...ev.dietary,ev.dietaryOther].filter(Boolean).join(', '));
-    });
-    sh.appendRow(row);
-    return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  2. Deploy → New deployment → Web App → Anyone → Copy URL
-  3. Paste in Admin → Settings → Google Sheets
-  ─────────────────────────────────────────────
-*/
+function postRSVP(payload) {
+  return fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'submitRSVP', payload }),
+    mode: 'no-cors',
+  });
+}
 
 /* ══════════════════════════════════════════════
    CODE MAP
 ══════════════════════════════════════════════ */
-function buildCodesMap(){
-  const map={}, n=CONFIG.events.length;
-  for(let i=1;i<(1<<n);i++){
-    const ids=CONFIG.events.filter((_,j)=>i&(1<<j)).map(e=>e.id);
-    map[ids.join('')+'2027']=ids;
+function buildCodesMap(events) {
+  const map = {};
+  const n = events.length;
+  for (let i = 1; i < (1 << n); i++) {
+    const ids = events.filter((_, j) => i & (1 << j)).map(e => e.id);
+    map[ids.join('') + '2027'] = ids;
   }
   return map;
 }
-const CODES_MAP=buildCodesMap();
-function codeForIds(ids){ return ids.join('')+'2027'; }
-
-/* ══════════════════════════════════════════════
-   PERSISTENCE
-══════════════════════════════════════════════ */
-const store={
-  getGuests:   ()=>{ try{return JSON.parse(localStorage.getItem('wGuests')||'[]');}catch{return[];} },
-  setGuests:   g => localStorage.setItem('wGuests',JSON.stringify(g)),
-  addGuest:    g =>{ const a=store.getGuests(); a.push(g); store.setGuests(a); },
-  updateGuest: (id,data)=>{ const a=store.getGuests().map(g=>g.id===id?{...g,...data}:g); store.setGuests(a); },
-  deleteGuest: id=>{ store.setGuests(store.getGuests().filter(g=>g.id!==id)); },
-
-  getUsage:    ()=>{ try{return JSON.parse(localStorage.getItem('wUsage')||'{}');}catch{return{};} },
-  incUsage:    c=>{ const u=store.getUsage(); u[c]=(u[c]||0)+1; localStorage.setItem('wUsage',JSON.stringify(u)); },
-
-  getResponses:()=>{ try{return JSON.parse(localStorage.getItem('wRSVPs')||'[]');}catch{return[];} },
-  addResponse: r=>{ const a=store.getResponses(); a.push(r); localStorage.setItem('wRSVPs',JSON.stringify(a)); },
-
-  getSheetUrl: ()=>localStorage.getItem('wSheetsUrl')||CONFIG.sheetsWebAppUrl||'',
-  setSheetUrl: u=>localStorage.setItem('wSheetsUrl',u),
-};
 
 /* ══════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════ */
-let currentCode='', currentEventIds=[], eventRSVPs={};
-let editingGuestId=null, currentGuestView='table';
+let currentCode = '', currentEventIds = [], eventRSVPs = {};
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+async function init() {
+  showLoadingSpinner();
+  try {
+    EVENTS = await fetchEvents();
+    CODES_MAP = buildCodesMap(EVENTS);
+    hideLoadingSpinner();
+    const urlCode = new URLSearchParams(window.location.search).get('code');
+    if (urlCode) {
+      const upper = urlCode.toUpperCase();
+      if (CODES_MAP[upper]) {
+        currentCode = upper;
+        currentEventIds = CODES_MAP[upper];
+        loadGuestPage();
+        return;
+      }
+    }
+  } catch (err) {
+    hideLoadingSpinner();
+    showEventLoadError();
+  }
+}
+
+function showLoadingSpinner() {
+  document.getElementById('landing-loader').classList.remove('hidden');
+  document.getElementById('code-box').classList.add('hidden');
+}
+function hideLoadingSpinner() {
+  document.getElementById('landing-loader').classList.add('hidden');
+  document.getElementById('code-box').classList.remove('hidden');
+}
+function showEventLoadError() {
+  document.getElementById('landing-loader').classList.add('hidden');
+  document.getElementById('code-box').classList.add('hidden');
+  document.getElementById('landing-error').classList.remove('hidden');
+}
+
+document.addEventListener('DOMContentLoaded', init);
 
 /* ══════════════════════════════════════════════
    ROUTING
 ══════════════════════════════════════════════ */
-function showPage(name){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
 }
 
 /* ══════════════════════════════════════════════
-   LANDING
+   LANDING — CODE ENTRY
 ══════════════════════════════════════════════ */
-document.getElementById('code-input').addEventListener('keydown',e=>{if(e.key==='Enter')submitCode();});
-function submitCode(){
-  const raw=document.getElementById('code-input').value.trim().toUpperCase();
-  const err=document.getElementById('code-error');
-  if(!raw){err.textContent='Please enter your invitation code.';return;}
-  if(!CODES_MAP[raw]){err.textContent='Invalid code. Please check your invitation and try again.';return;}
-  err.textContent='';
-  currentCode=raw; currentEventIds=CODES_MAP[raw];
-  store.incUsage(raw);
+document.addEventListener('DOMContentLoaded', function() {
+  var ci = document.getElementById('code-input');
+  if (ci) ci.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitCode(); });
+});
+
+function submitCode() {
+  const raw = document.getElementById('code-input').value.trim().toUpperCase();
+  const err = document.getElementById('code-error');
+  if (!raw) { err.textContent = 'Please enter your invitation code.'; return; }
+  if (!CODES_MAP[raw]) { err.textContent = 'Invalid code. Please check your invitation and try again.'; return; }
+  err.textContent = '';
+  currentCode = raw;
+  currentEventIds = CODES_MAP[raw];
   loadGuestPage();
 }
 
 /* ══════════════════════════════════════════════
    GUEST RSVP PAGE
 ══════════════════════════════════════════════ */
-function loadGuestPage(){
+function loadGuestPage() {
   showPage('guest');
-  document.getElementById('display-code').textContent=currentCode;
+  document.getElementById('display-code').textContent = currentCode;
+  document.getElementById('guest-family-greeting').textContent = 'Dear Valued Guests';
 
-  // Try to find matching guest name
-  const guests=store.getGuests();
-  const match=guests.find(g=>codeForIds(g.events)===currentCode);
-  if(match) document.getElementById('guest-family-greeting').textContent='Dear '+match.name;
-  else document.getElementById('guest-family-greeting').textContent='Dear Valued Guests';
-
-  eventRSVPs={};
-  currentEventIds.forEach(id=>{
-    eventRSVPs[id]={attending:null,adults:2,children:0,dietary:[],dietaryOther:'',notes:''};
+  eventRSVPs = {};
+  currentEventIds.forEach(id => {
+    eventRSVPs[id] = { attending: null, adults: 2, children: 0, notes: '' };
   });
-  ['events-section','family-name-section','rsvp-summary','submit-section'].forEach(id=>{
+  ['events-section', 'family-name-section', 'rsvp-summary', 'submit-section'].forEach(id => {
     document.getElementById(id).classList.remove('hidden');
   });
   document.getElementById('success-screen').classList.add('hidden');
+  document.getElementById('family-name-error').textContent = '';
   renderEventCards();
   renderSummary();
   startCountdown();
 }
 
-function renderEventCards(){
-  const list=document.getElementById('events-list');
-  list.innerHTML='';
-  currentEventIds.forEach((id,idx)=>{
-    const evt=CONFIG.events.find(e=>e.id===id);
-    const bg=evt.color+'18';
-    const el=document.createElement('div');
-    el.className='event-card'+(idx===0?' expanded':'');
-    el.id='ecard-'+id;
-    el.innerHTML=`
-      <div class="event-card-header" onclick="toggleCard('${id}')">
-        <div class="event-icon" style="background:${bg};color:${evt.color};">${evt.icon}</div>
-        <div class="event-card-meta">
-          <div class="event-name">${evt.name}</div>
-          <div class="event-datetime">${evt.date} &nbsp;·&nbsp; ${evt.time}</div>
-          <div class="event-venue-tag">${evt.venue}</div>
-        </div>
-        <span class="event-status-badge badge-pending" id="badge-${id}">Pending</span>
-      </div>
-      <div class="event-card-body"><div class="event-card-inner">
-        <div class="attend-toggle">
-          <button class="attend-btn yes" id="yes-${id}" onclick="setAttending('${id}',true)">✓ &nbsp;Attending</button>
-          <button class="attend-btn no"  id="no-${id}"  onclick="setAttending('${id}',false)">✕ &nbsp;Decline</button>
-        </div>
-        <div id="details-${id}" class="hidden">
-          <span class="field-label">Number of Guests Attending</span>
-          <div class="guest-count-row">
-            <div class="guest-count-item">
-              <label>Adults</label>
-              <div class="counter-row">
-                <button class="counter-btn" onclick="adjCount('${id}','adults',-1)">−</button>
-                <span class="counter-val" id="adults-${id}">2</span>
-                <button class="counter-btn" onclick="adjCount('${id}','adults',1)">+</button>
-              </div>
-            </div>
-            <div class="guest-count-item">
-              <label>Children <span style="font-size:.62rem;color:var(--muted)">(under 12)</span></label>
-              <div class="counter-row">
-                <button class="counter-btn" onclick="adjCount('${id}','children',-1)">−</button>
-                <span class="counter-val" id="children-${id}">0</span>
-                <button class="counter-btn" onclick="adjCount('${id}','children',1)">+</button>
-              </div>
-            </div>
-          </div>
-          <div class="field-section">
-            <span class="field-label">Dietary Requirements</span>
-            <div class="dietary-grid">
-              ${CONFIG.dietaryOptions.map(d=>`<button class="dietary-chip" id="dc-${id}-${d.id}" onclick="toggleDiet('${id}','${d.id}')"><span style="font-size:.88rem">${d.icon}</span>${d.label}</button>`).join('')}
-            </div>
-            <textarea class="dietary-other" rows="2" placeholder="Other allergies or requirements…" oninput="eventRSVPs['${id}'].dietaryOther=this.value"></textarea>
-          </div>
-          <div class="field-section">
-            <span class="field-label">Notes for this event</span>
-            <textarea class="notes-field" placeholder="Any additional notes…" oninput="eventRSVPs['${id}'].notes=this.value"></textarea>
-          </div>
-        </div>
-      </div></div>`;
+function renderEventCards() {
+  const list = document.getElementById('events-list');
+  list.innerHTML = '';
+  currentEventIds.forEach((id, idx) => {
+    const evt = EVENTS.find(e => e.id === id);
+    if (!evt) return;
+    const bg = (evt.color || 'var(--wine)') + '18';
+    const color = evt.color || 'var(--wine)';
+    const el = document.createElement('div');
+    el.className = 'event-card' + (idx === 0 ? ' expanded' : '');
+    el.id = 'ecard-' + id;
+    el.innerHTML =
+      '<div class="event-card-header" onclick="toggleCard(\'' + id + '\')">' +
+        '<div class="event-icon" style="background:' + bg + ';color:' + color + ';">' + evt.icon + '</div>' +
+        '<div class="event-card-meta">' +
+          '<div class="event-name">' + evt.name + '</div>' +
+          '<div class="event-datetime">' + evt.date + ' &nbsp;·&nbsp; ' + evt.time + '</div>' +
+          '<div class="event-venue-tag">' + evt.venue + '</div>' +
+        '</div>' +
+        '<span class="event-status-badge badge-pending" id="badge-' + id + '">Pending</span>' +
+      '</div>' +
+      '<div class="event-card-body"><div class="event-card-inner">' +
+        '<div class="attend-toggle">' +
+          '<button class="attend-btn yes" id="yes-' + id + '" onclick="setAttending(\'' + id + '\',true)">✓ &nbsp;Attending</button>' +
+          '<button class="attend-btn no" id="no-' + id + '" onclick="setAttending(\'' + id + '\',false)">✕ &nbsp;Decline</button>' +
+        '</div>' +
+        '<div id="details-' + id + '" class="hidden">' +
+          '<span class="field-label">Number of Guests Attending</span>' +
+          '<div class="guest-count-row">' +
+            '<div class="guest-count-item"><label>Adults</label><div class="counter-row">' +
+              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',-1)">−</button>' +
+              '<span class="counter-val" id="adults-' + id + '">2</span>' +
+              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',1)">+</button>' +
+            '</div></div>' +
+            '<div class="guest-count-item"><label>Children <span style="font-size:.62rem;color:var(--muted)">(under 12)</span></label><div class="counter-row">' +
+              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',-1)">−</button>' +
+              '<span class="counter-val" id="children-' + id + '">0</span>' +
+              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',1)">+</button>' +
+            '</div></div>' +
+          '</div>' +
+          '<div class="field-section">' +
+            '<span class="field-label">Notes for this event</span>' +
+            '<textarea class="notes-field" placeholder="Any additional notes…" oninput="eventRSVPs[\'' + id + '\'].notes=this.value"></textarea>' +
+          '</div>' +
+        '</div>' +
+      '</div></div>';
     list.appendChild(el);
   });
 }
 
-function toggleCard(id){document.getElementById('ecard-'+id).classList.toggle('expanded');}
+function toggleCard(id) { document.getElementById('ecard-' + id).classList.toggle('expanded'); }
 
-function setAttending(id,val){
-  eventRSVPs[id].attending=val;
-  document.getElementById('yes-'+id).classList.toggle('active',val);
-  document.getElementById('no-'+id).classList.toggle('active',!val);
-  const badge=document.getElementById('badge-'+id);
-  const details=document.getElementById('details-'+id);
-  if(val){badge.className='event-status-badge badge-attending';badge.textContent='Attending';details.classList.remove('hidden');}
-  else{badge.className='event-status-badge badge-declined';badge.textContent='Declined';details.classList.add('hidden');}
+function setAttending(id, val) {
+  eventRSVPs[id].attending = val;
+  document.getElementById('yes-' + id).classList.toggle('active', val);
+  document.getElementById('no-' + id).classList.toggle('active', !val);
+  const badge = document.getElementById('badge-' + id);
+  const details = document.getElementById('details-' + id);
+  if (val) { badge.className = 'event-status-badge badge-attending'; badge.textContent = 'Attending'; details.classList.remove('hidden'); }
+  else { badge.className = 'event-status-badge badge-declined'; badge.textContent = 'Declined'; details.classList.add('hidden'); }
   renderSummary();
 }
 
-function adjCount(id,field,delta){
-  const r=eventRSVPs[id];
-  r[field]=Math.max(field==='adults'?1:0,r[field]+delta);
-  document.getElementById(field+'-'+id).textContent=r[field];
+function adjCount(id, field, delta) {
+  const r = eventRSVPs[id];
+  r[field] = Math.max(field === 'adults' ? 1 : 0, r[field] + delta);
+  document.getElementById(field + '-' + id).textContent = r[field];
 }
 
-function toggleDiet(id,dId){
-  const r=eventRSVPs[id], i=r.dietary.indexOf(dId);
-  if(i===-1)r.dietary.push(dId); else r.dietary.splice(i,1);
-  document.getElementById('dc-'+id+'-'+dId).classList.toggle('selected',r.dietary.includes(dId));
-}
-
-function renderSummary(){
-  const rows=document.getElementById('summary-rows');
-  rows.innerHTML='';
-  currentEventIds.forEach(id=>{
-    const evt=CONFIG.events.find(e=>e.id===id), r=eventRSVPs[id];
-    const row=document.createElement('div'); row.className='summary-row';
-    let badge='',detail='';
-    if(r.attending===null) badge='<span class="summary-status status-pending">Pending</span>';
-    else if(r.attending){badge='<span class="summary-status status-attending">Attending</span>';detail=` · ${r.adults}A ${r.children}C`;}
-    else badge='<span class="summary-status status-declined">Declined</span>';
-    row.innerHTML=`<span>${evt.icon} ${evt.name}<span style="color:var(--muted);font-size:.72rem;">${detail}</span></span>${badge}`;
+function renderSummary() {
+  const rows = document.getElementById('summary-rows');
+  rows.innerHTML = '';
+  currentEventIds.forEach(id => {
+    const evt = EVENTS.find(e => e.id === id);
+    if (!evt) return;
+    const r = eventRSVPs[id];
+    const row = document.createElement('div'); row.className = 'summary-row';
+    let badge = '', detail = '';
+    if (r.attending === null) badge = '<span class="summary-status status-pending">Pending</span>';
+    else if (r.attending) { badge = '<span class="summary-status status-attending">Attending</span>'; detail = ' · ' + r.adults + 'A ' + r.children + 'C'; }
+    else badge = '<span class="summary-status status-declined">Declined</span>';
+    row.innerHTML = '<span>' + evt.icon + ' ' + evt.name + '<span style="color:var(--muted);font-size:.72rem;">' + detail + '</span></span>' + badge;
     rows.appendChild(row);
   });
 }
 
-function submitRSVP(){
-  if(currentEventIds.some(id=>eventRSVPs[id].attending===null)){alert('Please respond to all events before submitting.');return;}
-  const familyName=(document.getElementById('family-name-input').value.trim())||'Guest Family';
-  const payload={familyName,code:currentCode,submittedAt:new Date().toISOString(),
-    events:currentEventIds.map(id=>{
-      const r=eventRSVPs[id],evt=CONFIG.events.find(e=>e.id===id);
-      return{id,name:evt.name,attending:r.attending,adults:r.attending?r.adults:0,
-             children:r.attending?r.children:0,dietary:r.dietary,dietaryOther:r.dietaryOther,notes:r.notes};
-    })};
-  store.addResponse(payload);
-  const url=store.getSheetUrl();
-  if(url) fetch(url,{method:'POST',body:JSON.stringify(payload)}).catch(()=>{});
-  ['events-section','family-name-section','rsvp-summary','submit-section'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+async function submitRSVP() {
+  const name = document.getElementById('family-name-input').value.trim();
+  if (!name) {
+    document.getElementById('family-name-error').textContent = 'Please enter your name before submitting.';
+    document.getElementById('family-name-input').focus();
+    return;
+  }
+  if (currentEventIds.some(id => eventRSVPs[id].attending === null)) {
+    alert('Please respond to all events before submitting.');
+    return;
+  }
+  const btn = document.getElementById('submit-btn');
+  btn.textContent = 'Submitting…';
+  btn.disabled = true;
+
+  const payload = {
+    submissionName: name,
+    invitationCode: currentCode,
+    submittedAt: new Date().toISOString(),
+    events: currentEventIds.map(id => {
+      const r = eventRSVPs[id];
+      const evt = EVENTS.find(e => e.id === id);
+      return {
+        id, name: evt.name, attending: r.attending,
+        adults: r.attending ? r.adults : 0,
+        children: r.attending ? r.children : 0,
+        notes: r.notes || '',
+      };
+    }),
+  };
+
+  postRSVP(payload).catch(console.error);
+
+  ['events-section', 'family-name-section', 'rsvp-summary', 'submit-section']
+    .forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('success-screen').classList.remove('hidden');
 }
 
@@ -824,7 +506,7 @@ function submitRSVP(){
 ══════════════════════════════════════════════ */
 function startCountdown(){
   function tick(){
-    const diff=new Date(CONFIG.weddingDateTime)-new Date();
+    const diff=new Date(WEDDING_DATETIME)-new Date();
     if(diff<=0)return;
     const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),
           m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
@@ -836,498 +518,7 @@ function startCountdown(){
   tick(); setInterval(tick,1000);
 }
 
-/* ══════════════════════════════════════════════
-   ADMIN AUTH
-══════════════════════════════════════════════ */
-function showAdminLogin(e){
-  e.preventDefault(); showPage('admin');
-  document.getElementById('admin-login-screen').classList.remove('hidden');
-  document.getElementById('admin-dashboard').classList.add('hidden');
-}
-document.getElementById('admin-pwd-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminPwd();});
-function checkAdminPwd(){
-  if(document.getElementById('admin-pwd-input').value===CONFIG.adminPassword){
-    document.getElementById('admin-login-screen').classList.add('hidden');
-    document.getElementById('admin-dashboard').classList.remove('hidden');
-    initAdminDashboard();
-  } else {
-    document.getElementById('admin-login-err').textContent='Incorrect password.';
-  }
-}
-function adminLogout(){
-  document.getElementById('admin-dashboard').classList.add('hidden');
-  document.getElementById('admin-login-screen').classList.remove('hidden');
-  document.getElementById('admin-pwd-input').value='';
-  document.getElementById('admin-login-err').textContent='';
-}
 
-/* ══════════════════════════════════════════════
-   ADMIN TABS
-══════════════════════════════════════════════ */
-function switchTab(name){
-  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('tab-'+name).classList.add('active');
-  if(name==='guests') renderGuestView();
-  if(name==='codes') renderCodesTab();
-  if(name==='rsvps') renderRSVPsTab();
-  if(name==='settings') renderSettingsTab();
-}
-
-function initAdminDashboard(){
-  populateEventFilters();
-  renderGuestStats();
-  renderGuestView();
-  renderSettingsTab();
-}
-
-/* ══════════════════════════════════════════════
-   GUEST MANAGEMENT — ADD / EDIT MODAL
-══════════════════════════════════════════════ */
-function populateEventFilters(){
-  const sel=document.getElementById('filter-event');
-  sel.innerHTML='<option value="">All Events</option>';
-  CONFIG.events.forEach(ev=>{sel.innerHTML+=`<option value="${ev.id}">${ev.icon} ${ev.name}</option>`;});
-}
-
-function openAddGuest(){
-  editingGuestId=null;
-  document.getElementById('modal-title').textContent='Add Guest';
-  document.getElementById('m-name').value='';
-  document.getElementById('m-phone').value='';
-  document.getElementById('m-email').value='';
-  document.getElementById('m-relationship').value='';
-  document.getElementById('m-notes').value='';
-  buildModalEventTicks([]);
-  document.getElementById('modal-code-out').textContent='—';
-  document.getElementById('guest-modal-overlay').classList.remove('hidden');
-}
-
-function openEditGuest(id){
-  const g=store.getGuests().find(g=>g.id===id);
-  if(!g)return;
-  editingGuestId=id;
-  document.getElementById('modal-title').textContent='Edit Guest';
-  document.getElementById('m-name').value=g.name||'';
-  document.getElementById('m-phone').value=g.phone||'';
-  document.getElementById('m-email').value=g.email||'';
-  document.getElementById('m-relationship').value=g.relationship||'';
-  document.getElementById('m-notes').value=g.notes||'';
-  buildModalEventTicks(g.events||[]);
-  updateModalCode();
-  document.getElementById('guest-modal-overlay').classList.remove('hidden');
-}
-
-function buildModalEventTicks(selected){
-  const grid=document.getElementById('modal-event-ticks');
-  grid.innerHTML=CONFIG.events.map(ev=>`
-    <label class="event-tick${selected.includes(ev.id)?' selected':''}">
-      <input type="checkbox" value="${ev.id}" ${selected.includes(ev.id)?'checked':''} onchange="onModalTickChange(this)"/>
-      <span>${ev.icon} ${ev.name}</span>
-    </label>`).join('');
-}
-
-function onModalTickChange(el){
-  el.closest('.event-tick').classList.toggle('selected',el.checked);
-  updateModalCode();
-}
-
-function updateModalCode(){
-  const ids=[...document.querySelectorAll('#modal-event-ticks input:checked')].map(i=>i.value);
-  document.getElementById('modal-code-out').textContent=ids.length ? codeForIds(ids) : '—';
-}
-
-function saveGuest(){
-  const name=document.getElementById('m-name').value.trim();
-  if(!name){alert('Please enter a name.');return;}
-  const ids=[...document.querySelectorAll('#modal-event-ticks input:checked')].map(i=>i.value);
-  if(!ids.length){alert('Please select at least one event.');return;}
-  const guestData={
-    name, phone:document.getElementById('m-phone').value.trim(),
-    email:document.getElementById('m-email').value.trim(),
-    relationship:document.getElementById('m-relationship').value,
-    notes:document.getElementById('m-notes').value.trim(),
-    events:ids, createdAt:new Date().toISOString(),
-  };
-  if(editingGuestId){
-    store.updateGuest(editingGuestId,guestData);
-  } else {
-    store.addGuest({...guestData,id:'g-'+Date.now()});
-  }
-  closeGuestModal();
-  renderGuestView();
-  renderGuestStats();
-}
-
-function deleteGuest(id){
-  if(!confirm('Delete this guest?'))return;
-  store.deleteGuest(id);
-  renderGuestView(); renderGuestStats();
-}
-
-function closeGuestModal(){document.getElementById('guest-modal-overlay').classList.add('hidden');}
-function closeModalOnBg(e){if(e.target===e.currentTarget){closeGuestModal();closeViewModal();}}
-
-/* ══════════════════════════════════════════════
-   GUEST VIEWS
-══════════════════════════════════════════════ */
-function setGuestView(v){
-  currentGuestView=v;
-  ['table','grouped','rsvp-status'].forEach(n=>{
-    document.getElementById('vbtn-'+n).classList.toggle('active',n===v);
-  });
-  renderGuestView();
-}
-
-function getFilteredGuests(){
-  const q=(document.getElementById('guest-search')||{value:''}).value.toLowerCase();
-  const evFilter=(document.getElementById('filter-event')||{value:''}).value;
-  const rsvpFilter=(document.getElementById('filter-rsvp')||{value:''}).value;
-  const responses=store.getResponses();
-  return store.getGuests().filter(g=>{
-    if(q && !`${g.name}${g.phone}${g.email}${g.notes}${g.relationship}`.toLowerCase().includes(q)) return false;
-    if(evFilter && !g.events.includes(evFilter)) return false;
-    if(rsvpFilter){
-      const code=codeForIds(g.events);
-      const hasRSVP=responses.some(r=>r.code===code);
-      if(rsvpFilter==='submitted'&&!hasRSVP) return false;
-      if(rsvpFilter==='pending'&&hasRSVP) return false;
-    }
-    return true;
-  });
-}
-
-function getRSVPStatus(g){
-  const code=codeForIds(g.events);
-  const responses=store.getResponses();
-  const match=responses.find(r=>r.code===code);
-  if(!match) return {label:'Pending',cls:'rsvp-pending',data:null};
-  return {label:'Submitted',cls:'rsvp-submitted',data:match};
-}
-
-function renderGuestView(){
-  const guests=getFilteredGuests();
-  const container=document.getElementById('guest-view-container');
-  if(!guests.length){container.innerHTML='<div class="empty-state">No guests found. Add one above.</div>';return;}
-
-  if(currentGuestView==='table') renderTableView(guests,container);
-  else if(currentGuestView==='grouped') renderGroupedView(guests,container);
-  else renderRSVPStatusView(guests,container);
-}
-
-function renderTableView(guests,container){
-  const rows=guests.map(g=>{
-    const code=codeForIds(g.events);
-    const rsvp=getRSVPStatus(g);
-    const dots=g.events.map(id=>{const ev=CONFIG.events.find(e=>e.id===id);return`<span class="event-dot" title="${ev.name}" style="background:${ev.color}18;color:${ev.color};">${ev.icon}</span>`;}).join('');
-    return`<tr>
-      <td><div class="guest-name">${g.name}</div><div class="guest-contact">${[g.relationship,g.phone,g.email].filter(Boolean).join(' · ')}</div></td>
-      <td>${dots}</td>
-      <td><span class="code-pill">${code}</span></td>
-      <td><span class="rsvp-pill ${rsvp.cls}">${rsvp.label}</span></td>
-      <td><div class="row-actions">
-        <button class="btn btn-icon btn-ghost" title="View" onclick="openViewGuest('${g.id}')">👁</button>
-        <button class="btn btn-icon btn-ghost" title="Edit" onclick="openEditGuest('${g.id}')">✏️</button>
-        <button class="btn btn-icon btn-ghost" title="Delete" onclick="deleteGuest('${g.id}')" style="color:var(--red)">✕</button>
-      </div></td>
-    </tr>`;
-  }).join('');
-  container.innerHTML=`<div class="admin-card" style="padding:0;overflow:hidden;">
-    <div class="guest-table-wrap">
-      <table class="guest-table">
-        <thead><tr><th>Name</th><th>Events</th><th>Code</th><th>RSVP</th><th style="text-align:right;">Actions</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  </div>`;
-}
-
-function renderGroupedView(guests,container){
-  // group by code
-  const groups={};
-  guests.forEach(g=>{
-    const code=codeForIds(g.events);
-    if(!groups[code]) groups[code]={ids:g.events,guests:[]};
-    groups[code].guests.push(g);
-  });
-
-  const html=Object.entries(groups).map(([code,{ids,guests:gs}])=>{
-    const eventDots=ids.map(id=>{const ev=CONFIG.events.find(e=>e.id===id);return`<span class="event-dot" style="background:${ev.color}22;color:${ev.color};">${ev.icon} <span style="font-size:.6rem;">${ev.name}</span></span>`;}).join('');
-    const guestRows=gs.map(g=>{
-      const rsvp=getRSVPStatus(g);
-      return`<div class="group-guest-row">
-        <div><span style="font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);">${g.name}</span>
-          ${g.relationship?`<span style="font-size:.68rem;color:var(--muted);margin-left:.4rem;">${g.relationship}</span>`:''}
-        </div>
-        <div style="display:flex;gap:.5rem;align-items:center;">
-          <span class="rsvp-pill ${rsvp.cls}">${rsvp.label}</span>
-          <button class="btn btn-icon btn-ghost" onclick="openEditGuest('${g.id}')">✏️</button>
-          <button class="btn btn-icon btn-ghost" style="color:var(--red)" onclick="deleteGuest('${g.id}')">✕</button>
-        </div>
-      </div>`;
-    }).join('');
-    const copyBtn=`<button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${code}').then(()=>alert('Copied: ${code}'))">Copy Code</button>`;
-    return`<div class="group-card">
-      <div class="group-card-header">
-        <div>
-          <div class="group-code">${code}</div>
-          <div class="group-events" style="margin-top:.3rem;">${eventDots}</div>
-        </div>
-        ${copyBtn}
-      </div>
-      <div class="group-card-body">${guestRows}</div>
-    </div>`;
-  }).join('');
-  container.innerHTML=html;
-}
-
-function renderRSVPStatusView(guests,container){
-  const submitted=guests.filter(g=>getRSVPStatus(g).cls==='rsvp-submitted');
-  const pending=guests.filter(g=>getRSVPStatus(g).cls==='rsvp-pending');
-
-  function guestCard(g){
-    const code=codeForIds(g.events);
-    const rsvp=getRSVPStatus(g);
-    const dots=g.events.map(id=>{const ev=CONFIG.events.find(e=>e.id===id);return`<span title="${ev.name}" style="font-size:.9rem;">${ev.icon}</span>`;}).join('');
-    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);gap:.5rem;">
-      <div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:.98rem;color:var(--wine);">${g.name}</div>
-        <div style="font-size:.68rem;color:var(--muted);">${g.relationship||''} ${g.phone?'· '+g.phone:''}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:.6rem;flex-shrink:0;">
-        <span style="font-size:.82rem;">${dots}</span>
-        <span class="code-pill">${code}</span>
-        ${rsvp.data?`<button class="btn btn-ghost btn-sm" onclick="openViewRSVP('${code}')">View</button>`:''}
-      </div>
-    </div>`;
-  }
-
-  container.innerHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;">
-      <div class="admin-card">
-        <div class="admin-card-title" style="color:var(--green);">✓ Submitted (${submitted.length})</div>
-        ${submitted.length?submitted.map(guestCard).join(''):'<div class="empty-state">None yet</div>'}
-      </div>
-      <div class="admin-card">
-        <div class="admin-card-title" style="color:var(--gold);">⏳ Pending (${pending.length})</div>
-        ${pending.length?pending.map(guestCard).join(''):'<div class="empty-state">All responded!</div>'}
-      </div>
-    </div>`;
-}
-
-/* ══════════════════════════════════════════════
-   VIEW GUEST DETAIL MODAL
-══════════════════════════════════════════════ */
-function openViewGuest(id){
-  const g=store.getGuests().find(g=>g.id===id);
-  if(!g)return;
-  const code=codeForIds(g.events);
-  const rsvp=getRSVPStatus(g);
-  const evtList=g.events.map(id=>{const ev=CONFIG.events.find(e=>e.id===id);return`<span class="event-dot" style="background:${ev.color}18;color:${ev.color};padding:0 .4rem;border-radius:10px;font-size:.75rem;">${ev.icon} ${ev.name}</span>`;}).join(' ');
-
-  let rsvpDetail='';
-  if(rsvp.data){
-    rsvpDetail=`<div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(0,0,0,.07);">
-      <div style="font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;color:var(--gold);margin-bottom:.65rem;text-transform:uppercase;">RSVP Response</div>
-      ${rsvp.data.events.map(ev=>`
-        <div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:.8rem;">
-          <span>${ev.name}</span>
-          <span style="color:${ev.attending?'var(--green)':'var(--red)'};">${ev.attending?`✓ ${ev.adults}A ${ev.children}C`:'✕ Declined'}</span>
-        </div>`).join('')}
-    </div>`;
-  }
-
-  document.getElementById('view-modal-title').textContent=g.name;
-  document.getElementById('view-modal-body').innerHTML=`
-    <div style="display:flex;flex-direction:column;gap:.65rem;">
-      ${g.relationship?`<div><span style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Relationship</span><p style="margin-top:.2rem;">${g.relationship}</p></div>`:''}
-      ${g.phone?`<div><span style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Phone</span><p style="margin-top:.2rem;">${g.phone}</p></div>`:''}
-      ${g.email?`<div><span style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Email</span><p style="margin-top:.2rem;">${g.email}</p></div>`:''}
-      ${g.notes?`<div><span style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Notes</span><p style="margin-top:.2rem;">${g.notes}</p></div>`:''}
-      <div><span style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Invited Events</span><div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.35rem;">${evtList}</div></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--gold-pale);padding:.7rem .9rem;border-radius:2px;">
-        <span style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.15em;color:var(--muted);text-transform:uppercase;">Invitation Code</span>
-        <div style="display:flex;align-items:center;gap:.5rem;">
-          <span style="font-family:'Cinzel',serif;font-size:1.1rem;letter-spacing:.2em;color:var(--wine);">${code}</span>
-          <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${code}').then(()=>alert('Copied!'))">Copy</button>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:.6rem;">
-        <span style="font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">RSVP Status</span>
-        <span class="rsvp-pill ${rsvp.cls}">${rsvp.label}</span>
-      </div>
-      ${rsvpDetail}
-    </div>
-    <div style="display:flex;gap:.5rem;margin-top:1.2rem;">
-      <button class="btn btn-secondary btn-sm" onclick="openEditGuest('${id}');closeViewModal()">Edit</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteGuest('${id}');closeViewModal()">Delete</button>
-    </div>`;
-  document.getElementById('view-modal-overlay').classList.remove('hidden');
-}
-
-function openViewRSVP(code){
-  const responses=store.getResponses();
-  const r=responses.find(r=>r.code===code);
-  if(!r)return;
-  document.getElementById('view-modal-title').textContent=r.familyName+' — RSVP';
-  document.getElementById('view-modal-body').innerHTML=`
-    <p style="font-size:.72rem;color:var(--muted);margin-bottom:1rem;">Submitted: ${new Date(r.submittedAt).toLocaleString()}</p>
-    ${r.events.map(ev=>`
-      <div style="border:1px solid rgba(0,0,0,.07);padding:.9rem;margin-bottom:.6rem;border-radius:2px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${ev.attending?'.5rem':'0'};">
-          <span style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--wine);">${ev.name}</span>
-          <span style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:${ev.attending?'var(--green)':'var(--red)'};">${ev.attending?'ATTENDING':'DECLINED'}</span>
-        </div>
-        ${ev.attending?`
-          <div style="font-size:.78rem;color:var(--muted);">Adults: ${ev.adults} &nbsp;·&nbsp; Children: ${ev.children}</div>
-          ${ev.dietary.length||ev.dietaryOther?`<div style="font-size:.75rem;color:var(--teal);margin-top:.3rem;">🍽 ${[...ev.dietary,ev.dietaryOther].filter(Boolean).join(', ')}</div>`:''}
-          ${ev.notes?`<div style="font-size:.75rem;color:var(--muted);margin-top:.3rem;font-style:italic;">"${ev.notes}"</div>`:''}
-        `:''}
-      </div>`).join('')}`;
-  document.getElementById('view-modal-overlay').classList.remove('hidden');
-}
-
-function closeViewModal(){document.getElementById('view-modal-overlay').classList.add('hidden');}
-
-/* ══════════════════════════════════════════════
-   GUEST STATS
-══════════════════════════════════════════════ */
-function renderGuestStats(){
-  const guests=store.getGuests();
-  const responses=store.getResponses();
-  const submitted=guests.filter(g=>responses.some(r=>r.code===codeForIds(g.events))).length;
-  const totalAdults=responses.reduce((a,r)=>a+r.events.filter(e=>e.attending).reduce((s,e)=>s+e.adults,0),0);
-  const totalChildren=responses.reduce((a,r)=>a+r.events.filter(e=>e.attending).reduce((s,e)=>s+e.children,0),0);
-  document.getElementById('guest-stats').innerHTML=`
-    <div class="stat-card"><div class="stat-num">${guests.length}</div><div class="stat-lbl">Guests</div></div>
-    <div class="stat-card"><div class="stat-num">${submitted}</div><div class="stat-lbl">RSVPd</div></div>
-    <div class="stat-card"><div class="stat-num">${guests.length-submitted}</div><div class="stat-lbl">Pending</div></div>
-    <div class="stat-card"><div class="stat-num">${totalAdults}</div><div class="stat-lbl">Adults</div></div>
-    <div class="stat-card"><div class="stat-num">${totalChildren}</div><div class="stat-lbl">Children</div></div>`;
-}
-
-/* ══════════════════════════════════════════════
-   CODES TAB
-══════════════════════════════════════════════ */
-function renderCodesTab(){
-  // Code gen ticks
-  document.getElementById('code-gen-ticks').innerHTML=CONFIG.events.map(ev=>`
-    <label class="event-tick">
-      <input type="checkbox" value="${ev.id}" onchange="updateCodeGenOut()"/>
-      <span>${ev.icon} ${ev.name}</span>
-    </label>`).join('');
-
-  // Codes table
-  const guests=store.getGuests();
-  const usage=store.getUsage();
-  document.getElementById('all-codes-tbody').innerHTML=Object.entries(CODES_MAP).map(([code,ids])=>{
-    const count=guests.filter(g=>codeForIds(g.events)===code).length;
-    const tags=ids.map(id=>{const ev=CONFIG.events.find(e=>e.id===id);return`<span style="display:inline-block;font-size:.6rem;padding:.1rem .4rem;border-radius:10px;background:${ev.color};color:#fff;margin:.1rem;">${ev.icon} ${ev.name}</span>`;}).join('');
-    return`<tr><td><span class="code-pill">${code}</span></td><td>${tags}</td><td>${count}</td><td>${usage[code]||0}</td></tr>`;
-  }).join('');
-}
-
-function updateCodeGenOut(){
-  const ids=[...document.querySelectorAll('#code-gen-ticks input:checked')].map(i=>i.value);
-  document.getElementById('gen-code-out').textContent=ids.length?codeForIds(ids):'—';
-  document.getElementById('gen-code-events').textContent=ids.length?ids.map(id=>CONFIG.events.find(e=>e.id===id).name).join(' · '):'Select events above';
-}
-function copyGenCode(){
-  const c=document.getElementById('gen-code-out').textContent;
-  if(c==='—'){alert('Select at least one event.');return;}
-  navigator.clipboard.writeText(c).then(()=>alert('Copied: '+c));
-}
-function previewGenCode(){
-  const c=document.getElementById('gen-code-out').textContent;
-  if(c==='—'){alert('Select at least one event.');return;}
-  currentCode=c; currentEventIds=CODES_MAP[c]; loadGuestPage();
-}
-
-/* ══════════════════════════════════════════════
-   RSVPs TAB
-══════════════════════════════════════════════ */
-function renderRSVPsTab(){
-  const responses=store.getResponses();
-  // Per-event breakdown
-  const breakdown=CONFIG.events.map(ev=>{
-    const attending=responses.reduce((a,r)=>{
-      const evR=r.events.find(e=>e.id===ev.id);
-      return evR&&evR.attending?a+evR.adults:a;
-    },0);
-    const declined=responses.filter(r=>r.events.find(e=>e.id===ev.id&&!e.attending)).length;
-    const pending=store.getGuests().filter(g=>g.events.includes(ev.id)&&!responses.some(r=>r.code===codeForIds(g.events))).length;
-    return`<div class="event-rsvp-card">
-      <div class="event-rsvp-header" style="background:${ev.color}12;">
-        <span style="font-size:1.2rem;">${ev.icon}</span>
-        <span class="event-rsvp-title">${ev.name}</span>
-      </div>
-      <div class="event-rsvp-stats">
-        <div class="ersvp-stat"><div class="ersvp-num" style="color:var(--green);">${attending}</div><div class="ersvp-lbl">Adults</div></div>
-        <div class="ersvp-stat"><div class="ersvp-num" style="color:var(--red);">${declined}</div><div class="ersvp-lbl">Declined</div></div>
-        <div class="ersvp-stat"><div class="ersvp-num" style="color:var(--gold);">${pending}</div><div class="ersvp-lbl">Pending</div></div>
-      </div>
-    </div>`;
-  }).join('');
-  document.getElementById('rsvp-event-breakdown').innerHTML=breakdown;
-
-  // Response list
-  if(!responses.length){
-    document.getElementById('rsvp-responses-list').innerHTML='<div class="empty-state">No responses yet.</div>';
-    return;
-  }
-  document.getElementById('rsvp-responses-list').innerHTML=responses.map((r,i)=>`
-    <div style="border:1px solid rgba(0,0,0,.07);padding:1rem 1.1rem;margin-bottom:.65rem;border-radius:2px;background:#fff;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.55rem;">
-        <div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--wine);">${r.familyName}</div>
-          <div style="font-size:.68rem;color:var(--muted);">Code: ${r.code} · ${new Date(r.submittedAt).toLocaleString()}</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="openViewRSVP('${r.code}')">View</button>
-      </div>
-      <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-        ${r.events.map(ev=>`<span class="rsvp-pill ${ev.attending?'rsvp-submitted':'badge-declined'}">${ev.name} ${ev.attending?'✓ '+ev.adults+'A':'✕'}</span>`).join('')}
-      </div>
-    </div>`).join('');
-}
-
-/* ══════════════════════════════════════════════
-   SETTINGS TAB
-══════════════════════════════════════════════ */
-function renderSettingsTab(){
-  document.getElementById('events-config-list').innerHTML=CONFIG.events.map(ev=>`
-    <div style="border:1px solid rgba(0,0,0,.07);padding:.85rem 1rem;display:flex;align-items:center;gap:.9rem;background:#faf9f7;border-radius:2px;margin-bottom:.5rem;">
-      <div style="width:9px;height:9px;border-radius:50%;background:${ev.color};flex-shrink:0;"></div>
-      <div style="flex:1;">
-        <div style="font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);">${ev.icon} ${ev.name}</div>
-        <div style="font-size:.68rem;color:var(--muted);">${ev.date} · ${ev.time}</div>
-      </div>
-      <span style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.13em;color:var(--gold);background:rgba(184,146,74,.1);padding:.15rem .5rem;border-radius:10px;">${ev.id}</span>
-    </div>`).join('');
-
-  const url=store.getSheetUrl();
-  if(url) document.getElementById('sheets-url-input').value=url;
-  document.getElementById('sheets-dot').classList.toggle('connected',!!url);
-  document.getElementById('sheets-status-text').textContent=url?'Connected — RSVPs sent to Google Sheets':'Not configured — add your Apps Script URL';
-}
-
-function saveSheetConfig(){
-  const url=document.getElementById('sheets-url-input').value.trim();
-  store.setSheetUrl(url);
-  renderSettingsTab();
-  alert(url?'Saved! Google Sheets integration active.':'Saved. Integration disabled.');
-}
-
-function clearRSVPs(){
-  if(!confirm('Clear ALL RSVP responses? This cannot be undone.'))return;
-  localStorage.removeItem('wRSVPs'); localStorage.removeItem('wUsage');
-  renderRSVPsTab(); renderGuestStats(); alert('RSVPs cleared.');
-}
-function clearGuests(){
-  if(!confirm('Delete ALL guests? This cannot be undone.'))return;
-  localStorage.removeItem('wGuests');
-  renderGuestView(); renderGuestStats(); alert('Guest list cleared.');
-}
 
 /* ══════════════════════════════════════════════
    PETALS
@@ -1341,13 +532,6 @@ function clearGuests(){
   }
 });
 
-/* ══════════════════════════════════════════════
-   URL PARAM  ?code=MW2027
-══════════════════════════════════════════════ */
-(()=>{
-  const c=(new URLSearchParams(window.location.search).get('code')||'').toUpperCase();
-  if(c&&CODES_MAP[c]){currentCode=c;currentEventIds=CODES_MAP[c];store.incUsage(c);loadGuestPage();}
-})();
 </script>
 </body>
 </html>
