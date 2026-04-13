@@ -106,7 +106,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .ersvp-lbl{font-size:.58rem;color:var(--muted);}
 .modal-overlay{position:fixed;inset:0;background:rgba(42,31,26,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:lbFade .25s ease;}
 @keyframes lbFade{from{opacity:0}to{opacity:1}}
-.modal{background:var(--card-bg);width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:2px;animation:modalUp .3s cubic-bezier(0.23,1,0.32,1);}
+.modal{background:var(--card-bg);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:2px;animation:modalUp .3s cubic-bezier(0.23,1,0.32,1);}
 @keyframes modalUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-header{padding:1.3rem 1.5rem;border-bottom:1px solid rgba(0,0,0,.07);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card-bg);z-index:1;}
 .modal-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.3rem;color:var(--wine);}
@@ -128,9 +128,11 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .upload-success{background:rgba(45,74,62,.08);border:1px solid rgba(45,74,62,.2);color:var(--green);}
 .upload-error{background:rgba(139,32,32,.06);border:1px solid rgba(139,32,32,.2);color:var(--red);}
 /* ── Allocation grid in modal ── */
-.alloc-grid{display:grid;grid-template-columns:auto 1fr 1fr;gap:.4rem .6rem;align-items:center;margin-top:.5rem;}
-.alloc-grid label{font-size:.72rem;color:var(--ink);}
-.alloc-grid input[type="number"]{width:60px;padding:.35rem .5rem;border:1px solid rgba(0,0,0,.11);border-radius:2px;font-family:'Jost',sans-serif;font-size:.8rem;}
+.alloc-grid{display:grid;grid-template-columns:1fr 80px 80px;gap:.45rem .8rem;align-items:center;margin-top:.35rem;}
+.alloc-grid .alloc-hdr{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;text-align:center;}
+.alloc-grid .alloc-evt{font-size:.78rem;color:var(--ink);display:flex;align-items:center;gap:.4rem;}
+.alloc-grid input[type="number"]{width:100%;border:1px solid rgba(0,0,0,.11);background:transparent;padding:.45rem .5rem;border-radius:2px;font-family:'Jost',sans-serif;font-size:.82rem;text-align:center;outline:none;transition:border-color .2s;}
+.alloc-grid input[type="number"]:focus{border-color:var(--gold);}
 </style></head>
 <body>
 
@@ -308,10 +310,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       </div>
       <div class="form-row" style="margin-top:.3rem;">
         <label>Invited to Events *</label>
-        <div class="event-tick-grid" id="modal-event-ticks" onchange="updateModalAllocations();updateModalCode()"></div>
+        <div class="event-tick-grid" id="modal-event-ticks"></div>
       </div>
       <div id="modal-alloc-section" class="hidden" style="margin-top:.6rem;">
-        <label style="font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;">Guest Allocations Per Event</label>
+        <label style="font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.35rem;">Guest Allocations Per Event</label>
         <div class="alloc-grid" id="modal-alloc-grid"></div>
       </div>
       <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;text-align:center;" id="modal-code-preview">
@@ -676,6 +678,13 @@ function adminLogout() {
 //   GUEST MODAL — ADD / EDIT
 // ══════════════════════════════════════════════
 
+function sanitiseValue(val) {
+  if (val === undefined || val === null) return '';
+  var s = String(val);
+  if (s.charAt(0) === '#') return '';
+  return s;
+}
+
 function openAddGuest() {
   editingGuestId = null;
   document.getElementById('m-id').value = '';
@@ -698,12 +707,12 @@ function openEditGuest(id) {
   editingGuestId = id;
   document.getElementById('m-id').value = g.id;
   document.getElementById('modal-title').textContent = 'Edit Guest';
-  document.getElementById('m-first-name').value = g.first_name || '';
-  document.getElementById('m-last-name').value = g.last_name || '';
-  document.getElementById('m-phone').value = g.phone || '';
-  document.getElementById('m-email').value = g.email || '';
-  document.getElementById('m-relationship').value = g.relationship || '';
-  document.getElementById('m-notes').value = g.notes || '';
+  document.getElementById('m-first-name').value = sanitiseValue(g.first_name);
+  document.getElementById('m-last-name').value = sanitiseValue(g.last_name);
+  document.getElementById('m-phone').value = sanitiseValue(g.phone);
+  document.getElementById('m-email').value = sanitiseValue(g.email);
+  document.getElementById('m-relationship').value = sanitiseValue(g.relationship);
+  document.getElementById('m-notes').value = sanitiseValue(g.notes);
   var gEvents = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   buildModalEventTicks(gEvents);
   updateModalAllocations(g);
@@ -751,18 +760,21 @@ function updateModalAllocations(existingGuest) {
   }
 
   section.classList.remove('hidden');
-  var html = '<div class="alloc-grid" style="font-family:\'Cinzel\',serif;font-size:.5rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;">' +
-    '<span></span><span>Adults</span><span>Children</span></div>';
+
+  // Header row (3 cells in the same grid)
+  var html = '<span></span><span class="alloc-hdr">Adults</span><span class="alloc-hdr">Children</span>';
 
   ids.forEach(function(id) {
     var ev = allEvents.find(function(e) { return e.id === id; });
-    var evName = ev ? ev.icon + ' ' + ev.name : id;
+    var evLabel = ev ? ev.icon + ' ' + ev.name : id;
     var adVal = 2, chVal = 0;
     if (existingGuest) {
-      adVal = Number(existingGuest[id + '_adults']) || 0;
-      chVal = Number(existingGuest[id + '_children']) || 0;
+      var rawAd = sanitiseValue(existingGuest[id + '_adults']);
+      var rawCh = sanitiseValue(existingGuest[id + '_children']);
+      adVal = rawAd !== '' ? Number(rawAd) || 0 : 0;
+      chVal = rawCh !== '' ? Number(rawCh) || 0 : 0;
     }
-    html += '<label>' + evName + '</label>' +
+    html += '<span class="alloc-evt">' + evLabel + '</span>' +
       '<input type="number" id="alloc-' + id + '-adults" min="0" max="99" value="' + adVal + '"/>' +
       '<input type="number" id="alloc-' + id + '-children" min="0" max="99" value="' + chVal + '"/>';
   });
