@@ -17,6 +17,26 @@
   --green:#2d4a3e; --cream:#fdf6ef; --ink:#2a1f1a; --teal:#4a7c74;
   --muted:#8a7060; --border:rgba(184,146,74,.22);
   --red:#8b2020;
+
+  /* ── Type Scale ── */
+  --text-display-xl: clamp(2.8rem, 9vw, 5.5rem);
+  --text-display-lg: clamp(2rem, 6vw, 3.2rem);
+  --text-display-md: clamp(1.5rem, 4vw, 2rem);
+  --text-display-sm: 1.25rem;
+  --text-body-lg: 1.1rem;
+  --text-body-md: 1rem;
+  --text-body-sm: 0.9rem;
+  --text-ui-md: 0.85rem;
+  --text-ui-sm: 0.78rem;
+  --text-ui-xs: 0.72rem;
+
+  /* ── Spacing Scale ── */
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1.25rem;
+  --space-lg:  2rem;
+  --space-xl:  3rem;
+  --space-2xl: 4.5rem;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;}
@@ -27,14 +47,14 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 #page-landing.active{display:flex;}
 
 /* ── BUTTONS ── */
-.btn{display:inline-flex;align-items:center;gap:.45rem;padding:.82rem 1.8rem;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;border:none;cursor:pointer;transition:all .22s;border-radius:1px;white-space:nowrap;}
+.btn{display:inline-flex;align-items:center;gap:.45rem;padding:0.85rem 1.8rem;font-family:'Cinzel',serif;font-size:var(--text-ui-md);letter-spacing:.2em;text-transform:uppercase;border:none;cursor:pointer;transition:all .22s;border-radius:1px;white-space:nowrap;min-height:48px;}
 .btn-primary{background:var(--wine);color:var(--gold-lt);}
 .btn-primary:hover{background:var(--gold);color:var(--wine);}
 .btn-secondary{background:transparent;color:var(--wine);border:1px solid var(--border);}
 .btn-secondary:hover{background:var(--blush);}
-.btn-ghost{background:transparent;color:var(--muted);padding:.45rem .9rem;font-size:.58rem;}
+.btn-ghost{background:transparent;color:var(--muted);padding:.45rem .9rem;font-size:var(--text-ui-sm);}
 .btn-ghost:hover{color:var(--wine);}
-.btn-sm{padding:.52rem 1.1rem;font-size:.58rem;}
+.btn-sm{padding:.52rem 1.1rem;font-size:var(--text-ui-sm);}
 .btn-danger{background:var(--red);color:#fde;}
 .btn-danger:hover{background:#6b1515;}
 .btn-icon{padding:.5rem;width:30px;height:30px;justify-content:center;font-size:.8rem;}
@@ -56,23 +76,26 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .petal{position:absolute;border-radius:50% 0 50% 0;opacity:0;animation:fall linear infinite;}
 @keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:0}10%{opacity:.6}90%{opacity:.3}100%{transform:translateY(100vh) rotate(360deg);opacity:0}}
 .landing-inner{position:relative;z-index:1;max-width:520px;width:100%;}
-.landing-eyebrow{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.35em;color:var(--gold);text-transform:uppercase;margin-bottom:1.4rem;opacity:0;animation:fadeUp .9s .2s forwards;}
-.landing-title{font-family:'Cormorant Garamond',serif;font-size:clamp(3rem,9vw,5.5rem);font-weight:300;font-style:italic;color:var(--wine);line-height:1.05;opacity:0;animation:fadeUp .9s .4s forwards;margin-bottom:.2rem;}
-.landing-sub{font-family:'Cinzel',serif;font-size:clamp(.72rem,2vw,.95rem);letter-spacing:.2em;color:var(--ink);opacity:0;animation:fadeUp .9s .6s forwards;margin-bottom:1.7rem;}
-.landing-date{font-family:'Cormorant Garamond',serif;font-size:clamp(1rem,2.5vw,1.3rem);color:var(--wine);letter-spacing:.08em;opacity:0;animation:fadeUp .9s .8s forwards;margin-bottom:.4rem;}
-.landing-venue{font-family:'Jost',sans-serif;font-weight:200;font-size:.8rem;letter-spacing:.12em;color:var(--teal);opacity:0;animation:fadeUp .9s 1s forwards;margin-bottom:2rem;}
-.code-box{background:rgba(253,246,239,.92);backdrop-filter:blur(8px);border:1px solid var(--border);padding:1.8rem;max-width:400px;margin:0 auto;opacity:0;animation:fadeUp .9s 1.2s forwards;position:relative;}
-.code-box::before,.code-box::after{content:'';position:absolute;width:22px;height:22px;border-color:var(--gold);border-style:solid;opacity:.35;}
-.code-box::before{top:7px;left:7px;border-width:1px 0 0 1px;}
-.code-box::after{bottom:7px;right:7px;border-width:0 1px 1px 0;}
-.code-label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.75rem;}
-.code-input-row{display:flex;gap:.55rem;}
-.code-input{flex:1;border:1px solid var(--border);background:transparent;padding:.72rem .9rem;font-family:'Cormorant Garamond',serif;font-size:1.25rem;letter-spacing:.25em;text-align:center;text-transform:uppercase;color:var(--wine);outline:none;transition:border-color .2s;}
+.landing-eyebrow{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.35em;color:var(--gold);text-transform:uppercase;margin-bottom:1.4rem;opacity:0;animation:fadeUp .9s .2s forwards;}
+.landing-title{font-family:'Cormorant Garamond',serif;font-size:var(--text-display-xl);font-weight:300;font-style:italic;color:var(--wine);line-height:1.05;opacity:0;animation:fadeUp .9s .4s forwards;margin-bottom:.2rem;}
+.landing-sub{font-family:'Cinzel',serif;font-size:var(--text-ui-md);letter-spacing:.2em;color:var(--ink);opacity:0;animation:fadeUp .9s .6s forwards;margin-bottom:1.7rem;}
+.landing-date{font-family:'Cormorant Garamond',serif;font-size:var(--text-display-sm);color:var(--wine);letter-spacing:.08em;opacity:0;animation:fadeUp .9s .8s forwards;margin-bottom:.4rem;}
+.landing-venue{font-family:'Jost',sans-serif;font-weight:200;font-size:var(--text-body-sm);letter-spacing:.12em;color:var(--teal);opacity:0;animation:fadeUp .9s 1s forwards;margin-bottom:2rem;}
+.code-box{background:rgba(253,246,239,.95);backdrop-filter:blur(8px);border:1px solid var(--border);padding:2rem;max-width:420px;margin:0 auto;opacity:0;animation:fadeUp .9s 1.2s forwards;position:relative;}
+.code-box::before,.code-box::after{content:'';position:absolute;width:24px;height:24px;border-color:var(--gold);border-style:solid;opacity:.35;}
+.code-box::before{top:8px;left:8px;border-width:1px 0 0 1px;}
+.code-box::after{bottom:8px;right:8px;border-width:0 1px 1px 0;}
+.code-box-header{text-align:center;margin-bottom:1.5rem;}
+.code-label{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.22em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.5rem;}
+.code-hint{font-size:var(--text-ui-sm);color:var(--muted);line-height:1.6;}
+.entry-form{display:flex;flex-direction:column;gap:1rem;margin-bottom:1.4rem;}
+.entry-field{display:flex;flex-direction:column;gap:.35rem;}
+.entry-label{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.16em;color:var(--wine);text-transform:uppercase;}
+.btn-enter{width:100%;justify-content:center;font-size:var(--text-ui-md);letter-spacing:.18em;}
+.code-error{font-size:var(--text-body-sm);color:var(--red);margin-top:.6rem;min-height:1.2rem;display:block;text-align:center;line-height:1.5;}
+.code-input{border:1px solid var(--border);background:transparent;padding:0.9rem 1rem;font-family:'Cormorant Garamond',serif;font-size:var(--text-display-sm);letter-spacing:.25em;text-align:center;text-transform:uppercase;color:var(--wine);outline:none;transition:border-color .2s;min-height:52px;}
 .code-input:focus{border-color:var(--gold);}
-.code-error{font-size:.73rem;color:var(--red);margin-top:.55rem;min-height:1rem;display:block;}
-.code-hint{font-size:.68rem;color:var(--muted);margin-top:.7rem;font-style:italic;}
-.name-input-row{display:flex;gap:.6rem;margin-bottom:0;}
-.name-input{flex:1;border:1px solid var(--border);background:transparent;padding:.72rem .9rem;font-family:'Jost',sans-serif;font-size:.9rem;color:var(--ink);outline:none;transition:border-color .2s;}
+.name-input{border:1px solid var(--border);background:transparent;padding:0.9rem 1rem;font-family:'Jost',sans-serif;font-size:var(--text-body-md);color:var(--ink);outline:none;transition:border-color .2s;min-height:52px;}
 .name-input:focus{border-color:var(--gold);}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 
@@ -82,80 +105,106 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 #page-guest{background:var(--cream);}
 #page-guest.active{display:block;}
 .guest-nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:.85rem 2rem;background:rgba(253,246,239,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
-.guest-nav-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.15rem;color:var(--wine);}
-.guest-nav-code{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.2em;color:var(--gold);background:rgba(184,146,74,.1);padding:.28rem .75rem;border-radius:20px;}
+.guest-nav-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--text-display-sm);color:var(--wine);}
+.guest-nav-name{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--text-body-sm);color:var(--wine);opacity:.75;}
 .guest-hero{text-align:center;padding:3.2rem 1.5rem 2.2rem;background:linear-gradient(to bottom,var(--blush),var(--cream));border-bottom:1px solid var(--border);}
-.guest-hero-welcome{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:.65rem;}
-.guest-hero-family{font-family:'Cormorant Garamond',serif;font-size:clamp(1.6rem,5vw,2.7rem);font-style:italic;color:var(--wine);margin-bottom:.38rem;}
-.guest-hero-sub{font-size:.8rem;color:var(--muted);letter-spacing:.05em;}
-.countdown-strip{background:var(--wine);padding:1.4rem;display:flex;gap:1.4rem;justify-content:center;align-items:center;flex-wrap:wrap;}
+.guest-hero-welcome{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:.65rem;}
+.guest-hero-family{font-family:'Cormorant Garamond',serif;font-size:var(--text-display-lg);font-style:italic;color:var(--wine);margin-bottom:.38rem;}
+.guest-hero-sub{font-size:var(--text-body-md);color:var(--muted);letter-spacing:.05em;}
+/* ── Welcome Banner ── */
+.welcome-banner{background:var(--gold-pale);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:1.4rem 1.5rem;}
+.welcome-banner-inner{max-width:800px;margin:0 auto;}
+.welcome-steps{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;justify-content:center;margin-bottom:1rem;}
+.welcome-step{display:flex;align-items:center;gap:.6rem;flex:1;min-width:140px;max-width:200px;}
+.welcome-step-icon{width:32px;height:32px;border-radius:50%;background:var(--wine);color:var(--gold-lt);font-family:'Cinzel',serif;font-size:.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.welcome-step-text{display:flex;flex-direction:column;gap:.15rem;}
+.welcome-step-text strong{font-family:'Jost',sans-serif;font-weight:400;font-size:var(--text-body-sm);color:var(--ink);line-height:1.3;}
+.welcome-step-text span{font-size:var(--text-ui-sm);color:var(--muted);}
+.welcome-step-divider{color:var(--gold);font-size:1.1rem;opacity:.6;flex-shrink:0;}
+@media (max-width:540px){
+  .welcome-step-divider{display:none;}
+  .welcome-steps{gap:.6rem;}
+  .welcome-step{min-width:100%;max-width:100%;}
+}
+.welcome-deadline{text-align:center;font-size:var(--text-body-sm);color:var(--muted);line-height:1.6;}
+.welcome-deadline strong{color:var(--wine);}
+/* ── Countdown Strip ── */
+.countdown-strip{background:var(--wine-d, #4a1a25);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:center;gap:1.2rem;flex-wrap:wrap;}
+.countdown-label{font-family:'Cinzel',serif;font-size:var(--text-ui-xs);letter-spacing:.18em;color:rgba(255,255,255,.45);text-transform:uppercase;}
+.countdown-inline{display:flex;align-items:center;gap:.7rem;}
 .cd-block{text-align:center;}
-.cd-num{font-family:'Cormorant Garamond',serif;font-size:clamp(1.7rem,5vw,2.7rem);font-weight:300;color:var(--gold-lt);line-height:1;display:block;}
-.cd-lbl{font-family:'Cinzel',serif;font-size:.48rem;letter-spacing:.2em;color:rgba(255,255,255,.42);text-transform:uppercase;}
-.cd-dot{color:var(--gold);opacity:.4;font-size:1.4rem;align-self:flex-start;padding-top:.2rem;}
-.events-section{max-width:800px;margin:0 auto;padding:2.8rem 1.5rem;}
-.events-section-header{text-align:center;margin-bottom:1.8rem;}
-.section-tag{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.45rem;}
-.section-title{font-family:'Cormorant Garamond',serif;font-size:clamp(1.6rem,4vw,2.4rem);font-weight:300;font-style:italic;color:var(--wine);}
-.event-card{border:1px solid var(--border);background:#fff;margin-bottom:1.3rem;overflow:hidden;transition:box-shadow .3s;}
+.cd-num{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:300;color:var(--gold-lt);line-height:1;display:block;}
+.cd-lbl{font-family:'Cinzel',serif;font-size:var(--text-ui-xs);letter-spacing:.15em;color:rgba(255,255,255,.38);text-transform:uppercase;}
+.cd-dot{color:var(--gold);opacity:.35;font-size:1rem;}
+.events-section{max-width:800px;margin:0 auto;padding:2.5rem 1.5rem 1rem;}
+.events-section-header{text-align:center;margin-bottom:2rem;}
+.section-tag{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.3em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.45rem;}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:var(--text-display-md);font-weight:300;font-style:italic;color:var(--wine);}
+.event-card{border:1px solid var(--border);background:#fff;margin-bottom:1rem;overflow:hidden;transition:box-shadow .3s;border-radius:2px;}
 .event-card:hover{box-shadow:0 5px 24px rgba(107,39,55,.08);}
-.event-card-header{display:flex;align-items:center;gap:1.1rem;padding:1.2rem 1.4rem;cursor:pointer;border-bottom:1px solid transparent;transition:border-color .2s;user-select:none;}
+.event-card-header{display:flex;align-items:center;gap:1.2rem;padding:1.4rem 1.6rem;cursor:pointer;border-bottom:1px solid transparent;transition:border-color .2s;user-select:none;}
 .event-card.expanded .event-card-header{border-bottom-color:var(--border);}
-.event-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+.event-icon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
 .event-card-meta{flex:1;}
-.event-name{font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:400;color:var(--wine);}
-.event-datetime{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.13em;color:var(--gold);margin-top:.1rem;}
-.event-venue-tag{font-size:.71rem;color:var(--muted);margin-top:.06rem;}
-.event-status-badge{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.1em;padding:.25rem .7rem;border-radius:20px;flex-shrink:0;}
+.event-name{font-family:'Cormorant Garamond',serif;font-size:var(--text-display-sm);font-weight:400;color:var(--wine);line-height:1.3;}
+.event-datetime{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.1em;color:var(--gold);margin-top:.2rem;}
+.event-venue-tag{font-size:var(--text-ui-sm);color:var(--muted);margin-top:.15rem;}
+.event-status-badge{font-family:'Cinzel',serif;font-size:var(--text-ui-xs);letter-spacing:.1em;padding:.25rem .7rem;border-radius:20px;flex-shrink:0;}
 .badge-pending{background:rgba(184,146,74,.1);color:var(--gold);}
 .badge-attending{background:rgba(45,74,62,.12);color:var(--green);}
 .badge-declined{background:rgba(139,32,32,.1);color:var(--red);}
+.card-chevron{font-size:1rem;color:var(--gold);transition:transform .3s ease;flex-shrink:0;margin-left:.3rem;}
+.event-card.expanded .card-chevron{transform:rotate(180deg);}
+.event-card-hint{font-size:var(--text-ui-xs);color:var(--muted);font-style:italic;margin-top:.12rem;}
 .event-card-body{max-height:0;overflow:hidden;transition:max-height .45s cubic-bezier(0.23,1,0.32,1);}
 .event-card.expanded .event-card-body{max-height:1000px;}
-.event-card-inner{padding:1.4rem;}
-.attend-toggle{display:flex;gap:.6rem;margin-bottom:1.4rem;}
-.attend-btn{flex:1;padding:.68rem;text-align:center;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.13em;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--muted);transition:all .2s;border-radius:1px;}
-.attend-btn.yes.active{background:var(--green);color:#fff;border-color:var(--green);}
-.attend-btn.no.active{background:var(--red);color:#fff;border-color:var(--red);}
+.event-card-inner{padding:1.6rem;}
+.attend-toggle{display:flex;gap:.8rem;margin-bottom:1.6rem;}
+.attend-btn{flex:1;padding:1rem;text-align:center;font-family:'Cinzel',serif;font-size:var(--text-ui-md);letter-spacing:.12em;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--muted);transition:all .2s;border-radius:2px;min-height:56px;font-weight:400;}
+.attend-btn.yes.active{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 2px 12px rgba(45,74,62,.25);}
+.attend-btn.no.active{background:var(--red);color:#fff;border-color:var(--red);box-shadow:0 2px 12px rgba(139,32,32,.2);}
 .attend-btn:hover:not(.active){background:var(--blush);color:var(--wine);}
-.field-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--wine);text-transform:uppercase;margin-bottom:.65rem;display:block;}
-.guest-count-row{display:flex;gap:1.1rem;flex-wrap:wrap;margin-bottom:1.3rem;}
+.field-label{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.18em;color:var(--wine);text-transform:uppercase;margin-bottom:.65rem;display:block;}
+.guest-count-row{display:flex;gap:1.4rem;flex-wrap:wrap;margin-bottom:1.5rem;}
 .guest-count-item{flex:1;min-width:105px;}
-.guest-count-item label{font-size:.7rem;color:var(--muted);display:block;margin-bottom:.32rem;}
-.counter-row{display:flex;align-items:center;gap:.45rem;}
-.counter-btn{width:28px;height:28px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:.95rem;color:var(--wine);display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
+.guest-count-item label{font-size:var(--text-body-sm);color:var(--ink);font-weight:400;display:block;margin-bottom:.5rem;}
+.counter-row{display:flex;align-items:center;gap:.75rem;}
+.counter-btn{width:44px;height:44px;border:1.5px solid var(--border);background:transparent;cursor:pointer;font-size:1.3rem;color:var(--wine);display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;border-radius:2px;}
 .counter-btn:hover{background:var(--blush);}
-.counter-val{font-family:'Cormorant Garamond',serif;font-size:1.35rem;color:var(--wine);min-width:26px;text-align:center;}
-.notes-field{width:100%;border:1px solid var(--border);background:transparent;padding:.68rem .88rem;font-family:'Jost',sans-serif;font-size:.8rem;color:var(--ink);outline:none;transition:border-color .2s;resize:vertical;min-height:62px;}
+.counter-val{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--wine);min-width:36px;text-align:center;}
+.notes-field{width:100%;border:1px solid var(--border);background:transparent;padding:0.85rem 1rem;font-family:'Jost',sans-serif;font-size:var(--text-body-md);color:var(--ink);outline:none;transition:border-color .2s;resize:vertical;min-height:80px;}
 .notes-field:focus{border-color:var(--gold);}
-.field-section{margin-bottom:1.2rem;}
+.field-section{margin-bottom:1.5rem;}
 .family-name-section{max-width:800px;margin:0 auto;padding:0 1.5rem 1.4rem;}
-.family-name-label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:var(--wine);text-transform:uppercase;display:block;margin-bottom:.45rem;}
-.family-name-input{width:100%;border:1px solid var(--border);background:#fff;padding:.85rem 1rem;font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--wine);outline:none;transition:border-color .2s;}
+.family-name-label{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.2em;color:var(--wine);text-transform:uppercase;display:block;margin-bottom:.45rem;}
+.family-name-input{width:100%;border:1px solid var(--border);background:#fff;padding:.85rem 1rem;font-family:'Cormorant Garamond',serif;font-size:var(--text-body-lg);color:var(--wine);outline:none;transition:border-color .2s;}
 .family-name-input:focus{border-color:var(--gold);}
-.rsvp-summary{max-width:800px;margin:0 auto 1.4rem;padding:0 1.5rem;}
-.summary-card{background:var(--blush);border:1px solid var(--border);padding:1.5rem;}
-.summary-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.25rem;color:var(--wine);margin-bottom:.9rem;}
-.summary-row{display:flex;justify-content:space-between;align-items:center;padding:.42rem 0;border-bottom:1px solid rgba(184,146,74,.14);font-size:.78rem;}
+.rsvp-summary{max-width:800px;margin:0 auto 1.5rem;padding:0 1.5rem;}
+.summary-card{background:var(--blush);border:1px solid var(--border);border-left:4px solid var(--gold);padding:1.6rem;}
+.summary-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--text-display-sm);color:var(--wine);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
+.summary-title::before{content:'\u2726';font-style:normal;font-size:.8rem;color:var(--gold);}
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:.65rem 0;border-bottom:1px solid rgba(184,146,74,.14);font-size:var(--text-body-sm);gap:.5rem;}
 .summary-row:last-child{border-bottom:none;}
-.summary-status{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.1em;}
+.summary-status{font-family:'Cinzel',serif;font-size:var(--text-ui-xs);letter-spacing:.1em;white-space:nowrap;}
 .status-attending{color:var(--green);}
 .status-declined{color:var(--red);}
 .status-pending{color:var(--muted);}
-.submit-section{max-width:800px;margin:0 auto;padding:0 1.5rem 4rem;text-align:center;}
-.submit-note{font-size:.76rem;color:var(--muted);margin-bottom:1.1rem;font-style:italic;}
-.success-screen{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:3rem 1.5rem;}
-.success-icon{font-size:2.8rem;margin-bottom:.9rem;}
-.success-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:clamp(2rem,5vw,2.8rem);color:var(--wine);margin-bottom:.55rem;}
-.success-sub{font-size:.84rem;color:var(--muted);line-height:1.8;max-width:360px;}
+.submit-section{max-width:800px;margin:0 auto;padding:0 1.5rem 5rem;text-align:center;}
+.submit-note{font-size:var(--text-body-sm);color:var(--muted);margin-bottom:1.4rem;line-height:1.7;}
+#submit-btn{width:100%;max-width:400px;min-height:56px;font-size:var(--text-ui-md);letter-spacing:.2em;justify-content:center;}
+.success-screen{min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:3rem 1.5rem;background:linear-gradient(to bottom,var(--blush),var(--cream));}
+.success-icon{font-size:4rem;margin-bottom:1.2rem;animation:successPop .5s cubic-bezier(0.34,1.56,0.64,1);}
+@keyframes successPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.success-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--text-display-lg);color:var(--wine);margin-bottom:.75rem;}
+.success-sub{font-size:var(--text-body-md);color:var(--muted);line-height:1.9;max-width:420px;margin-bottom:2rem;}
 
 .loading-spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;margin:1rem auto;}
 @keyframes spin{to{transform:rotate(360deg)}}
-.family-name-error{font-size:.73rem;color:var(--red);margin-top:.35rem;min-height:1rem;display:block;}
+.family-name-error{font-size:var(--text-body-sm);color:var(--red);margin-top:.35rem;min-height:1rem;display:block;}
 
 /* ── Guest Subnav ── */
 .guest-subnav{display:flex;gap:0;background:rgba(253,246,239,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);position:sticky;top:48px;z-index:45;justify-content:center;}
-.subnav-btn{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;padding:.75rem 1.6rem;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.subnav-btn{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.18em;text-transform:uppercase;padding:.75rem 1.6rem;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;min-height:48px;display:flex;align-items:center;}
 .subnav-btn:hover{color:var(--wine);}
 .subnav-btn.active{color:var(--wine);border-bottom-color:var(--gold);}
 .guest-section{display:none;}
@@ -164,22 +213,37 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 /* ── FAQ Accordion ── */
 .faq-section{max-width:800px;margin:0 auto;padding:2.8rem 1.5rem;}
 .faq-category{margin-bottom:2rem;}
-.faq-category-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-style:italic;color:var(--wine);margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);}
+.faq-category-title{font-family:'Cormorant Garamond',serif;font-size:var(--text-display-sm);font-style:italic;color:var(--wine);margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);}
 .faq-item{border:1px solid var(--border);margin-bottom:.5rem;background:#fff;overflow:hidden;}
-.faq-question{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;cursor:pointer;font-family:'Jost',sans-serif;font-size:.85rem;color:var(--ink);user-select:none;transition:background .2s;}
+.faq-question{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;cursor:pointer;font-family:'Jost',sans-serif;font-size:var(--text-ui-md);color:var(--ink);user-select:none;transition:background .2s;min-height:48px;}
 .faq-question:hover{background:var(--blush);}
-.faq-arrow{font-size:.7rem;color:var(--gold);transition:transform .25s;flex-shrink:0;}
+.faq-arrow{font-size:var(--text-ui-sm);color:var(--gold);transition:transform .25s;flex-shrink:0;}
 .faq-item.open .faq-arrow{transform:rotate(90deg);}
 .faq-answer{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(0.23,1,0.32,1);}
 .faq-item.open .faq-answer{max-height:500px;}
-.faq-answer-inner{padding:0 1.2rem 1rem;font-size:.82rem;color:var(--muted);line-height:1.7;}
+.faq-answer-inner{padding:0 1.2rem 1rem;font-size:var(--text-ui-md);color:var(--muted);line-height:1.7;}
 
 /* ── Overseas Info ── */
 .overseas-section{max-width:800px;margin:0 auto;padding:2.8rem 1.5rem;}
 .overseas-card{background:#fff;border:1px solid var(--border);padding:1.5rem;margin-bottom:1.2rem;}
-.overseas-card-title{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-style:italic;color:var(--wine);margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem;}
-.overseas-card p{font-size:.82rem;color:var(--muted);line-height:1.7;margin-bottom:.5rem;}
+.overseas-card-title{font-family:'Cormorant Garamond',serif;font-size:var(--text-body-lg);font-style:italic;color:var(--wine);margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem;}
+.overseas-card p{font-size:var(--text-ui-md);color:var(--muted);line-height:1.7;margin-bottom:.5rem;}
 .overseas-card p:last-child{margin-bottom:0;}
+
+/* ── Mobile Improvements ── */
+@media (max-width:600px){
+  .events-section{padding:1.8rem 1rem;}
+  .event-card-header{padding:1.1rem 1.1rem;}
+  .event-card-inner{padding:1.1rem;}
+  .rsvp-summary{padding:0 1rem 1rem;}
+  .submit-section{padding:0 1rem 4rem;}
+  .guest-hero{padding:2rem 1rem 1.5rem;}
+  .code-box{padding:1.5rem 1.2rem;}
+  .landing-inner{padding:0 .5rem;}
+  .attend-toggle{flex-direction:column;}
+  .attend-btn{width:100%;}
+  .guest-count-item{min-width:130px;}
+}
 </style>
 </head>
 <body>
@@ -200,27 +264,41 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
     <p class="landing-venue">Park Avenue Grand · Kochi</p>
     <div id="landing-loader" class="hidden" style="padding:1rem 0;">
       <div class="loading-spinner"></div>
-      <p style="font-size:.72rem;color:var(--muted);margin-top:.5rem;">Loading events…</p>
+      <p style="font-size:var(--text-ui-xs);color:var(--muted);margin-top:.5rem;">Loading events…</p>
     </div>
     <div id="landing-error" class="hidden" style="padding:1rem 0;">
-      <p style="font-size:.8rem;color:var(--red);">Unable to load event data. Please refresh the page.</p>
+      <p style="font-size:var(--text-body-sm);color:var(--red);">Unable to load event data. Please refresh the page.</p>
       <button class="btn btn-secondary btn-sm" onclick="location.reload()" style="margin-top:.5rem;">Retry</button>
     </div>
     <div class="code-box" id="code-box">
-      <span class="code-label">Enter Your Details</span>
-      <div class="name-input-row">
-        <input class="name-input" id="first-name-input" type="text"
-          placeholder="First Name" autocomplete="given-name"/>
-        <input class="name-input" id="last-name-input" type="text"
-          placeholder="Last Name" autocomplete="family-name"/>
+      <div class="code-box-header">
+        <span class="code-label">Access Your Invitation</span>
+        <p class="code-hint">Enter the details exactly as they appear on your invitation.</p>
       </div>
-      <div class="code-input-row" style="margin-top:.6rem;">
-        <input class="code-input" id="code-input" type="text"
-          maxlength="12" placeholder="e.g. LW2027" autocomplete="off"/>
-        <button class="btn btn-primary" id="enter-btn" onclick="submitEntry()">Enter ✦</button>
+
+      <div class="entry-form">
+        <div class="entry-field">
+          <label class="entry-label" for="first-name-input">First Name</label>
+          <input class="name-input" id="first-name-input" type="text"
+            placeholder="e.g. Priya" autocomplete="given-name"/>
+        </div>
+        <div class="entry-field">
+          <label class="entry-label" for="last-name-input">Last Name</label>
+          <input class="name-input" id="last-name-input" type="text"
+            placeholder="e.g. Sharma" autocomplete="family-name"/>
+        </div>
+        <div class="entry-field">
+          <label class="entry-label" for="code-input">Invitation Code</label>
+          <input class="code-input" id="code-input" type="text"
+            maxlength="12" placeholder="e.g. LSW2027" autocomplete="off"
+            inputmode="text"/>
+        </div>
       </div>
+
+      <button class="btn btn-primary btn-enter" id="enter-btn" onclick="submitEntry()">
+        View My Invitation ✦
+      </button>
       <span class="code-error" id="entry-error"></span>
-      <p class="code-hint">Your invitation code and name were included with your invite.</p>
     </div>
   </div>
 </div>
@@ -229,21 +307,68 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 <div id="page-guest" class="page">
   <nav class="guest-nav">
     <span class="guest-nav-title">The Wedding Day</span>
-    <span class="guest-nav-code" id="display-code"></span>
+    <span class="guest-nav-name" id="display-code"></span>
   </nav>
   <div class="guest-hero">
     <p class="guest-hero-welcome">Welcome</p>
     <h2 class="guest-hero-family" id="guest-family-greeting">Dear Valued Guests</h2>
     <p class="guest-hero-sub">You are invited to the following celebrations — please RSVP for each.</p>
   </div>
+  <div class="welcome-banner hidden" id="welcome-banner">
+    <div class="welcome-banner-inner">
+      <div class="welcome-steps">
+        <div class="welcome-step">
+          <div class="welcome-step-icon">1</div>
+          <div class="welcome-step-text">
+            <strong>Open each event card below</strong>
+            <span>Tap any event to expand it</span>
+          </div>
+        </div>
+        <div class="welcome-step-divider">&rarr;</div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">2</div>
+          <div class="welcome-step-text">
+            <strong>Confirm attending or decline</strong>
+            <span>Set your guest numbers</span>
+          </div>
+        </div>
+        <div class="welcome-step-divider">&rarr;</div>
+        <div class="welcome-step">
+          <div class="welcome-step-icon">3</div>
+          <div class="welcome-step-text">
+            <strong>Submit at the bottom</strong>
+            <span>Respond to all events first</span>
+          </div>
+        </div>
+      </div>
+      <p class="welcome-deadline">
+        &#128197; Please respond by <strong>30th November 2027</strong>
+      </p>
+    </div>
+  </div>
   <div class="countdown-strip">
-    <div class="cd-block"><span class="cd-num" id="cd-d">—</span><span class="cd-lbl">Days</span></div>
-    <div class="cd-dot">·</div>
-    <div class="cd-block"><span class="cd-num" id="cd-h">—</span><span class="cd-lbl">Hours</span></div>
-    <div class="cd-dot">·</div>
-    <div class="cd-block"><span class="cd-num" id="cd-m">—</span><span class="cd-lbl">Mins</span></div>
-    <div class="cd-dot">·</div>
-    <div class="cd-block"><span class="cd-num" id="cd-s">—</span><span class="cd-lbl">Secs</span></div>
+    <span class="countdown-label">Time until the wedding</span>
+    <div class="countdown-inline">
+      <div class="cd-block">
+        <span class="cd-num" id="cd-d">&mdash;</span>
+        <span class="cd-lbl">Days</span>
+      </div>
+      <div class="cd-dot">&middot;</div>
+      <div class="cd-block">
+        <span class="cd-num" id="cd-h">&mdash;</span>
+        <span class="cd-lbl">Hrs</span>
+      </div>
+      <div class="cd-dot">&middot;</div>
+      <div class="cd-block">
+        <span class="cd-num" id="cd-m">&mdash;</span>
+        <span class="cd-lbl">Min</span>
+      </div>
+      <div class="cd-dot">&middot;</div>
+      <div class="cd-block">
+        <span class="cd-num" id="cd-s">&mdash;</span>
+        <span class="cd-lbl">Sec</span>
+      </div>
+    </div>
   </div>
 
   <!-- Guest Subnav -->
@@ -270,14 +395,23 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
   </div>
   <div class="submit-section" id="submit-section">
     <p class="submit-note">Please confirm by 30th November 2027</p>
-    <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()" style="padding:1rem 2.4rem;">Submit RSVP ✦</button>
+    <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">Submit RSVP ✦</button>
     <span class="family-name-error hidden" id="submit-error" style="display:block;margin-top:.6rem;text-align:center;"></span>
   </div>
   <div class="success-screen hidden" id="success-screen">
-    <div class="success-icon">🌸</div>
-    <h2 class="success-title">Thank you!</h2>
-    <p class="success-sub">Your RSVP has been received. We look forward to celebrating with you.</p>
-    <a href="javascript:void(0)" class="hidden" id="overseas-success-link" onclick="showGuestSection('overseas',document.getElementById('subnav-overseas'))" style="margin-top:1rem;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.15em;color:var(--teal);text-decoration:underline;">&#9992; View Overseas Travel Info</a>
+    <div class="success-icon">&#127800;</div>
+    <h2 class="success-title">You're on the list!</h2>
+    <p class="success-sub">
+      Thank you for responding. We've received your RSVP and
+      can't wait to celebrate with you. We'll be in touch with
+      any further details closer to the date.
+    </p>
+    <div class="ornament" style="margin-bottom:2rem;">
+      <div class="ornament-line rev" style="width:40px"></div>
+      <div class="ornament-diamond"></div>
+      <div class="ornament-line" style="width:40px"></div>
+    </div>
+    <a href="javascript:void(0)" class="hidden" id="overseas-success-link" onclick="showGuestSection('overseas',document.getElementById('subnav-overseas'))" style="font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.15em;color:var(--teal);text-decoration:underline;">&#9992; View Overseas Travel Info</a>
   </div>
   <div class="success-screen hidden" id="already-submitted-screen">
     <!-- populated dynamically by showAlreadySubmittedScreen() -->
@@ -352,7 +486,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
       <div style="text-align:center;margin-bottom:2rem;">
         <span class="section-tag">&#9992; Travel Guide</span>
         <h2 class="section-title">Overseas Guest Information</h2>
-        <p style="font-size:.82rem;color:var(--muted);margin-top:.5rem;">Everything you need to know for your trip.</p>
+        <p style="font-size:var(--text-ui-md);color:var(--muted);margin-top:.5rem;">Everything you need to know for your trip.</p>
       </div>
 
       <div class="overseas-card">
@@ -540,7 +674,7 @@ async function submitEntry() {
     loadGuestPage();
   } catch (err) {
     errEl.textContent = err.message || 'Invalid details. Please check and try again.';
-    btn.textContent   = 'Enter ✦';
+    btn.textContent   = 'View My Invitation ✦';
     btn.disabled      = false;
   }
 }
@@ -550,7 +684,9 @@ async function submitEntry() {
 ══════════════════════════════════════════════ */
 function loadGuestPage() {
   showPage('guest');
-  document.getElementById('display-code').textContent = currentCode;
+  document.getElementById('display-code').textContent = currentGuest.familyName;
+  var banner = document.getElementById('welcome-banner');
+  if (banner) banner.classList.remove('hidden');
   document.getElementById('guest-family-greeting').textContent =
     'Dear ' + currentGuest.familyName;
 
@@ -654,7 +790,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
           eventRows +
         '</div>'
       : '') +
-    '<p style="font-size:.85rem;color:var(--muted);line-height:1.9;max-width:420px;margin:0 auto;">' +
+    '<p style="font-size:var(--text-body-sm);color:var(--muted);line-height:1.9;max-width:420px;margin:0 auto;">' +
       'If you need to make any changes please get in touch:<br>' +
       '<strong style="color:var(--wine);">[CONTACT EMAIL OR PHONE \u2014 edit in index.html]</strong>' +
     '</p>';
@@ -680,31 +816,41 @@ function renderEventCards() {
           '<div class="event-name">' + evt.name + '</div>' +
           '<div class="event-datetime">' + evt.date + ' &nbsp;·&nbsp; ' + evt.time + '</div>' +
           '<div class="event-venue-tag">' + evt.venue + '</div>' +
+          '<div class="event-card-hint" id="hint-' + id + '">Tap to open and respond</div>' +
         '</div>' +
         '<span class="event-status-badge badge-pending" id="badge-' + id + '">Pending</span>' +
+        '<span class="card-chevron" id="chevron-' + id + '">&#9662;</span>' +
       '</div>' +
       '<div class="event-card-body"><div class="event-card-inner">' +
         '<div class="attend-toggle">' +
-          '<button class="attend-btn yes" id="yes-' + id + '" onclick="setAttending(\'' + id + '\',true)">✓ &nbsp;Attending</button>' +
-          '<button class="attend-btn no" id="no-' + id + '" onclick="setAttending(\'' + id + '\',false)">✕ &nbsp;Decline</button>' +
+          '<button class="attend-btn yes" id="yes-' + id + '" onclick="setAttending(\'' + id + '\',true)">\u2713 &nbsp;Attending</button>' +
+          '<button class="attend-btn no" id="no-' + id + '" onclick="setAttending(\'' + id + '\',false)">\u2715 &nbsp;Decline</button>' +
         '</div>' +
         '<div id="details-' + id + '" class="hidden">' +
           '<span class="field-label">Number of Guests Attending</span>' +
+          '<div style="font-size:var(--text-ui-sm);color:var(--muted);margin-top:-.4rem;' +
+            'margin-bottom:1.2rem;line-height:1.6;">' +
+            'Your invitation includes up to <strong style="color:var(--wine);">' +
+            eventRSVPs[id].maxAdults + ' adult' + (eventRSVPs[id].maxAdults !== 1 ? 's' : '') +
+            (eventRSVPs[id].maxChildren > 0
+              ? ' and ' + eventRSVPs[id].maxChildren + ' child' + (eventRSVPs[id].maxChildren !== 1 ? 'ren' : '')
+              : '') +
+            '</strong> for this event.' +
+          '</div>' +
           '<div class="guest-count-row">' +
             '<div class="guest-count-item"><label>Adults</label><div class="counter-row">' +
-              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',-1)">−</button>' +
+              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',-1)">\u2212</button>' +
               '<span class="counter-val" id="adults-' + id + '">' + eventRSVPs[id].adults + '</span>' +
               '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',1)">+</button>' +
             '</div></div>' +
-            '<div class="guest-count-item"><label>Children <span style="font-size:.62rem;color:var(--muted)">(under 12)</span></label><div class="counter-row">' +
-              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',-1)">−</button>' +
+            '<div class="guest-count-item"><label>Children <span style="font-size:var(--text-ui-xs);color:var(--muted)">(under 12)</span></label><div class="counter-row">' +
+              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',-1)">\u2212</button>' +
               '<span class="counter-val" id="children-' + id + '">' + eventRSVPs[id].children + '</span>' +
               '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',1)">+</button>' +
             '</div></div>' +
           '</div>' +
-          '<div style="font-size:.68rem;color:var(--muted);margin-top:-.6rem;margin-bottom:1rem;font-style:italic;">Max: ' + eventRSVPs[id].maxAdults + ' adults, ' + eventRSVPs[id].maxChildren + ' children</div>' +
           (eventRSVPs[id].isUnallocated
-            ? '<div style="font-size:.78rem;color:var(--red);margin-top:.4rem;padding:.5rem .7rem;' +
+            ? '<div style="font-size:var(--text-ui-sm);color:var(--red);margin-top:.4rem;padding:.5rem .7rem;' +
               'background:rgba(139,32,32,.06);border-radius:2px;">' +
               '\u26A0 Your allocation for this event hasn\'t been set. ' +
               'Please contact us if you believe this is an error.' +
@@ -712,7 +858,7 @@ function renderEventCards() {
             : '') +
           '<div class="field-section">' +
             '<span class="field-label">Notes for this event</span>' +
-            '<textarea class="notes-field" placeholder="Any additional notes…" oninput="eventRSVPs[\'' + id + '\'].notes=this.value"></textarea>' +
+            '<textarea class="notes-field" placeholder="Any additional notes\u2026" oninput="eventRSVPs[\'' + id + '\'].notes=this.value"></textarea>' +
           '</div>' +
         '</div>' +
       '</div></div>';
@@ -726,6 +872,8 @@ function setAttending(id, val) {
   eventRSVPs[id].attending = val;
   document.getElementById('yes-' + id).classList.toggle('active', val);
   document.getElementById('no-' + id).classList.toggle('active', !val);
+  var hintEl = document.getElementById('hint-' + id);
+  if (hintEl) hintEl.style.display = 'none';
   const badge = document.getElementById('badge-' + id);
   const details = document.getElementById('details-' + id);
   if (val) { badge.className = 'event-status-badge badge-attending'; badge.textContent = 'Attending'; details.classList.remove('hidden'); }
@@ -753,7 +901,7 @@ function renderSummary() {
     if (r.attending === null) badge = '<span class="summary-status status-pending">Pending</span>';
     else if (r.attending) { badge = '<span class="summary-status status-attending">Attending</span>'; detail = ' · ' + r.adults + 'A ' + r.children + 'C'; }
     else badge = '<span class="summary-status status-declined">Declined</span>';
-    row.innerHTML = '<span>' + evt.icon + ' ' + evt.name + '<span style="color:var(--muted);font-size:.72rem;">' + detail + '</span></span>' + badge;
+    row.innerHTML = '<span>' + evt.icon + ' ' + evt.name + '<span style="color:var(--muted);font-size:var(--text-ui-xs);">' + detail + '</span></span>' + badge;
     rows.appendChild(row);
   });
 }
