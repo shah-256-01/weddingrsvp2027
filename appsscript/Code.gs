@@ -136,7 +136,7 @@ function validateGuest(code, firstName, lastName) {
     throw new Error('Code, first name and last name are required.');
   }
 
-  const guests    = getGuests();
+  const guests    = getGuests(); // already filters out DELETED by default
   const normFirst = normaliseName(firstName);
   const normLast  = normaliseName(lastName);
   const normCode  = code.toUpperCase().trim();
@@ -147,15 +147,46 @@ function validateGuest(code, firstName, lastName) {
     normaliseName(g.last_name)  === normLast
   );
 
-  if (!match) throw new Error('No matching guest found. Please check your name and code.');
+  // No match found
+  if (!match) {
+    // Check if there IS a deleted guest with these details
+    // Give a different error to avoid leaking that the guest existed
+    const allGuests = sheetToObjects(getSheet(TABS.guests));
+    const deletedMatch = allGuests.find(g =>
+      String(g.status || '').toUpperCase() === 'DELETED' &&
+      String(g.invitation_code || '').toUpperCase().trim() === normCode &&
+      normaliseName(g.first_name) === normFirst &&
+      normaliseName(g.last_name)  === normLast
+    );
+
+    if (deletedMatch) {
+      // Guest record was deleted — give a neutral error (don't reveal deletion)
+      throw new Error(
+        'We could not find your invitation. Please contact the wedding team for assistance.'
+      );
+    }
+
+    // Standard not found error
+    throw new Error(
+      'No matching guest found. Please check your name and code.'
+    );
+  }
+
+  // Double-check status on match (getGuests() should have filtered this, but be defensive)
+  if (String(match.status || '').toUpperCase() === 'DELETED') {
+    throw new Error(
+      'We could not find your invitation. Please contact the wedding team for assistance.'
+    );
+  }
 
   // Build allocations object per event
-  const eventIds = String(match.events).split(',')
-    .map(s => s.trim()).filter(Boolean)
-    .sort((a, b) => a.localeCompare(b));
+  const eventIds = String(match.events || '').split(',')
+    .map(function(s) { return s.trim(); })
+    .filter(Boolean)
+    .sort(function(a, b) { return a.localeCompare(b); });
 
   const allocations = {};
-  eventIds.forEach(id => {
+  eventIds.forEach(function(id) {
     allocations[id] = {
       adults:   Number(match[id + '_adults'])   || 0,
       children: Number(match[id + '_children']) || 0,
