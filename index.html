@@ -152,6 +152,34 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .loading-spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;margin:1rem auto;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .family-name-error{font-size:.73rem;color:var(--red);margin-top:.35rem;min-height:1rem;display:block;}
+
+/* ── Guest Subnav ── */
+.guest-subnav{display:flex;gap:0;background:rgba(253,246,239,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);position:sticky;top:48px;z-index:45;justify-content:center;}
+.subnav-btn{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;padding:.75rem 1.6rem;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.subnav-btn:hover{color:var(--wine);}
+.subnav-btn.active{color:var(--wine);border-bottom-color:var(--gold);}
+.guest-section{display:none;}
+.guest-section.active{display:block;}
+
+/* ── FAQ Accordion ── */
+.faq-section{max-width:800px;margin:0 auto;padding:2.8rem 1.5rem;}
+.faq-category{margin-bottom:2rem;}
+.faq-category-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-style:italic;color:var(--wine);margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);}
+.faq-item{border:1px solid var(--border);margin-bottom:.5rem;background:#fff;overflow:hidden;}
+.faq-question{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;cursor:pointer;font-family:'Jost',sans-serif;font-size:.85rem;color:var(--ink);user-select:none;transition:background .2s;}
+.faq-question:hover{background:var(--blush);}
+.faq-arrow{font-size:.7rem;color:var(--gold);transition:transform .25s;flex-shrink:0;}
+.faq-item.open .faq-arrow{transform:rotate(90deg);}
+.faq-answer{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(0.23,1,0.32,1);}
+.faq-item.open .faq-answer{max-height:500px;}
+.faq-answer-inner{padding:0 1.2rem 1rem;font-size:.82rem;color:var(--muted);line-height:1.7;}
+
+/* ── Overseas Info ── */
+.overseas-section{max-width:800px;margin:0 auto;padding:2.8rem 1.5rem;}
+.overseas-card{background:#fff;border:1px solid var(--border);padding:1.5rem;margin-bottom:1.2rem;}
+.overseas-card-title{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-style:italic;color:var(--wine);margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem;}
+.overseas-card p{font-size:.82rem;color:var(--muted);line-height:1.7;margin-bottom:.5rem;}
+.overseas-card p:last-child{margin-bottom:0;}
 </style>
 </head>
 <body>
@@ -217,6 +245,16 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
     <div class="cd-dot">·</div>
     <div class="cd-block"><span class="cd-num" id="cd-s">—</span><span class="cd-lbl">Secs</span></div>
   </div>
+
+  <!-- Guest Subnav -->
+  <div class="guest-subnav" id="guest-subnav">
+    <button class="subnav-btn active" onclick="showGuestSection('rsvp',this)">RSVP</button>
+    <button class="subnav-btn" onclick="showGuestSection('faq',this)">FAQ</button>
+    <button class="subnav-btn hidden" id="subnav-overseas" onclick="showGuestSection('overseas',this)">&#9992; Overseas Info</button>
+  </div>
+
+  <!-- ═══ RSVP Section ═══ -->
+  <div class="guest-section active" id="section-rsvp">
   <div class="events-section" id="events-section">
     <div class="events-section-header">
       <span class="section-tag">Your Invitations</span>
@@ -238,7 +276,112 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
     <div class="success-icon">🌸</div>
     <h2 class="success-title">Thank you!</h2>
     <p class="success-sub">Your RSVP has been received. We look forward to celebrating with you.</p>
+    <a href="javascript:void(0)" class="hidden" id="overseas-success-link" onclick="showGuestSection('overseas',document.getElementById('subnav-overseas'))" style="margin-top:1rem;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.15em;color:var(--teal);text-decoration:underline;">&#9992; View Overseas Travel Info</a>
   </div>
+  </div><!-- /section-rsvp -->
+
+  <!-- ═══ FAQ Section ═══ -->
+  <div class="guest-section" id="section-faq">
+    <div class="faq-section">
+      <div style="text-align:center;margin-bottom:2rem;">
+        <span class="section-tag">Information</span>
+        <h2 class="section-title">Frequently Asked Questions</h2>
+      </div>
+
+      <div class="faq-category">
+        <div class="faq-category-title">Events</div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>What is the dress code?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe dress code for each event, e.g. traditional attire for the wedding ceremony, smart casual for Meet &amp; Greet, formal for Black Tie, etc.]</div></div>
+        </div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>What time should I arrive?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide suggested arrival times for each event. The exact times are shown on each RSVP card.]</div></div>
+        </div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>Are children welcome?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe your children policy, e.g. children are welcome at all events, or specify age limits.]</div></div>
+        </div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>Can I bring a plus-one?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — explain your plus-one policy, e.g. guest allocations are set per invitation.]</div></div>
+        </div>
+      </div>
+
+      <div class="faq-category">
+        <div class="faq-category-title">Getting There</div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>Where is the venue?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide venue address, Google Maps link, and any landmarks to look for.]</div></div>
+        </div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>Is parking available?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe parking options, valet services, or alternative transport.]</div></div>
+        </div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>Is there accommodation nearby?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — list nearby hotels, group rates if available, or accommodation blocks you have reserved.]</div></div>
+        </div>
+      </div>
+
+      <div class="faq-category">
+        <div class="faq-category-title">General</div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>When is the RSVP deadline?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — e.g. Please respond by 30th November 2027 so we can finalise arrangements.]</div></div>
+        </div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>What if I need to change my RSVP?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — explain how guests can update their RSVP, e.g. contact the couple directly.]</div></div>
+        </div>
+        <div class="faq-item" onclick="toggleFAQ(this)">
+          <div class="faq-question"><span>Who should I contact with questions?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide a contact name, phone number, or email for wedding queries.]</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Overseas Info Section ═══ -->
+  <div class="guest-section hidden" id="section-overseas">
+    <div class="overseas-section">
+      <div style="text-align:center;margin-bottom:2rem;">
+        <span class="section-tag">&#9992; Travel Guide</span>
+        <h2 class="section-title">Overseas Guest Information</h2>
+        <p style="font-size:.82rem;color:var(--muted);margin-top:.5rem;">Everything you need to know for your trip.</p>
+      </div>
+
+      <div class="overseas-card">
+        <div class="overseas-card-title">&#128274; Visas &amp; Entry</div>
+        <p>[Placeholder — describe visa requirements for your country, e.g. most nationalities can get a visa on arrival or need to apply for an e-visa in advance. Include links to official visa portals.]</p>
+        <p>[Placeholder — mention passport validity requirements, e.g. passport must be valid for at least 6 months from date of travel.]</p>
+      </div>
+
+      <div class="overseas-card">
+        <div class="overseas-card-title">&#127976; Accommodation</div>
+        <p>[Placeholder — list recommended hotels near the venue, any group rates negotiated, booking links, and check-in/check-out dates to aim for.]</p>
+        <p>[Placeholder — mention if you have arranged a hotel block and how guests can reserve rooms.]</p>
+      </div>
+
+      <div class="overseas-card">
+        <div class="overseas-card-title">&#128663; Getting Around</div>
+        <p>[Placeholder — describe airport transfers, local transport options like taxis, ride-hailing apps, or shuttle services you plan to arrange.]</p>
+        <p>[Placeholder — mention the nearest international airport and approximate travel time to the venue.]</p>
+      </div>
+
+      <div class="overseas-card">
+        <div class="overseas-card-title">&#128178; Currency &amp; Practical</div>
+        <p>[Placeholder — describe local currency, ATM availability, credit card acceptance, tipping customs, and useful apps to download.]</p>
+        <p>[Placeholder — mention weather expectations for the wedding dates and what to pack.]</p>
+      </div>
+
+      <div class="overseas-card">
+        <div class="overseas-card-title">&#128222; Need Help?</div>
+        <p>[Placeholder — provide a dedicated contact for overseas guests, e.g. a family member or wedding coordinator who can help with travel queries, airport pickups, etc.]</p>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -385,6 +528,19 @@ function loadGuestPage() {
   document.getElementById('display-code').textContent = currentCode;
   document.getElementById('guest-family-greeting').textContent =
     'Dear ' + currentGuest.familyName;
+
+  // Show/hide overseas subnav tab
+  if (currentGuest.isOverseas) {
+    document.getElementById('subnav-overseas').classList.remove('hidden');
+    document.getElementById('section-overseas').classList.remove('hidden');
+  } else {
+    document.getElementById('subnav-overseas').classList.add('hidden');
+    document.getElementById('section-overseas').classList.add('hidden');
+  }
+
+  // Reset to RSVP tab
+  showGuestSection('rsvp', document.querySelector('.subnav-btn'));
+
   eventRSVPs = {};
   currentEventIds.forEach(id => {
     var alloc = (currentGuest.allocations && currentGuest.allocations[id]) || {};
@@ -521,6 +677,24 @@ async function submitRSVP() {
   ['events-section', 'rsvp-summary', 'submit-section']
     .forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('success-screen').classList.remove('hidden');
+  if (currentGuest && currentGuest.isOverseas) {
+    document.getElementById('overseas-success-link').classList.remove('hidden');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   SUBNAV & FAQ
+══════════════════════════════════════════════ */
+function showGuestSection(name, btn) {
+  document.querySelectorAll('.guest-section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('.subnav-btn').forEach(function(b) { b.classList.remove('active'); });
+  var section = document.getElementById('section-' + name);
+  if (section) section.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function toggleFAQ(item) {
+  item.classList.toggle('open');
 }
 
 /* ══════════════════════════════════════════════

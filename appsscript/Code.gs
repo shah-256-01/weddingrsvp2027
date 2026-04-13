@@ -49,16 +49,18 @@ function doPost(e) {
     const body    = JSON.parse(e.postData.contents);
     const { action, payload = {} } = body;
     let result;
-    if      (action === 'submitRSVP')   result = submitRSVP(payload);
-    else if (action === 'addGuest')     result = addGuest(payload);
-    else if (action === 'updateGuest')  result = updateGuest(payload);
-    else if (action === 'deleteGuest')  result = deleteGuest(payload);
-    else if (action === 'bulkAddGuests') result = bulkAddGuests(payload);
-    else if (action === 'getGuests')    result = getGuests();
-    else if (action === 'getStats')     result = getStats();
+    if      (action === 'submitRSVP')       result = submitRSVP(payload);
+    else if (action === 'addGuest')         result = addGuest(payload);
+    else if (action === 'updateGuest')      result = updateGuest(payload);
+    else if (action === 'deleteGuest')      result = deleteGuest(payload);
+    else if (action === 'restoreGuest')     result = restoreGuest(payload);
+    else if (action === 'bulkAddGuests')    result = bulkAddGuests(payload);
+    else if (action === 'getGuests')        result = getGuests();
+    else if (action === 'getDeletedGuests') result = getDeletedGuests();
+    else if (action === 'getStats')         result = getStats();
     else if (action === 'getDuplicates')    result = getDuplicates();
     else if (action === 'getSubmittedCodes') result = getSubmittedCodes();
-    else if (action === 'checkPin')     result = { ok: String(payload.pin) === String(ADMIN_PIN) };
+    else if (action === 'checkPin')         result = { ok: String(payload.pin) === String(ADMIN_PIN) };
     else throw new Error('Unknown action: ' + action);
     return jsonResponse({ ok: true, data: result });
   } catch (err) {
@@ -98,7 +100,7 @@ function findRowById(sheet, id) {
 }
 
 function guestHeaders() {
-  const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code'];
+  const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
   const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children']);
   return [...fixed, ...alloc];
 }
@@ -142,15 +144,25 @@ function validateGuest(code, firstName, lastName) {
     familyName:     match.first_name + ' ' + match.last_name,
     invitationCode: match.invitation_code,
     events:         eventIds,
-    allocations,    // { L: { adults: 4, children: 2 }, W: { adults: 4, children: 0 }, ... }
+    allocations,
+    isOverseas:     String(match.is_overseas).toUpperCase() === 'TRUE',
   };
 }
 
 // ── getGuests ─────────────────────────────────────────────
-function getGuests() {
+function getGuests(includeDeleted) {
   const sheet = getSheet(TABS.guests);
   if (sheet.getLastRow() < 1) return [];
-  return sheetToObjects(sheet);
+  const all = sheetToObjects(sheet);
+  if (includeDeleted) return all;
+  return all.filter(g => String(g.status).toUpperCase() !== 'DELETED');
+}
+
+// ── getDeletedGuests ─────────────────────────────────────
+function getDeletedGuests() {
+  const sheet = getSheet(TABS.guests);
+  if (sheet.getLastRow() < 1) return [];
+  return sheetToObjects(sheet).filter(g => String(g.status).toUpperCase() === 'DELETED');
 }
 
 // ── addGuest ──────────────────────────────────────────────
@@ -193,13 +205,76 @@ function updateGuest(payload) {
   return { ...payload };
 }
 
-// ── deleteGuest ───────────────────────────────────────────
+// ── deleteGuest (soft delete) ─────────────────────────────
 function deleteGuest(payload) {
   const sheet  = getSheet(TABS.guests);
   const rowNum = findRowById(sheet, payload.id);
   if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
-  sheet.deleteRow(rowNum);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const statusCol = headers.indexOf('status');
+  if (statusCol === -1) throw new Error('status column not found — run setupSheet first');
+  sheet.getRange(rowNum, statusCol + 1).setValue('DELETED');
+  const codeCol = headers.indexOf('invitation_code');
+  if (codeCol > -1) {
+    const code = sheet.getRange(rowNum, codeCol + 1).getValue();
+    if (code) markRSVPRowsDeleted(String(code));
+  }
   return { deleted: true, id: payload.id };
+}
+
+function markRSVPRowsDeleted(invitationCode) {
+  [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
+    try {
+      const sheet = getSheet(tabName);
+      if (sheet.getLastRow() < 2) return;
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const statusIdx = headers.indexOf('status');
+      const codeIdx   = headers.indexOf('invitation_code');
+      if (statusIdx === -1 || codeIdx === -1) return;
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][codeIdx]) === invitationCode) {
+          sheet.getRange(i + 1, statusIdx + 1).setValue('DELETED');
+        }
+      }
+    } catch (e) { /* tab may not exist yet */ }
+  });
+}
+
+// ── restoreGuest ─────────────────────────────────────────
+function restoreGuest(payload) {
+  const sheet  = getSheet(TABS.guests);
+  const rowNum = findRowById(sheet, payload.id);
+  if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const statusCol = headers.indexOf('status');
+  if (statusCol === -1) throw new Error('status column not found');
+  sheet.getRange(rowNum, statusCol + 1).setValue('');
+  const codeCol = headers.indexOf('invitation_code');
+  if (codeCol > -1) {
+    const code = sheet.getRange(rowNum, codeCol + 1).getValue();
+    if (code) restoreRSVPRows(String(code));
+  }
+  return { restored: true, id: payload.id };
+}
+
+function restoreRSVPRows(invitationCode) {
+  [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
+    try {
+      const sheet = getSheet(tabName);
+      if (sheet.getLastRow() < 2) return;
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const statusIdx = headers.indexOf('status');
+      const codeIdx   = headers.indexOf('invitation_code');
+      if (statusIdx === -1 || codeIdx === -1) return;
+      const data = sheet.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][codeIdx]) === invitationCode) {
+          sheet.getRange(i + 1, statusIdx + 1).setValue('');
+        }
+      }
+    } catch (e) { /* tab may not exist yet */ }
+  });
 }
 
 // ── bulkAddGuests ─────────────────────────────────────────
@@ -249,7 +324,7 @@ function submitRSVP(payload) {
   if (byEventSheet.getLastRow() < 1) {
     byEventSheet.appendRow([
       'timestamp','submission_name','invitation_code',
-      'event_id','event_name','attending','adults','children','notes'
+      'event_id','event_name','attending','adults','children','notes','status'
     ]);
   }
   events.forEach(ev => {
@@ -260,6 +335,7 @@ function submitRSVP(payload) {
       ev.attending ? (ev.adults   || 0) : 0,
       ev.attending ? (ev.children || 0) : 0,
       ev.notes || '',
+      '',
     ]);
   });
 
@@ -267,7 +343,7 @@ function submitRSVP(payload) {
   const byFamilySheet = getSheet(TABS.rsvpByFamily);
   let headers;
   if (byFamilySheet.getLastRow() < 1) {
-    headers = ['timestamp','submission_name','invitation_code'];
+    headers = ['timestamp','submission_name','invitation_code','status'];
     events.forEach(ev => {
       headers.push(
         ev.name + ' Attending', ev.name + ' Adults',
@@ -279,6 +355,11 @@ function submitRSVP(payload) {
     headers = byFamilySheet
       .getRange(1, 1, 1, byFamilySheet.getLastColumn())
       .getValues()[0];
+    // Ensure status column exists
+    if (!headers.includes('status')) {
+      byFamilySheet.getRange(1, headers.length + 1).setValue('status');
+      headers.push('status');
+    }
     events.forEach(ev => {
       [' Attending',' Adults',' Children',' Notes'].forEach(suffix => {
         const col = ev.name + suffix;
@@ -316,15 +397,21 @@ function getRSVPsByFamily() {
 
 // ── getStats ──────────────────────────────────────────────
 function getStats() {
-  const guests   = getGuests();
-  const byEvent  = sheetToObjects(getSheet(TABS.rsvpByEvent));
-  const byFamily = sheetToObjects(getSheet(TABS.rsvpByFamily));
+  const guests   = getGuests();                // already excludes DELETED
+  const activeGuestCodes = new Set(guests.map(g => g.invitation_code));
+
+  const byEventAll  = sheetToObjects(getSheet(TABS.rsvpByEvent));
+  const byFamilyAll = sheetToObjects(getSheet(TABS.rsvpByFamily));
+
+  // Filter out DELETED RSVP rows
+  const byEvent  = byEventAll.filter(r => String(r.status).toUpperCase() !== 'DELETED');
+  const byFamily = byFamilyAll.filter(r => String(r.status).toUpperCase() !== 'DELETED');
 
   // ── Deduplicate submissions ──────────────────────────
-  // If same code submitted twice, keep only the most recent
   const latestByCode = {};
   byFamily.forEach(row => {
     const code = row.invitation_code;
+    if (!activeGuestCodes.has(code)) return;   // orphaned submission
     if (
       !latestByCode[code] ||
       new Date(row.timestamp) > new Date(latestByCode[code].timestamp)
@@ -336,8 +423,6 @@ function getStats() {
   const submittedCodes     = new Set(dedupedSubmissions.map(r => r.invitation_code));
 
   // ── Overall guest counts ─────────────────────────────
-  // Use the highest allocation across any single event as their "total"
-  // This avoids counting the same person multiple times across events
   let totalInvitedAdults = 0, totalInvitedChildren = 0;
   guests.forEach(g => {
     let maxAdults = 0, maxChildren = 0;
@@ -367,7 +452,6 @@ function getStats() {
     };
   });
 
-  // Count invited per event from Guests sheet
   guests.forEach(g => {
     const eventIds = String(g.events || '').split(',').map(s => s.trim()).filter(Boolean);
     eventIds.forEach(id => {
@@ -378,9 +462,8 @@ function getStats() {
     });
   });
 
-  // Count attending per event from RSVPs_by_event (deduped)
+  // Deduplicate byEvent rows — keep only rows whose code is in dedupedSubmissions
   const dedupedEventCodes = new Set(dedupedSubmissions.map(r => r.invitation_code));
-  let confirmedAdults = 0, confirmedChildren = 0;
 
   byEvent.forEach(row => {
     const id   = row.event_id;
@@ -397,7 +480,6 @@ function getStats() {
     }
   });
 
-  // Count pending per event
   EVENT_IDS.forEach(id => {
     const invitedCodes = new Set(
       guests
@@ -408,11 +490,10 @@ function getStats() {
     invitedCodes.forEach(code => {
       if (!submittedCodes.has(code)) pending++;
     });
-    perEvent[id].pending = pending;
+    perEvent[id].pending = Math.max(0, pending);
   });
 
   // Confirmed adults/children — avoid double counting across events
-  // Use per-family max attending across events
   const allEventsData = getEvents();
   let finalConfirmedAdults = 0, finalConfirmedChildren = 0;
   dedupedSubmissions.forEach(row => {
@@ -432,12 +513,12 @@ function getStats() {
   return {
     totalGuests:           guests.length,
     rsvpd:                 submittedCodes.size,
-    pending:               guests.length - submittedCodes.size,
+    pending:               Math.max(0, guests.length - submittedCodes.size),
     totalInvitedAdults,
     totalInvitedChildren,
     confirmedAdults:       finalConfirmedAdults,
     confirmedChildren:     finalConfirmedChildren,
-    duplicates:            byFamily.length - dedupedSubmissions.length,
+    duplicates:            Math.max(0, byFamily.length - dedupedSubmissions.length),
     perEvent:              Object.values(perEvent),
   };
 }
@@ -446,7 +527,7 @@ function getStats() {
 function getDuplicates() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
-  const rows    = sheetToObjects(sheet);
+  const rows    = sheetToObjects(sheet).filter(r => String(r.status).toUpperCase() !== 'DELETED');
   const counts  = {};
   const byCode  = {};
 
@@ -476,11 +557,11 @@ function getDuplicates() {
 }
 
 // ── getSubmittedCodes ─────────────────────────────────────
-// Returns deduped list of invitation codes that have at least one RSVP
+// Returns deduped list of invitation codes that have at least one active RSVP
 function getSubmittedCodes() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
-  const rows = sheetToObjects(sheet);
+  const rows = sheetToObjects(sheet).filter(r => String(r.status).toUpperCase() !== 'DELETED');
   const latest = {};
   rows.forEach(r => {
     const code = r.invitation_code;
@@ -529,9 +610,22 @@ function setupSheet() {
     evRSVP = ss.insertSheet(TABS.rsvpByEvent);
     evRSVP.appendRow([
       'timestamp','submission_name','invitation_code',
-      'event_id','event_name','attending','adults','children','notes'
+      'event_id','event_name','attending','adults','children','notes','status'
     ]);
   }
 
+  // Ensure status column exists on all data tabs
+  ensureStatusColumn(gSheet);
+  ensureStatusColumn(ss.getSheetByName(TABS.rsvpByFamily));
+  ensureStatusColumn(evRSVP);
+
   Logger.log('Setup complete. All tabs ready.');
+}
+
+function ensureStatusColumn(sheet) {
+  if (!sheet || sheet.getLastRow() < 1) return;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (!headers.includes('status')) {
+    sheet.getRange(1, headers.length + 1).setValue('status');
+  }
 }

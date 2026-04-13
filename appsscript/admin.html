@@ -152,6 +152,17 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .dup-code{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--red);margin-bottom:.35rem;}
 .dup-sub{font-size:.72rem;padding:.25rem 0;border-bottom:1px solid rgba(0,0,0,.04);}
 .stat-num.danger{color:var(--red);}
+/* ── Deleted guests section ── */
+.deleted-section{margin-top:1.4rem;}
+.deleted-toggle{display:flex;align-items:center;gap:.5rem;cursor:pointer;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:.6rem 0;border:none;background:none;transition:color .2s;}
+.deleted-toggle:hover{color:var(--wine);}
+.deleted-toggle .arrow{transition:transform .2s;display:inline-block;}
+.deleted-toggle.open .arrow{transform:rotate(90deg);}
+.deleted-list{max-height:0;overflow:hidden;transition:max-height .4s ease;}
+.deleted-list.open{max-height:2000px;}
+.deleted-guest-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem .8rem;border-bottom:1px solid rgba(0,0,0,.05);font-size:.78rem;opacity:.6;}
+.deleted-guest-row:hover{opacity:1;}
+.overseas-badge{font-size:.65rem;background:rgba(74,124,116,.12);color:var(--teal);padding:.1rem .4rem;border-radius:10px;margin-left:.35rem;white-space:nowrap;}
 </style></head>
 <body>
 
@@ -215,6 +226,11 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <option value="">All RSVP Status</option>
         <option value="submitted">Submitted</option>
         <option value="pending">Pending</option>
+      </select>
+      <select id="filter-overseas" onchange="applyFilters()">
+        <option value="">All Guests</option>
+        <option value="overseas">Overseas Only</option>
+        <option value="local">Local Only</option>
       </select>
     </div>
 
@@ -329,6 +345,12 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         </div>
       </div>
       <div class="form-row" style="margin-top:.3rem;">
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;">
+          <input type="checkbox" id="m-overseas" style="accent-color:var(--teal);width:14px;height:14px;"/>
+          <span style="font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;">&#127757; Overseas Guest</span>
+        </label>
+      </div>
+      <div class="form-row" style="margin-top:.3rem;">
         <label>Invited to Events *</label>
         <div class="event-tick-grid" id="modal-event-ticks"></div>
       </div>
@@ -369,6 +391,7 @@ var allEvents = [];
 var allGuests = [];
 var allRSVPs = [];
 var allDuplicates = [];
+var allDeletedGuests = [];
 var allStats = {};
 var allSubmittedCodes = new Set();
 var currentView = 'list';
@@ -513,7 +536,16 @@ function loadGuests() {
               google.script.run
                 .withSuccessHandler(function(dups) {
                   allDuplicates = dups || [];
-                  renderGuestView();
+                  google.script.run
+                    .withSuccessHandler(function(del) {
+                      allDeletedGuests = del || [];
+                      renderGuestView();
+                    })
+                    .withFailureHandler(function() {
+                      allDeletedGuests = [];
+                      renderGuestView();
+                    })
+                    .getDeletedGuests();
                 })
                 .withFailureHandler(function() {
                   allDuplicates = [];
@@ -544,12 +576,16 @@ function getFilteredGuests() {
   var search = (document.getElementById('guest-search').value || '').toLowerCase();
   var rel = document.getElementById('filter-relationship').value;
   var rsvpFilter = document.getElementById('filter-rsvp').value;
+  var overseasFilter = document.getElementById('filter-overseas').value;
   return allGuests.filter(function(g) {
     var fullName = ((g.first_name || '') + ' ' + (g.last_name || '')).toLowerCase();
     if (search && fullName.indexOf(search) === -1) return false;
     if (rel && g.relationship !== rel) return false;
     if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
     if (rsvpFilter === 'pending' && allSubmittedCodes.has(g.invitation_code)) return false;
+    var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
+    if (overseasFilter === 'overseas' && !isOverseas) return false;
+    if (overseasFilter === 'local' && isOverseas) return false;
     return true;
   });
 }
@@ -581,10 +617,12 @@ function renderTableView(guests, container) {
     var rsvpCls = submitted ? 'rsvp-pill rsvp-submitted' : 'rsvp-pill rsvp-pending';
     var rsvpLabel = submitted ? 'Submitted' : 'Pending';
     var dots = buildEventDots(g);
+    var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
+    var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757; Overseas</span>' : '';
     var contactParts = [g.relationship, g.phone, g.email].filter(Boolean).join(' &middot; ');
 
     return '<tr>' +
-      '<td><div class="guest-name">' + fullName + '</div>' +
+      '<td><div class="guest-name">' + fullName + overseasBadge + '</div>' +
         '<div class="guest-contact">' + contactParts + '</div></td>' +
       '<td>' + dots + '</td>' +
       '<td><span class="code-pill">' + code + '</span></td>' +
@@ -600,7 +638,8 @@ function renderTableView(guests, container) {
     '<div class="admin-card" style="padding:0;overflow:hidden;"><div class="guest-table-wrap">' +
     '<table class="guest-table"><thead><tr>' +
     '<th>Name</th><th>Events</th><th>Code</th><th>RSVP Status</th><th style="text-align:right;">Actions</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></div>' +
+    renderDeletedSection();
 }
 
 // ── Grouped (By Code) View ─────────────────
@@ -627,8 +666,10 @@ function renderGroupedView(guests, container) {
       var submitted = isSubmitted(g);
       var rsvpCls = submitted ? 'rsvp-pill rsvp-submitted' : 'rsvp-pill rsvp-pending';
       var rsvpLabel = submitted ? 'Submitted' : 'Pending';
+      var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
+      var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757;</span>' : '';
       return '<div class="group-guest-row">' +
-        '<div><span style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' + fullName + '</span>' +
+        '<div><span style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' + fullName + '</span>' + overseasBadge +
         (g.relationship ? '<span style="font-size:.68rem;color:var(--muted);margin-left:.4rem;">' + g.relationship + '</span>' : '') +
         '</div><div style="display:flex;gap:.5rem;align-items:center;">' +
         '<span class="' + rsvpCls + '">' + rsvpLabel + '</span>' +
@@ -732,8 +773,10 @@ function selectEventFilter(eventId) {
 
   var guestRows = invitedGuests.map(function(g) {
     var status = getRSVPStatus(g);
+    var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
+    var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757;</span>' : '';
     return '<tr>' +
-      '<td><div class="guest-name-cell">' + (g.first_name || '') + ' ' + (g.last_name || '') + '</div>' +
+      '<td><div class="guest-name-cell">' + (g.first_name || '') + ' ' + (g.last_name || '') + overseasBadge + '</div>' +
       '<div class="guest-sub">' + sanitiseValue(g.phone) + '</div></td>' +
       '<td>' + sanitiseValue(g.relationship) + '</td>' +
       '<td style="text-align:center;">' + (Number(g[eventId + '_adults']) || 0) + '</td>' +
@@ -800,6 +843,7 @@ function openAddGuest() {
   document.getElementById('m-email').value = '';
   document.getElementById('m-relationship').value = '';
   document.getElementById('m-notes').value = '';
+  document.getElementById('m-overseas').checked = false;
   buildModalEventTicks([]);
   updateModalAllocations();
   document.getElementById('modal-code-out').textContent = '\u2014';
@@ -818,6 +862,7 @@ function openEditGuest(id) {
   document.getElementById('m-email').value = sanitiseValue(g.email);
   document.getElementById('m-relationship').value = sanitiseValue(g.relationship);
   document.getElementById('m-notes').value = sanitiseValue(g.notes);
+  document.getElementById('m-overseas').checked = String(g.is_overseas).toUpperCase() === 'TRUE';
   var gEvents = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   buildModalEventTicks(gEvents);
   updateModalAllocations(g);
@@ -909,6 +954,7 @@ function saveGuest() {
     email: document.getElementById('m-email').value.trim(),
     relationship: document.getElementById('m-relationship').value,
     notes: document.getElementById('m-notes').value.trim(),
+    is_overseas: document.getElementById('m-overseas').checked ? 'TRUE' : 'FALSE',
     events: eventIds.join(','),
     invitation_code: eventIds.join('') + '2027'
   };
@@ -965,7 +1011,7 @@ function saveGuest() {
 }
 
 function removeGuest(id) {
-  if (!confirm('Delete this guest? This cannot be undone.')) return;
+  if (!confirm('Remove this guest? They will be moved to the Deleted section and can be restored later.')) return;
   google.script.run
     .withSuccessHandler(function() {
       loadGuests();
@@ -975,6 +1021,44 @@ function removeGuest(id) {
       alert('Error deleting guest: ' + (err.message || 'Unknown error'));
     })
     .deleteGuest({ id: id });
+}
+
+function doRestoreGuest(id) {
+  if (!confirm('Restore this guest?')) return;
+  google.script.run
+    .withSuccessHandler(function() {
+      loadGuests();
+      loadStats();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error restoring guest: ' + (err.message || 'Unknown error'));
+    })
+    .restoreGuest({ id: id });
+}
+
+function renderDeletedSection() {
+  if (!allDeletedGuests.length) return '';
+  var rows = allDeletedGuests.map(function(g) {
+    var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
+    var code = g.invitation_code || '';
+    return '<div class="deleted-guest-row">' +
+      '<div><span style="font-family:\'Cormorant Garamond\',serif;font-size:.92rem;color:var(--muted);">' + fullName + '</span>' +
+      '<span style="font-size:.68rem;color:var(--muted);margin-left:.5rem;">' + code + '</span></div>' +
+      '<button class="btn btn-ghost btn-sm" onclick="doRestoreGuest(\'' + g.id + '\')" style="color:var(--green);">&#8634; Restore</button>' +
+      '</div>';
+  }).join('');
+  return '<div class="deleted-section">' +
+    '<button class="deleted-toggle" onclick="toggleDeletedSection(this)">' +
+    '<span class="arrow">&#9654;</span> Deleted Guests (' + allDeletedGuests.length + ')</button>' +
+    '<div class="deleted-list" id="deleted-list">' +
+    '<div class="admin-card" style="opacity:.7;">' + rows + '</div>' +
+    '</div></div>';
+}
+
+function toggleDeletedSection(btn) {
+  btn.classList.toggle('open');
+  var list = document.getElementById('deleted-list');
+  if (list) list.classList.toggle('open');
 }
 
 // ══════════════════════════════════════════════
@@ -999,9 +1083,11 @@ function openViewGuest(id) {
       '<span>' + (Number(g[eid + '_adults']) || 0) + ' adults, ' + (Number(g[eid + '_children']) || 0) + ' children</span></div>';
   }).join('');
 
+  var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
+  var overseasTag = isOverseas ? ' <span class="overseas-badge">&#127757; Overseas</span>' : '';
   var html =
     '<div style="text-align:center;margin-bottom:1rem;">' +
-    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:1.4rem;color:var(--wine);">' + fullName + '</div>' +
+    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:1.4rem;color:var(--wine);">' + fullName + overseasTag + '</div>' +
     '<span class="code-pill" style="margin-top:.4rem;display:inline-block;">' + (g.invitation_code || '') + '</span></div>' +
     '<div style="display:grid;grid-template-columns:auto 1fr;gap:.4rem .8rem;font-size:.8rem;margin-bottom:1rem;">' +
     (g.phone ? '<span style="color:var(--muted);">Phone</span><span>' + g.phone + '</span>' : '') +
