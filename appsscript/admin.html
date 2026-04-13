@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -60,6 +60,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .form-row input,.form-row select,.form-row textarea{width:100%;border:1px solid rgba(0,0,0,.11);background:transparent;padding:.6rem .78rem;font-family:'Jost',sans-serif;font-size:.83rem;color:var(--ink);outline:none;transition:border-color .2s;border-radius:2px;}
 .form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--gold);}
 .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
+.form-full{grid-column:1/-1;}
 @media(max-width:580px){.form-grid-2{grid-template-columns:1fr;}}
 .event-tick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.4rem;margin-top:.35rem;}
 .event-tick{display:flex;align-items:center;gap:.45rem;padding:.5rem .65rem;border:1px solid rgba(0,0,0,.09);background:#faf9f7;cursor:pointer;border-radius:2px;transition:all .18s;}
@@ -176,6 +177,31 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .session-warning-text{line-height:1.5;}
 .session-warning-extend{background:var(--gold);color:var(--wine);border:none;padding:.4rem .9rem;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;border-radius:1px;white-space:nowrap;flex-shrink:0;}
+/* ── Admin Mobile ── */
+@media(max-width:700px){
+  .admin-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .admin-tab{padding:.7rem 1rem;font-size:.52rem;}
+  .stats-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+  .stat-card{min-width:0;}
+  .filter-bar{flex-direction:column;}
+  .filter-bar input,.filter-bar select{width:100%;min-width:0;}
+  .guest-table{min-width:600px;}
+  .form-grid-2{grid-template-columns:1fr;}
+  .form-full{grid-column:auto;}
+  .modal{max-width:100%;margin:0;}
+  .view-switcher{gap:.3rem;}
+  .view-switcher .view-btn{font-size:.5rem;padding:.35rem .6rem;}
+  .admin-panel{padding:1rem .75rem;}
+  .admin-nav{padding:.6rem .9rem;}
+  .row-actions{gap:.2rem;}
+  .row-actions .btn-icon{padding:.35rem;width:26px;height:26px;}
+  .btn{padding:.65rem 1.2rem;font-size:.58rem;}
+  .rsvp-breakdown{grid-template-columns:1fr;}
+  .event-rsvp-card{margin-bottom:.4rem;}
+  .admin-card{padding:1rem;}
+  .pagination{flex-direction:column;align-items:stretch;text-align:center;}
+  .pagination-controls{justify-content:center;}
+}
 </style></head>
 <body>
 
@@ -206,6 +232,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <button class="admin-tab" data-tab="csv" onclick="switchTab('csv',this)">&#128228; CSV Upload</button>
     <button class="admin-tab" data-tab="rsvps" onclick="switchTab('rsvps',this)">&#128203; RSVPs</button>
     <button class="admin-tab" data-tab="settings" onclick="switchTab('settings',this)">&#9881;&#65039; Settings</button>
+    <button class="admin-tab" data-tab="messages" onclick="switchTab('messages',this)">&#9993; Messages</button>
   </div>
 
   <!-- ── TAB: GUESTS ── -->
@@ -311,6 +338,70 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <p><strong>CSV Upload</strong> allows bulk-adding guests from a template file.</p>
       </div>
     </div>
+  </div>
+
+  <!-- ── TAB: MESSAGES ── -->
+  <div class="admin-panel" id="tab-messages">
+
+    <!-- Shared config -->
+    <div class="admin-card">
+      <div class="admin-card-title">Message Settings</div>
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label>RSVP Website URL</label>
+          <input type="text" id="msg-rsvp-url" placeholder="https://your-deployed-url.com" oninput="saveMessageConfig()"/>
+        </div>
+        <div class="form-row">
+          <label>Chase-Up Deadline</label>
+          <input type="text" id="msg-chase-deadline" placeholder="e.g. 30 November 2027" oninput="saveMessageConfig()"/>
+        </div>
+        <div class="form-row">
+          <label>Invite Deadline</label>
+          <input type="text" id="msg-invite-deadline" placeholder="e.g. 30 November 2027" oninput="saveMessageConfig()"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chase-Up sub-section -->
+    <div class="admin-card">
+      <div class="admin-card-title">Chase-Up &mdash; Pending RSVPs</div>
+      <div class="form-grid-2">
+        <div class="form-row form-full">
+          <label>Message Template</label>
+          <textarea id="msg-chase-template" rows="4" oninput="saveChaseTemplate()" placeholder="Hi {{name}}, ..."></textarea>
+        </div>
+      </div>
+      <div style="font-size:.68rem;color:var(--muted);margin-bottom:.8rem;">
+        Variables: <code>{{name}}</code> <code>{{code}}</code> <code>{{url}}</code> <code>{{deadline}}</code>
+      </div>
+      <div class="filter-bar">
+        <select id="chase-filter-rel" onchange="renderChaseUpList()">
+          <option value="">All Relationships</option>
+        </select>
+      </div>
+      <div id="chase-up-list"></div>
+    </div>
+
+    <!-- Invite Generator sub-section -->
+    <div class="admin-card">
+      <div class="admin-card-title">Initial Invite Generator</div>
+      <div class="form-grid-2">
+        <div class="form-row form-full">
+          <label>Message Template</label>
+          <textarea id="msg-invite-template" rows="4" oninput="saveInviteTemplate()" placeholder="You are invited! ..."></textarea>
+        </div>
+      </div>
+      <div style="font-size:.68rem;color:var(--muted);margin-bottom:.8rem;">
+        Variables: <code>{{name}}</code> <code>{{code}}</code> <code>{{url}}</code> <code>{{deadline}}</code>
+      </div>
+      <div class="filter-bar">
+        <select id="invite-filter-rel" onchange="renderInviteList()">
+          <option value="">All Relationships</option>
+        </select>
+      </div>
+      <div id="invite-list"></div>
+    </div>
+
   </div>
 
 </div><!-- /admin-dashboard -->
@@ -499,6 +590,7 @@ function switchTab(name, btn) {
   if (name === 'csv') renderCSVTab();
   if (name === 'rsvps') loadRSVPsTab();
   if (name === 'settings') renderSettingsTab();
+  if (name === 'messages') loadMessagesTab();
 }
 
 // ── Dashboard Loading ──────────────────────
@@ -1630,6 +1722,188 @@ function renderSettingsTab() {
   });
   html += '</tbody></table>';
   container.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════
+//   MESSAGES TAB
+// ══════════════════════════════════════════════
+
+var MSG_CONFIG_KEY      = 'weddingAdmin_msgConfig';
+var CHASE_TEMPLATE_KEY  = 'weddingAdmin_chaseTemplate';
+var INVITE_TEMPLATE_KEY = 'weddingAdmin_inviteTemplate';
+
+var DEFAULT_CHASE_TEMPLATE  = 'Hi {{name}},\n\nJust a friendly reminder to RSVP for the wedding!\n\nYour code: {{code}}\nRSVP here: {{url}}\nDeadline: {{deadline}}\n\nLooking forward to hearing from you!';
+var DEFAULT_INVITE_TEMPLATE = 'Hi {{name}},\n\nYou are cordially invited to our wedding celebrations!\n\nYour invitation code: {{code}}\nRSVP here: {{url}}\nPlease respond by: {{deadline}}\n\nWe hope to see you there!';
+
+function loadMessagesTab() {
+  loadMessageConfig();
+  loadChaseTemplate();
+  loadInviteTemplate();
+  populateRelationshipFilters();
+  renderChaseUpList();
+  renderInviteList();
+}
+
+function loadMessageConfig() {
+  try {
+    var cfg = JSON.parse(localStorage.getItem(MSG_CONFIG_KEY) || '{}');
+    document.getElementById('msg-rsvp-url').value = cfg.rsvpUrl || '';
+    document.getElementById('msg-chase-deadline').value = cfg.chaseDeadline || '';
+    document.getElementById('msg-invite-deadline').value = cfg.inviteDeadline || '';
+  } catch (e) {}
+}
+
+function saveMessageConfig() {
+  try {
+    localStorage.setItem(MSG_CONFIG_KEY, JSON.stringify({
+      rsvpUrl: document.getElementById('msg-rsvp-url').value,
+      chaseDeadline: document.getElementById('msg-chase-deadline').value,
+      inviteDeadline: document.getElementById('msg-invite-deadline').value
+    }));
+  } catch (e) {}
+}
+
+function loadChaseTemplate() {
+  var saved = localStorage.getItem(CHASE_TEMPLATE_KEY);
+  document.getElementById('msg-chase-template').value = saved || DEFAULT_CHASE_TEMPLATE;
+}
+
+function saveChaseTemplate() {
+  localStorage.setItem(CHASE_TEMPLATE_KEY, document.getElementById('msg-chase-template').value);
+}
+
+function loadInviteTemplate() {
+  var saved = localStorage.getItem(INVITE_TEMPLATE_KEY);
+  document.getElementById('msg-invite-template').value = saved || DEFAULT_INVITE_TEMPLATE;
+}
+
+function saveInviteTemplate() {
+  localStorage.setItem(INVITE_TEMPLATE_KEY, document.getElementById('msg-invite-template').value);
+}
+
+function getUniqueRelationships() {
+  var rels = {};
+  allGuests.forEach(function(g) {
+    var r = (g.relationship || '').trim();
+    if (r) rels[r] = true;
+  });
+  return Object.keys(rels).sort();
+}
+
+function populateRelationshipFilters() {
+  var rels = getUniqueRelationships();
+  var options = '<option value="">All Relationships</option>' +
+    rels.map(function(r) { return '<option value="' + r + '">' + r + '</option>'; }).join('');
+  document.getElementById('chase-filter-rel').innerHTML = options;
+  document.getElementById('invite-filter-rel').innerHTML = options;
+}
+
+function buildMessage(template, guest, deadline) {
+  var name = ((guest.first_name || '') + ' ' + (guest.last_name || '')).trim();
+  var code = guest.invitation_code || '';
+  var url  = (document.getElementById('msg-rsvp-url').value || '').trim();
+  return template
+    .replace(/\{\{name\}\}/g, name)
+    .replace(/\{\{code\}\}/g, code)
+    .replace(/\{\{url\}\}/g, url)
+    .replace(/\{\{deadline\}\}/g, deadline || '');
+}
+
+function copyMessage(flashId, guestId, section) {
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  if (!g) return;
+  var template, deadline;
+  if (section === 'chase') {
+    template = document.getElementById('msg-chase-template').value;
+    deadline = document.getElementById('msg-chase-deadline').value;
+  } else {
+    template = document.getElementById('msg-invite-template').value;
+    deadline = document.getElementById('msg-invite-deadline').value;
+  }
+  var msg = buildMessage(template, g, deadline);
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(msg).then(function() {
+      showFlash(flashId);
+    }).catch(function() {
+      fallbackCopy(msg);
+    });
+  } else {
+    fallbackCopy(msg);
+  }
+}
+
+function fallbackCopy(text) {
+  prompt('Copy this message:', text);
+}
+
+function showFlash(flashId) {
+  var el = document.getElementById(flashId);
+  if (!el) return;
+  el.textContent = 'Copied!';
+  el.style.opacity = '1';
+  setTimeout(function() { el.style.opacity = '0'; }, 1500);
+}
+
+function renderChaseUpList() {
+  var relFilter = document.getElementById('chase-filter-rel').value;
+  var pending = allGuests.filter(function(g) {
+    if (allSubmittedCodes.has(g.invitation_code)) return false;
+    if (relFilter && g.relationship !== relFilter) return false;
+    return true;
+  });
+
+  var container = document.getElementById('chase-up-list');
+  if (!pending.length) {
+    container.innerHTML = '<div class="empty-state">No pending guests' +
+      (relFilter ? ' for this relationship.' : '.') + '</div>';
+    return;
+  }
+
+  var rows = pending.map(function(g) {
+    var fullName = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+    var flashId = 'flash-cu-' + g.id;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
+      '<div>' +
+        '<div class="guest-name-cell">' + fullName + '</div>' +
+        '<div class="guest-sub">' + sanitiseValue(g.phone) + ' &middot; <span class="code-pill">' + (g.invitation_code || '') + '</span> &middot; ' + sanitiseValue(g.relationship) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:.5rem;">' +
+        '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
+        '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + flashId + '\',\'' + g.id + '\',\'chase\')">Copy</button>' +
+      '</div></div>';
+  }).join('');
+
+  container.innerHTML = '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem;">' + pending.length + ' guest' + (pending.length !== 1 ? 's' : '') + ' pending</div>' + rows;
+}
+
+function renderInviteList() {
+  var relFilter = document.getElementById('invite-filter-rel').value;
+  var guests = allGuests.filter(function(g) {
+    if (relFilter && g.relationship !== relFilter) return false;
+    return true;
+  });
+
+  var container = document.getElementById('invite-list');
+  if (!guests.length) {
+    container.innerHTML = '<div class="empty-state">No guests found.</div>';
+    return;
+  }
+
+  var rows = guests.map(function(g) {
+    var fullName = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+    var flashId = 'flash-inv-' + g.id;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
+      '<div>' +
+        '<div class="guest-name-cell">' + fullName + '</div>' +
+        '<div class="guest-sub"><span class="code-pill">' + (g.invitation_code || '') + '</span> &middot; ' + sanitiseValue(g.relationship) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:.5rem;">' +
+        '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
+        '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + flashId + '\',\'' + g.id + '\',\'invite\')">Copy</button>' +
+      '</div></div>';
+  }).join('');
+
+  container.innerHTML = '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem;">' + guests.length + ' guest' + (guests.length !== 1 ? 's' : '') + '</div>' + rows;
 }
 
 </script>

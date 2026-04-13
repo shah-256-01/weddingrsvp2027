@@ -6,6 +6,9 @@
 const SHEET_ID  = '1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc';
 const ADMIN_PIN = '2027'; // ← change before going live
 
+// Email address to receive RSVP notifications
+const NOTIFICATION_EMAIL = 'couple@example.com';
+
 // RSVP deadline — submissions after this date are rejected
 // Format: 'YYYY-MM-DD' — set to day AFTER the deadline
 // e.g. if deadline is 30 Nov 2027, set to '2027-12-01'
@@ -546,7 +549,36 @@ function submitRSVP(payload) {
   });
   byFamilySheet.appendRow(row);
 
+  // Email notification — best effort, don't block RSVP
+  try { sendRSVPNotification(payload); }
+  catch (emailErr) { Logger.log('Email notification failed: ' + emailErr.message); }
+
   return { submitted: true };
+}
+
+// ── sendRSVPNotification ─────────────────────────────────
+function sendRSVPNotification(payload) {
+  if (!NOTIFICATION_EMAIL) return;
+
+  const name = payload.submissionName || 'Unknown';
+  const code = String(payload.invitationCode || '').toUpperCase().trim();
+  const ts   = payload.submittedAt || new Date().toISOString();
+
+  const eventLines = (payload.events || []).map(ev => {
+    if (ev.attending) {
+      return '  ' + ev.name + ': YES — ' + (ev.adults || 0) + ' adult(s), ' + (ev.children || 0) + ' child(ren)';
+    }
+    return '  ' + ev.name + ': No';
+  }).join('\n');
+
+  const subject = 'New RSVP: ' + name + ' (' + code + ')';
+  const body = 'A new RSVP has been submitted.\n\n' +
+    'Name: ' + name + '\n' +
+    'Invitation Code: ' + code + '\n' +
+    'Submitted: ' + ts + '\n\n' +
+    'Event Responses:\n' + eventLines;
+
+  MailApp.sendEmail(NOTIFICATION_EMAIL, subject, body);
 }
 
 // ── getRSVPsByFamily ──────────────────────────────────────
