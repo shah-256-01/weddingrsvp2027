@@ -6,7 +6,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
-<title>The Wedding Day — 25th December 2027</title>
+<title>The Wedding — RSVP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Cinzel:wght@400;600;700&family=Jost:wght@200;300;400&display=swap" rel="stylesheet"/>
@@ -71,8 +71,9 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .code-input:focus{border-color:var(--gold);}
 .code-error{font-size:.73rem;color:var(--red);margin-top:.55rem;min-height:1rem;display:block;}
 .code-hint{font-size:.68rem;color:var(--muted);margin-top:.7rem;font-style:italic;}
-.landing-admin-link{position:absolute;bottom:1.4rem;right:1.4rem;font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.15em;color:var(--muted);text-decoration:none;opacity:.38;transition:opacity .2s;}
-.landing-admin-link:hover{opacity:1;}
+.name-input-row{display:flex;gap:.6rem;margin-bottom:0;}
+.name-input{flex:1;border:1px solid var(--border);background:transparent;padding:.72rem .9rem;font-family:'Jost',sans-serif;font-size:.9rem;color:var(--ink);outline:none;transition:border-color .2s;}
+.name-input:focus{border-color:var(--gold);}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 
 /* ════════════════════════════════════════════
@@ -178,13 +179,20 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
       <button class="btn btn-secondary btn-sm" onclick="location.reload()" style="margin-top:.5rem;">Retry</button>
     </div>
     <div class="code-box" id="code-box">
-      <span class="code-label">Enter Your Invitation Code</span>
-      <div class="code-input-row">
-        <input class="code-input" id="code-input" type="text" maxlength="12" placeholder="e.g. MW2027" autocomplete="off"/>
-        <button class="btn btn-primary" onclick="submitCode()">Enter ✦</button>
+      <span class="code-label">Enter Your Details</span>
+      <div class="name-input-row">
+        <input class="name-input" id="first-name-input" type="text"
+          placeholder="First Name" autocomplete="given-name"/>
+        <input class="name-input" id="last-name-input" type="text"
+          placeholder="Last Name" autocomplete="family-name"/>
       </div>
-      <span class="code-error" id="code-error"></span>
-      <p class="code-hint">Your unique code was included with your invitation.</p>
+      <div class="code-input-row" style="margin-top:.6rem;">
+        <input class="code-input" id="code-input" type="text"
+          maxlength="12" placeholder="e.g. LW2027" autocomplete="off"/>
+        <button class="btn btn-primary" id="enter-btn" onclick="submitEntry()">Enter ✦</button>
+      </div>
+      <span class="code-error" id="entry-error"></span>
+      <p class="code-hint">Your invitation code and name were included with your invite.</p>
     </div>
   </div>
 </div>
@@ -208,11 +216,6 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
     <div class="cd-block"><span class="cd-num" id="cd-m">—</span><span class="cd-lbl">Mins</span></div>
     <div class="cd-dot">·</div>
     <div class="cd-block"><span class="cd-num" id="cd-s">—</span><span class="cd-lbl">Secs</span></div>
-  </div>
-  <div class="family-name-section" id="family-name-section">
-    <span class="family-name-label">Your Name / Family Name</span>
-    <input class="family-name-input" id="family-name-input" type="text" placeholder="e.g. The Sharma Family"/>
-    <span class="family-name-error" id="family-name-error"></span>
   </div>
   <div class="events-section" id="events-section">
     <div class="events-section-header">
@@ -248,6 +251,7 @@ const WEDDING_DATETIME = '2027-12-25T19:30:00+05:30';
 
 let EVENTS = [];
 let CODES_MAP = {};
+let currentGuest = null;
 
 /* ══════════════════════════════════════════════
    BACKEND COMMUNICATION
@@ -260,10 +264,23 @@ async function fetchEvents() {
   return json.data;
 }
 
+async function validateGuest(firstName, lastName, code) {
+  const params = new URLSearchParams({
+    action: 'validate',
+    code: code.toUpperCase(),
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+  });
+  const res = await fetch(SCRIPT_URL + '?' + params);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Validation failed');
+  return json.data;
+}
+
 function postRSVP(payload) {
   return fetch(SCRIPT_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'submitRSVP', payload }),
     mode: 'no-cors',
   });
@@ -296,16 +313,6 @@ async function init() {
     EVENTS = await fetchEvents();
     CODES_MAP = buildCodesMap(EVENTS);
     hideLoadingSpinner();
-    const urlCode = new URLSearchParams(window.location.search).get('code');
-    if (urlCode) {
-      const upper = urlCode.toUpperCase();
-      if (CODES_MAP[upper]) {
-        currentCode = upper;
-        currentEventIds = CODES_MAP[upper];
-        loadGuestPage();
-        return;
-      }
-    }
   } catch (err) {
     hideLoadingSpinner();
     showEventLoadError();
@@ -337,22 +344,37 @@ function showPage(name) {
 }
 
 /* ══════════════════════════════════════════════
-   LANDING — CODE ENTRY
+   LANDING — ENTRY
 ══════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', function() {
-  var ci = document.getElementById('code-input');
-  if (ci) ci.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitCode(); });
+  ['first-name-input','last-name-input','code-input'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitEntry(); });
+  });
 });
 
-function submitCode() {
-  const raw = document.getElementById('code-input').value.trim().toUpperCase();
-  const err = document.getElementById('code-error');
-  if (!raw) { err.textContent = 'Please enter your invitation code.'; return; }
-  if (!CODES_MAP[raw]) { err.textContent = 'Invalid code. Please check your invitation and try again.'; return; }
-  err.textContent = '';
-  currentCode = raw;
-  currentEventIds = CODES_MAP[raw];
-  loadGuestPage();
+async function submitEntry() {
+  var firstName = document.getElementById('first-name-input').value.trim();
+  var lastName  = document.getElementById('last-name-input').value.trim();
+  var code      = document.getElementById('code-input').value.trim();
+  var errEl     = document.getElementById('entry-error');
+  var btn       = document.getElementById('enter-btn');
+  errEl.textContent = '';
+  if (!firstName || !lastName || !code) {
+    errEl.textContent = 'Please enter your first name, last name, and invitation code.';
+    return;
+  }
+  btn.textContent = 'Checking…'; btn.disabled = true;
+  try {
+    currentGuest    = await validateGuest(firstName, lastName, code);
+    currentCode     = currentGuest.invitationCode;
+    currentEventIds = currentGuest.events;
+    loadGuestPage();
+  } catch (err) {
+    errEl.textContent = err.message || 'Invalid details. Please check and try again.';
+    btn.textContent   = 'Enter ✦';
+    btn.disabled      = false;
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -361,17 +383,22 @@ function submitCode() {
 function loadGuestPage() {
   showPage('guest');
   document.getElementById('display-code').textContent = currentCode;
-  document.getElementById('guest-family-greeting').textContent = 'Dear Valued Guests';
-
+  document.getElementById('guest-family-greeting').textContent =
+    'Dear ' + currentGuest.familyName;
   eventRSVPs = {};
   currentEventIds.forEach(id => {
-    eventRSVPs[id] = { attending: null, adults: 2, children: 0, notes: '' };
+    var alloc = (currentGuest.allocations && currentGuest.allocations[id]) || {};
+    var maxAdults   = alloc.adults   || 1;
+    var maxChildren = alloc.children || 0;
+    eventRSVPs[id] = {
+      attending: null, adults: maxAdults, children: maxChildren,
+      maxAdults: maxAdults, maxChildren: maxChildren, notes: '',
+    };
   });
-  ['events-section', 'family-name-section', 'rsvp-summary', 'submit-section'].forEach(id => {
+  ['events-section', 'rsvp-summary', 'submit-section'].forEach(id => {
     document.getElementById(id).classList.remove('hidden');
   });
   document.getElementById('success-screen').classList.add('hidden');
-  document.getElementById('family-name-error').textContent = '';
   renderEventCards();
   renderSummary();
   startCountdown();
@@ -408,15 +435,16 @@ function renderEventCards() {
           '<div class="guest-count-row">' +
             '<div class="guest-count-item"><label>Adults</label><div class="counter-row">' +
               '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',-1)">−</button>' +
-              '<span class="counter-val" id="adults-' + id + '">2</span>' +
+              '<span class="counter-val" id="adults-' + id + '">' + eventRSVPs[id].adults + '</span>' +
               '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',1)">+</button>' +
             '</div></div>' +
             '<div class="guest-count-item"><label>Children <span style="font-size:.62rem;color:var(--muted)">(under 12)</span></label><div class="counter-row">' +
               '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',-1)">−</button>' +
-              '<span class="counter-val" id="children-' + id + '">0</span>' +
+              '<span class="counter-val" id="children-' + id + '">' + eventRSVPs[id].children + '</span>' +
               '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',1)">+</button>' +
             '</div></div>' +
           '</div>' +
+          '<div style="font-size:.68rem;color:var(--muted);margin-top:-.6rem;margin-bottom:1rem;font-style:italic;">Max: ' + eventRSVPs[id].maxAdults + ' adults, ' + eventRSVPs[id].maxChildren + ' children</div>' +
           '<div class="field-section">' +
             '<span class="field-label">Notes for this event</span>' +
             '<textarea class="notes-field" placeholder="Any additional notes…" oninput="eventRSVPs[\'' + id + '\'].notes=this.value"></textarea>' +
@@ -441,8 +469,9 @@ function setAttending(id, val) {
 }
 
 function adjCount(id, field, delta) {
-  const r = eventRSVPs[id];
-  r[field] = Math.max(field === 'adults' ? 1 : 0, r[field] + delta);
+  var r   = eventRSVPs[id];
+  var max = field === 'adults' ? r.maxAdults : r.maxChildren;
+  r[field] = Math.min(max, Math.max(field === 'adults' ? 1 : 0, r[field] + delta));
   document.getElementById(field + '-' + id).textContent = r[field];
 }
 
@@ -464,29 +493,22 @@ function renderSummary() {
 }
 
 async function submitRSVP() {
-  const name = document.getElementById('family-name-input').value.trim();
-  if (!name) {
-    document.getElementById('family-name-error').textContent = 'Please enter your name before submitting.';
-    document.getElementById('family-name-input').focus();
-    return;
-  }
   if (currentEventIds.some(id => eventRSVPs[id].attending === null)) {
     alert('Please respond to all events before submitting.');
     return;
   }
-  const btn = document.getElementById('submit-btn');
-  btn.textContent = 'Submitting…';
-  btn.disabled = true;
+  var btn = document.getElementById('submit-btn');
+  btn.textContent = 'Submitting…'; btn.disabled = true;
 
-  const payload = {
-    submissionName: name,
+  var payload = {
+    submissionName: currentGuest.familyName,
     invitationCode: currentCode,
     submittedAt: new Date().toISOString(),
     events: currentEventIds.map(id => {
-      const r = eventRSVPs[id];
-      const evt = EVENTS.find(e => e.id === id);
+      var r = eventRSVPs[id];
+      var evt = EVENTS.find(e => e.id === id);
       return {
-        id, name: evt.name, attending: r.attending,
+        id: id, name: evt.name, attending: r.attending,
         adults: r.attending ? r.adults : 0,
         children: r.attending ? r.children : 0,
         notes: r.notes || '',
@@ -496,7 +518,7 @@ async function submitRSVP() {
 
   postRSVP(payload).catch(console.error);
 
-  ['events-section', 'family-name-section', 'rsvp-summary', 'submit-section']
+  ['events-section', 'rsvp-summary', 'submit-section']
     .forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('success-screen').classList.remove('hidden');
 }
