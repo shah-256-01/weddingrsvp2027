@@ -244,6 +244,41 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
   .attend-btn{width:100%;}
   .guest-count-item{min-width:130px;}
 }
+/* ── CONTACT SCREEN ── */
+.contact-screen-inner{max-width:480px;margin:0 auto;padding:3rem 1.5rem 4rem;}
+.contact-form{display:flex;flex-direction:column;gap:1.2rem;}
+.contact-field{display:flex;flex-direction:column;gap:.35rem;}
+.contact-label{font-family:'Cinzel',serif;font-size:var(--text-ui-sm,.78rem);letter-spacing:.16em;color:var(--wine);text-transform:uppercase;}
+.contact-input{border:1px solid var(--border);background:#fff;padding:.9rem 1rem;font-family:'Jost',sans-serif;font-size:var(--text-body-md,1rem);color:var(--ink);outline:none;transition:border-color .2s;min-height:52px;border-radius:2px;width:100%;}
+.contact-input:focus{border-color:var(--gold);}
+.contact-field-hint{font-size:var(--text-ui-sm,.78rem);color:var(--muted);line-height:1.5;}
+.contact-error{font-size:var(--text-body-sm,.9rem);color:var(--red);display:block;line-height:1.5;padding:.5rem .75rem;background:rgba(139,32,32,.05);border-radius:2px;}
+.contact-submit-btn{width:100%;justify-content:center;min-height:52px;font-size:var(--text-ui-md,.85rem);letter-spacing:.18em;margin-top:.4rem;}
+/* ── PROGRESS BAR ── */
+.progress-wrap{margin-bottom:1.8rem;padding:1rem 1.2rem;background:var(--gold-pale);border:1px solid var(--border);border-radius:2px;transition:background .4s,border-color .4s;}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;}
+.progress-label{font-family:'Cinzel',serif;font-size:var(--text-ui-sm,.78rem);letter-spacing:.14em;color:var(--wine);text-transform:uppercase;transition:color .3s;}
+.progress-pct{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--gold);font-weight:400;transition:color .3s;}
+.progress-track{height:4px;background:rgba(184,146,74,.2);border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(to right,var(--gold),var(--rose,#c97b84));border-radius:2px;transition:width .4s cubic-bezier(0.23,1,0.32,1);}
+.progress-wrap.complete{background:rgba(45,74,62,.06);border-color:rgba(45,74,62,.25);}
+.progress-wrap.complete .progress-label{color:var(--green,#2d4a3e);}
+.progress-wrap.complete .progress-pct{color:var(--green,#2d4a3e);}
+.progress-wrap.complete .progress-fill{background:var(--green,#2d4a3e);}
+/* ── CALENDAR BUTTONS ── */
+.cal-event-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1.1rem;background:#fff;border:1px solid var(--border);border-radius:2px;flex-wrap:wrap;}
+.cal-event-info{display:flex;align-items:center;gap:.75rem;flex:1;min-width:0;}
+.cal-event-icon{font-size:1.1rem;flex-shrink:0;}
+.cal-event-name{font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--wine);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-event-date{font-size:var(--text-ui-sm,.78rem);color:var(--muted);margin-top:.08rem;}
+.cal-options{display:flex;gap:.4rem;flex-shrink:0;}
+.cal-option{font-family:'Cinzel',serif;font-size:var(--text-ui-xs,.72rem);letter-spacing:.1em;padding:.38rem .75rem;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;border-radius:2px;text-decoration:none;transition:all .18s;white-space:nowrap;display:inline-flex;align-items:center;}
+.cal-option:hover{background:var(--wine);color:var(--gold-lt);border-color:var(--wine);}
+@media(max-width:480px){
+  .cal-event-row{flex-direction:column;align-items:flex-start;}
+  .cal-options{width:100%;}
+  .cal-option{flex:1;justify-content:center;}
+}
 </style>
 </head>
 <body>
@@ -380,10 +415,53 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 
   <!-- ═══ RSVP Section ═══ -->
   <div class="guest-section active" id="section-rsvp">
+  <!-- Contact details screen — shown if email or WhatsApp missing -->
+  <div id="contact-screen" class="hidden">
+    <div class="contact-screen-inner">
+      <div style="text-align:center;margin-bottom:2rem;">
+        <span class="section-tag">Before you continue</span>
+        <h2 class="section-title">Your Contact Details</h2>
+        <p style="font-size:var(--text-body-sm,0.9rem);color:var(--muted);margin-top:.7rem;line-height:1.7;max-width:400px;margin-left:auto;margin-right:auto;">
+          We'd love to stay in touch with you throughout the wedding journey. By sharing your details, you'll receive your RSVP confirmation, important updates about the celebrations, schedule changes, venue information, and any other communications we send out to guests.
+        </p>
+      </div>
+      <div class="contact-form">
+        <div class="contact-field">
+          <label class="contact-label" for="contact-email">Email Address *</label>
+          <input class="contact-input" id="contact-email" type="email"
+            placeholder="your@email.com" autocomplete="email" inputmode="email"/>
+          <span class="contact-field-hint">For your RSVP confirmation and all wedding updates.</span>
+        </div>
+        <div class="contact-field">
+          <label class="contact-label" for="contact-whatsapp">WhatsApp Number *</label>
+          <input class="contact-input" id="contact-whatsapp" type="tel"
+            placeholder="+44 7700 000000" autocomplete="tel" inputmode="tel"/>
+          <span class="contact-field-hint">For WhatsApp updates, reminders, and day-of communications.</span>
+        </div>
+        <span class="contact-error hidden" id="contact-error"></span>
+        <button class="btn btn-primary contact-submit-btn"
+          id="contact-submit-btn" onclick="submitContactDetails()">
+          Continue to RSVP &#10022;
+        </button>
+        <p style="font-size:var(--text-ui-xs,.72rem);color:var(--muted);text-align:center;margin-top:.8rem;line-height:1.6;">
+          Your details are stored securely and will only be used for wedding-related communications.
+        </p>
+      </div>
+    </div>
+  </div>
   <div class="events-section" id="events-section">
     <div class="events-section-header">
       <span class="section-tag">Your Invitations</span>
       <h2 class="section-title">RSVP for Each Event</h2>
+    </div>
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-header">
+        <span class="progress-label" id="progress-label">0 of 0 events responded</span>
+        <span class="progress-pct" id="progress-pct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
     </div>
     <div id="events-list"></div>
   </div>
@@ -410,6 +488,10 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
       <div class="ornament-line rev" style="width:40px"></div>
       <div class="ornament-diamond"></div>
       <div class="ornament-line" style="width:40px"></div>
+    </div>
+    <div id="calendar-section" class="hidden" style="width:100%;max-width:500px;margin:1.5rem auto 0;">
+      <p style="font-family:'Cinzel',serif;font-size:var(--text-ui-sm,.78rem);letter-spacing:.18em;color:var(--gold);text-transform:uppercase;margin-bottom:1rem;text-align:center;">Add to Your Calendar</p>
+      <div id="calendar-buttons" style="display:flex;flex-direction:column;gap:.6rem;"></div>
     </div>
     <a href="javascript:void(0)" class="hidden" id="overseas-success-link" onclick="showGuestSection('overseas',document.getElementById('subnav-overseas'))" style="font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.15em;color:var(--teal);text-decoration:underline;">&#9992; View Overseas Travel Info</a>
   </div>
@@ -560,6 +642,19 @@ async function validateGuest(firstName, lastName, code) {
   return json.data;
 }
 
+async function saveContactDetails(email, whatsapp) {
+  var params = new URLSearchParams({
+    action:   'updateContact',
+    guestId:  currentGuest.id,
+    email:    email.trim(),
+    whatsapp: whatsapp.trim(),
+  });
+  var res  = await fetch(SCRIPT_URL + '?' + params);
+  var json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Failed to save contact details.');
+  return json.data;
+}
+
 function postRSVP(payload) {
   return fetch(SCRIPT_URL, {
     method: 'POST',
@@ -704,10 +799,35 @@ function loadGuestPage() {
 
   // ── Already submitted? ───────────────────────────────
   if (currentGuest.existingRSVP) {
+    document.getElementById('contact-screen').classList.add('hidden');
     showAlreadySubmittedScreen(currentGuest.existingRSVP);
     startCountdown();
     return;
   }
+
+  // ── Missing contact details? ─────────────────────────
+  var hasEmail    = currentGuest.email && currentGuest.email.trim();
+  var hasWhatsApp = currentGuest.whatsapp && currentGuest.whatsapp.trim();
+
+  if (!hasEmail || !hasWhatsApp) {
+    // Pre-fill any existing values
+    if (hasEmail) document.getElementById('contact-email').value = currentGuest.email;
+    if (hasWhatsApp) document.getElementById('contact-whatsapp').value = currentGuest.whatsapp;
+    document.getElementById('contact-screen').classList.remove('hidden');
+    ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.classList.add('hidden');
+    });
+    startCountdown();
+    return;
+  }
+
+  // ── All good — show RSVP flow ────────────────────────
+  showRSVPFlow();
+  startCountdown();
+}
+
+function showRSVPFlow() {
+  document.getElementById('contact-screen').classList.add('hidden');
 
   // Filter out event IDs that don't exist in EVENTS array
   currentEventIds = currentEventIds.filter(id => EVENTS.find(e => e.id === id));
@@ -743,7 +863,57 @@ function loadGuestPage() {
   document.getElementById('already-submitted-screen').classList.add('hidden');
   renderEventCards();
   renderSummary();
-  startCountdown();
+  updateProgress();
+}
+
+function hideRSVPFlow() {
+  ['events-section', 'rsvp-summary', 'submit-section',
+   'success-screen', 'already-submitted-screen'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+}
+
+async function submitContactDetails() {
+  var email    = document.getElementById('contact-email').value.trim();
+  var whatsapp = document.getElementById('contact-whatsapp').value.trim();
+  var errEl    = document.getElementById('contact-error');
+  var btn      = document.getElementById('contact-submit-btn');
+
+  errEl.textContent = '';
+  errEl.classList.add('hidden');
+
+  if (!email || !whatsapp) {
+    errEl.textContent = 'Please provide both your email address and WhatsApp number.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.textContent = 'Please enter a valid email address.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (whatsapp.replace(/[\s\-\+\(\)]/g, '').length < 7) {
+    errEl.textContent = 'Please enter a valid phone number including country code.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.textContent = 'Saving\u2026';
+  btn.disabled    = true;
+
+  try {
+    await saveContactDetails(email, whatsapp);
+    currentGuest.email    = email;
+    currentGuest.whatsapp = whatsapp;
+    document.getElementById('contact-screen').classList.add('hidden');
+    showRSVPFlow();
+  } catch (err) {
+    errEl.textContent = err.message || 'Something went wrong. Please try again.';
+    errEl.classList.remove('hidden');
+    btn.textContent = 'Continue to RSVP \u2726';
+    btn.disabled    = false;
+  }
 }
 
 function showAlreadySubmittedScreen(existingRSVP) {
@@ -879,6 +1049,7 @@ function setAttending(id, val) {
   if (val) { badge.className = 'event-status-badge badge-attending'; badge.textContent = 'Attending'; details.classList.remove('hidden'); }
   else { badge.className = 'event-status-badge badge-declined'; badge.textContent = 'Declined'; details.classList.add('hidden'); }
   renderSummary();
+  updateProgress();
 }
 
 function adjCount(id, field, delta) {
@@ -887,6 +1058,149 @@ function adjCount(id, field, delta) {
   if (max === 0 && field === 'adults') max = 1; // safety fallback
   r[field] = Math.min(max, Math.max(field === 'adults' ? 1 : 0, r[field] + delta));
   document.getElementById(field + '-' + id).textContent = r[field];
+}
+
+function updateProgress() {
+  var total     = currentEventIds.length;
+  var responded = currentEventIds.filter(function(id) {
+    return eventRSVPs[id] && eventRSVPs[id].attending !== null;
+  }).length;
+  var pct      = total > 0 ? Math.round((responded / total) * 100) : 0;
+  var complete = responded === total && total > 0;
+
+  var labelEl = document.getElementById('progress-label');
+  var pctEl   = document.getElementById('progress-pct');
+  var fillEl  = document.getElementById('progress-fill');
+  var wrapEl  = document.getElementById('progress-wrap');
+  if (!labelEl) return;
+
+  if (complete) {
+    labelEl.textContent = '\u2713 All events responded \u2014 ready to submit';
+    pctEl.textContent   = '100%';
+    fillEl.style.width  = '100%';
+    wrapEl.classList.add('complete');
+  } else {
+    labelEl.textContent = responded + ' of ' + total +
+      ' event' + (total !== 1 ? 's' : '') + ' responded';
+    pctEl.textContent   = pct + '%';
+    fillEl.style.width  = pct + '%';
+    wrapEl.classList.remove('complete');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   CALENDAR HELPERS
+══════════════════════════════════════════════ */
+function formatCalDateTime(dateStr, timeStr) {
+  try {
+    var cleanDate = String(dateStr || '').replace(/(\d+)(st|nd|rd|th)/i, '$1').trim();
+    var timeMatch = String(timeStr || '').match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+    var startTime = timeMatch ? timeMatch[1] : '12:00 PM';
+    var times     = String(timeStr || '').match(/(\d{1,2}:\d{2}\s*[AP]M)/gi) || [];
+    var endTimeStr = times.length > 1 ? times[times.length - 1] : '';
+
+    var startDt = new Date(cleanDate + ' ' + startTime);
+    var endDt   = endTimeStr
+      ? new Date(cleanDate + ' ' + endTimeStr)
+      : new Date(startDt.getTime() + 3 * 60 * 60 * 1000);
+
+    if (isNaN(startDt)) return { valid: false };
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function fmt(d) {
+      return d.getFullYear() +
+        pad(d.getMonth() + 1) + pad(d.getDate()) + 'T' +
+        pad(d.getHours()) + pad(d.getMinutes()) + '00';
+    }
+    return { start: fmt(startDt), end: fmt(endDt), valid: true };
+  } catch (e) {
+    return { valid: false };
+  }
+}
+
+function makeGoogleCalUrl(evt) {
+  var dt = formatCalDateTime(evt.date, evt.time);
+  if (!dt.valid) return null;
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    '&text='     + encodeURIComponent('Wedding: ' + evt.name) +
+    '&dates='    + dt.start + '/' + dt.end +
+    '&location=' + encodeURIComponent(evt.venue || '') +
+    '&details='  + encodeURIComponent(
+      'You are attending ' + evt.name +
+      ' as part of the wedding celebrations.\n\n' +
+      'Invitation code: ' + currentCode
+    );
+}
+
+function makeICSBlob(evt) {
+  var dt = formatCalDateTime(evt.date, evt.time);
+  if (!dt.valid) return null;
+  var uid = 'wedding-' + evt.id + '-' + Date.now() + '@wedding2027.com';
+  var ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Wedding 2027//RSVP//EN',
+    'BEGIN:VEVENT',
+    'UID:' + uid,
+    'DTSTAMP:' + dt.start,
+    'DTSTART:' + dt.start,
+    'DTEND:' + dt.end,
+    'SUMMARY:Wedding: ' + evt.name,
+    'LOCATION:' + (evt.venue || ''),
+    'DESCRIPTION:You are attending ' + evt.name + ' — invitation code: ' + currentCode,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+  return new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+}
+
+function downloadICS(evtId) {
+  var evt = EVENTS.find(function(e) { return e.id === evtId; });
+  if (!evt) return;
+  var blob = makeICSBlob(evt);
+  if (!blob) { alert('Could not generate calendar file for this event.'); return; }
+  var url = URL.createObjectURL(blob);
+  var a   = document.createElement('a');
+  a.href     = url;
+  a.download = 'wedding-' + evtId + '-' + evt.name.replace(/\s+/g, '-').toLowerCase() + '.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function showCalendarButtons() {
+  var section   = document.getElementById('calendar-section');
+  var container = document.getElementById('calendar-buttons');
+  if (!section || !container) return;
+
+  var attendingEvents = currentEventIds
+    .filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === true; })
+    .map(function(id)    { return EVENTS.find(function(e) { return e.id === id; }); })
+    .filter(function(evt) { return evt && evt.date && evt.date !== 'TBC'; });
+
+  if (!attendingEvents.length) return;
+
+  container.innerHTML = attendingEvents.map(function(evt) {
+    var googleUrl = makeGoogleCalUrl(evt);
+    return '<div class="cal-event-row">' +
+      '<div class="cal-event-info">' +
+        '<span class="cal-event-icon">' + (evt.icon || '') + '</span>' +
+        '<div>' +
+          '<div class="cal-event-name">' + evt.name + '</div>' +
+          '<div class="cal-event-date">' + (evt.date || '') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cal-options">' +
+        (googleUrl
+          ? '<a class="cal-option" href="' + googleUrl + '" target="_blank" rel="noopener">Google</a>'
+          : '') +
+        '<button class="cal-option" onclick="downloadICS(\'' + evt.id + '\')">iCal</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  section.classList.remove('hidden');
 }
 
 function renderSummary() {
@@ -946,6 +1260,7 @@ async function submitRSVP() {
     submissionName: currentGuest.familyName,
     invitationCode: currentCode,
     submittedAt:    new Date().toISOString(),
+    guestEmail:     currentGuest.email || '',
     events: currentEventIds.map(function(id) {
       var r   = eventRSVPs[id];
       var evt = EVENTS.find(function(e) { return e.id === id; });
@@ -981,6 +1296,7 @@ async function submitRSVP() {
     if (el) el.classList.add('hidden');
   });
   document.getElementById('success-screen').classList.remove('hidden');
+  showCalendarButtons();
   if (currentGuest && currentGuest.isOverseas) {
     document.getElementById('overseas-success-link').classList.remove('hidden');
   }

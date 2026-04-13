@@ -9,6 +9,12 @@ const ADMIN_PIN = '2027'; // ← change before going live
 // Email address to receive RSVP notifications
 const NOTIFICATION_EMAIL = 'couple@example.com';
 
+// ── Guest Confirmation Email Config ───────────────────
+const GUEST_EMAIL_ENABLED   = true;
+const GUEST_EMAIL_FROM_NAME = 'The Wedding Team';   // ← update with couple names
+const GUEST_EMAIL_REPLY_TO  = 'YOUR_EMAIL@gmail.com'; // ← update with contact email
+const WEDDING_SITE_URL      = 'YOUR_GITHUB_PAGES_URL'; // ← update after deployment
+
 // RSVP deadline — submissions after this date are rejected
 // Format: 'YYYY-MM-DD' — set to day AFTER the deadline
 // e.g. if deadline is 30 Nov 2027, set to '2027-12-01'
@@ -38,6 +44,19 @@ function doGet(e) {
         e.parameter.code        || '',
         e.parameter.firstName   || '',
         e.parameter.lastName    || ''
+      );
+      return jsonResponse({ ok: true, data: result });
+    } catch (err) {
+      return jsonResponse({ ok: false, error: err.message });
+    }
+  }
+  // Update guest contact details — ?action=updateContact&guestId=...&email=...&whatsapp=...
+  if (e && e.parameter && e.parameter.action === 'updateContact') {
+    try {
+      const result = updateGuestContact(
+        e.parameter.guestId  || '',
+        e.parameter.email    || '',
+        e.parameter.whatsapp || ''
       );
       return jsonResponse({ ok: true, data: result });
     } catch (err) {
@@ -107,10 +126,40 @@ function findRowById(sheet, id) {
   return -1;
 }
 
+function sanitiseSheetValue(val) {
+  var s = String(val || '').trim();
+  return s.charAt(0) === '#' ? '' : s;
+}
+
 function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
   const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children']);
   return [...fixed, ...alloc];
+}
+
+// ── updateGuestContact ───────────────────────────────────
+function updateGuestContact(guestId, email, whatsapp) {
+  if (!guestId) throw new Error('Guest ID required.');
+  if (!email)   throw new Error('Email address required.');
+  if (!whatsapp) throw new Error('WhatsApp number required.');
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Please enter a valid email address.');
+  }
+
+  const sheet  = getSheet(TABS.guests);
+  const rowNum = findRowById(sheet, guestId);
+  if (rowNum === -1) throw new Error('Guest record not found.');
+
+  const headers  = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const emailCol = headers.indexOf('email');
+  const phoneCol = headers.indexOf('phone');
+
+  if (emailCol > -1) sheet.getRange(rowNum, emailCol + 1).setValue(email.trim());
+  if (phoneCol > -1) sheet.getRange(rowNum, phoneCol + 1).setValue(whatsapp.trim());
+
+  Logger.log('Updated contact for guest ' + guestId + ': ' + email);
+  return { updated: true, guestId };
 }
 
 // ── getEvents ─────────────────────────────────────────────
@@ -210,6 +259,8 @@ function validateGuest(code, firstName, lastName) {
     lastName:       match.last_name,
     familyName,
     invitationCode: match.invitation_code,
+    email:          sanitiseSheetValue(match.email),
+    whatsapp:       sanitiseSheetValue(match.phone),
     events:         eventIds,
     allocations,
     isOverseas:     String(match.is_overseas || '').toUpperCase() === 'TRUE',
@@ -549,9 +600,13 @@ function submitRSVP(payload) {
   });
   byFamilySheet.appendRow(row);
 
-  // Email notification — best effort, don't block RSVP
+  // Email notifications — best effort, don't block RSVP
   try { sendRSVPNotification(payload); }
-  catch (emailErr) { Logger.log('Email notification failed: ' + emailErr.message); }
+  catch (emailErr) { Logger.log('Admin notification failed: ' + emailErr.message); }
+
+  if (payload.guestEmail) {
+    sendGuestConfirmationEmail(payload, payload.guestEmail);
+  }
 
   return { submitted: true };
 }
@@ -579,6 +634,147 @@ function sendRSVPNotification(payload) {
     'Event Responses:\n' + eventLines;
 
   MailApp.sendEmail(NOTIFICATION_EMAIL, subject, body);
+}
+
+// ── sendGuestConfirmationEmail ────────────────────────────
+function sendGuestConfirmationEmail(payload, guestEmail) {
+  if (!GUEST_EMAIL_ENABLED || !guestEmail) return;
+
+  try {
+    var submittedAt = '';
+    try {
+      submittedAt = new Date(payload.submittedAt).toLocaleString('en-GB', {
+        day: 'numeric', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch (e) { submittedAt = payload.submittedAt; }
+
+    var eventRowsHtml = (payload.events || []).map(function(ev) {
+      var attending = ev.attending;
+      var detail = attending
+        ? (ev.adults + ' adult' + (ev.adults !== 1 ? 's' : '') +
+           (ev.children > 0 ? ', ' + ev.children + ' child' + (ev.children !== 1 ? 'ren' : '') : ''))
+        : 'Declined';
+      var iconColor = attending ? '#2d4a3e' : '#8b2020';
+      var icon      = attending ? '✓' : '✕';
+      var bgColor   = attending ? '#f0f7f4' : '#fdf0f0';
+      return '<tr>' +
+        '<td style="padding:10px 16px;border-bottom:1px solid #f5e6da;">' +
+          '<span style="font-size:1rem;margin-right:8px;">' + (ev.name || '') + '</span>' +
+        '</td>' +
+        '<td style="padding:10px 16px;border-bottom:1px solid #f5e6da;text-align:right;">' +
+          '<span style="display:inline-block;padding:3px 10px;border-radius:12px;' +
+            'background:' + bgColor + ';color:' + iconColor + ';' +
+            'font-family:Georgia,serif;font-size:.85rem;">' +
+            icon + ' ' + detail +
+          '</span>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+
+    var htmlBody = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1.0"/>' +
+      '</head><body style="margin:0;padding:0;background:#f5e6da;font-family:Georgia,serif;">' +
+      '<div style="max-width:560px;margin:0 auto;background:#fff;">' +
+
+        // Header
+        '<div style="background:#6b2737;padding:32px 24px;text-align:center;">' +
+          '<p style="margin:0 0 4px;font-family:Georgia,serif;font-size:.72rem;' +
+            'letter-spacing:.3em;color:#e8c87a;text-transform:uppercase;">You are invited to</p>' +
+          '<h1 style="margin:0;font-family:Georgia,serif;font-style:italic;font-weight:300;' +
+            'font-size:2.2rem;color:#fff;line-height:1.1;">The Wedding Day</h1>' +
+          '<p style="margin:8px 0 0;font-family:Georgia,serif;font-size:.85rem;' +
+            'color:rgba(255,255,255,.6);letter-spacing:.1em;">25th December 2027</p>' +
+        '</div>' +
+
+        // Body
+        '<div style="padding:32px 24px;">' +
+          '<p style="margin:0 0 8px;font-family:Georgia,serif;font-size:.7rem;' +
+            'letter-spacing:.25em;color:#b8924a;text-transform:uppercase;">RSVP Confirmed</p>' +
+          '<h2 style="margin:0 0 20px;font-family:Georgia,serif;font-style:italic;' +
+            'font-weight:300;font-size:1.6rem;color:#6b2737;">' +
+            'Thank you, ' + payload.submissionName + '</h2>' +
+          '<p style="margin:0 0 20px;font-size:.95rem;color:#5a4a40;line-height:1.7;">' +
+            'We\'ve received your RSVP and are delighted to confirm your responses below. ' +
+            'We look forward to celebrating with you!' +
+          '</p>' +
+
+          // Event table
+          '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;' +
+            'border:1px solid #f5e6da;border-radius:2px;">' +
+            '<thead><tr style="background:#fdf6ef;">' +
+              '<th style="padding:10px 16px;text-align:left;font-family:Georgia,serif;' +
+                'font-size:.7rem;letter-spacing:.18em;color:#b8924a;text-transform:uppercase;' +
+                'font-weight:normal;border-bottom:2px solid #f5e6da;">Event</th>' +
+              '<th style="padding:10px 16px;text-align:right;font-family:Georgia,serif;' +
+                'font-size:.7rem;letter-spacing:.18em;color:#b8924a;text-transform:uppercase;' +
+                'font-weight:normal;border-bottom:2px solid #f5e6da;">Response</th>' +
+            '</tr></thead>' +
+            '<tbody>' + eventRowsHtml + '</tbody>' +
+          '</table>' +
+
+          // Details
+          '<div style="background:#fdf6ef;border:1px solid #f0deca;padding:16px 20px;' +
+            'margin-bottom:20px;border-radius:2px;">' +
+            '<p style="margin:0 0 4px;font-size:.78rem;color:#8a7060;">' +
+              'Invitation code: <strong style="color:#6b2737;letter-spacing:.1em;">' +
+              payload.invitationCode + '</strong></p>' +
+            '<p style="margin:0;font-size:.78rem;color:#8a7060;">' +
+              'Submitted: ' + submittedAt + '</p>' +
+          '</div>' +
+
+          '<p style="margin:0 0 8px;font-size:.9rem;color:#5a4a40;line-height:1.7;">' +
+            'If you need to make any changes to your RSVP, please contact us directly — ' +
+            'we\'ll be happy to help.</p>' +
+          '<p style="margin:0;font-size:.9rem;color:#5a4a40;line-height:1.7;">' +
+            'With love,<br><em style="font-family:Georgia,serif;font-size:1.1rem;color:#6b2737;">' +
+              GUEST_EMAIL_FROM_NAME + '</em></p>' +
+        '</div>' +
+
+        // Footer
+        '<div style="background:#2a1f1a;padding:20px 24px;text-align:center;">' +
+          '<p style="margin:0;font-size:.75rem;color:rgba(255,255,255,.4);line-height:1.6;">' +
+            '25th December 2027<br>' +
+            '<a href="' + WEDDING_SITE_URL + '" style="color:#b8924a;text-decoration:none;">' +
+              'View your invitation online</a></p>' +
+        '</div>' +
+
+      '</div></body></html>';
+
+    // Plain text fallback
+    var plainBody = [
+      'Dear ' + payload.submissionName + ',',
+      '',
+      'Thank you for your RSVP! We\'ve received your responses:',
+      '',
+      (payload.events || []).map(function(ev) {
+        return (ev.attending ? '✓ ' : '✕ ') + ev.name +
+          (ev.attending ? ' — ' + ev.adults + ' adult(s)' +
+            (ev.children > 0 ? ', ' + ev.children + ' child(ren)' : '') : ' — Declined');
+      }).join('\n'),
+      '',
+      'Invitation code: ' + payload.invitationCode,
+      'Submitted: ' + submittedAt,
+      '',
+      'If you need to make any changes, please contact us.',
+      '',
+      'With love,',
+      GUEST_EMAIL_FROM_NAME,
+    ].join('\n');
+
+    MailApp.sendEmail({
+      to:       guestEmail,
+      replyTo:  GUEST_EMAIL_REPLY_TO,
+      subject:  'Your RSVP is confirmed — The Wedding Day 2027',
+      body:     plainBody,
+      htmlBody: htmlBody,
+      name:     GUEST_EMAIL_FROM_NAME,
+    });
+
+    Logger.log('Confirmation email sent to: ' + guestEmail);
+  } catch (err) {
+    Logger.log('Guest confirmation email failed: ' + err.message);
+  }
 }
 
 // ── getRSVPsByFamily ──────────────────────────────────────
@@ -821,5 +1017,61 @@ function ensureStatusColumn(sheet) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   if (!headers.includes('status')) {
     sheet.getRange(1, headers.length + 1).setValue('status');
+  }
+}
+
+/*
+  DAILY DIGEST SETUP:
+  1. In Apps Script editor click the clock icon (Triggers) in the left sidebar
+  2. Click "+ Add Trigger" (bottom right)
+  3. Function to run: sendDailyDigest
+  4. Event source: Time-driven
+  5. Type: Day timer
+  6. Time: 8:00 AM – 9:00 AM
+  7. Click Save
+  This will email NOTIFICATION_EMAIL every morning with an RSVP summary.
+*/
+function sendDailyDigest() {
+  if (!NOTIFICATION_EMAIL) return;
+  try {
+    var stats = getStats();
+    if (stats.totalGuests === 0) return;
+
+    var allEventsData = getEvents();
+    var eventLines = (stats.perEvent || []).map(function(ev) {
+      var evtConfig = allEventsData.find(function(e) { return e.id === ev.id; }) || {};
+      return '  ' + (evtConfig.icon || '') + ' ' + (evtConfig.name || ev.id) + ':' +
+        ' ' + ev.attendingAdults + ' adults attending' +
+        ', ' + ev.pending + ' pending';
+    }).join('\n');
+
+    var subject = 'Daily RSVP Update — ' +
+      new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    var body = [
+      'Daily RSVP Summary',
+      '══════════════════',
+      'Total Guests:       ' + stats.totalGuests,
+      'RSVPd:              ' + stats.rsvpd,
+      'Pending:            ' + stats.pending,
+      'Adults Confirmed:   ' + stats.confirmedAdults,
+      'Children Confirmed: ' + stats.confirmedChildren,
+      stats.duplicates > 0 ? '⚠ Duplicates:     ' + stats.duplicates : '',
+      '',
+      'Per Event:',
+      eventLines,
+      '',
+      '——',
+      'View full details in your admin panel.',
+    ].filter(Boolean).join('\n');
+
+    MailApp.sendEmail({
+      to:      NOTIFICATION_EMAIL,
+      subject: subject,
+      body:    body,
+      name:    'Wedding RSVP System',
+    });
+  } catch (err) {
+    Logger.log('Daily digest failed: ' + err.message);
   }
 }
