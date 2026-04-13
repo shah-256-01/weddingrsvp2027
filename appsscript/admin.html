@@ -404,7 +404,7 @@ var _eventViewStats = {};
 // ── Helpers ────────────────────────────────
 function codeForIds(ids) {
   if (!ids || !ids.length) return '';
-  var sorted = ids.filter(Boolean);
+  var sorted = ids.filter(Boolean).sort(function(a, b) { return a.localeCompare(b); });
   return sorted.join('') + '2027';
 }
 
@@ -892,6 +892,7 @@ function updateModalCode() {
   var ticks = document.querySelectorAll('#modal-event-ticks input:checked');
   var ids = [];
   ticks.forEach(function(cb) { ids.push(cb.value); });
+  ids.sort(function(a, b) { return a.localeCompare(b); });
   var code = ids.length ? ids.join('') + '2027' : '\u2014';
   document.getElementById('modal-code-out').textContent = code;
 }
@@ -957,7 +958,7 @@ function saveGuest() {
     notes: document.getElementById('m-notes').value.trim(),
     is_overseas: document.getElementById('m-overseas').checked ? 'TRUE' : 'FALSE',
     events: eventIds.join(','),
-    invitation_code: eventIds.join('') + '2027'
+    invitation_code: [...eventIds].sort(function(a, b) { return a.localeCompare(b); }).join('') + '2027'
   };
 
   // Allocation columns
@@ -1212,6 +1213,7 @@ function updateGenCode() {
   var ticks = document.querySelectorAll('#code-gen-ticks input:checked');
   var ids = [];
   ticks.forEach(function(cb) { ids.push(cb.value); });
+  ids.sort(function(a, b) { return a.localeCompare(b); });
   var code = ids.length ? ids.join('') + '2027' : '\u2014';
   document.getElementById('gen-code-out').textContent = code;
   if (ids.length) {
@@ -1299,6 +1301,7 @@ function parseCSV(text) {
     // Auto-generate invitation_code from events
     if (obj.events) {
       var evIds = obj.events.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      evIds.sort(function(a, b) { return a.localeCompare(b); });
       obj.invitation_code = evIds.join('') + '2027';
       obj.events = evIds.join(',');
     }

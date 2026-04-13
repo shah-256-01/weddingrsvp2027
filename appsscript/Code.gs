@@ -108,8 +108,24 @@ function guestHeaders() {
 // ── getEvents ─────────────────────────────────────────────
 function getEvents() {
   const sheet = getSheet(TABS.events);
+  if (sheet.getLastRow() < 2) {
+    Logger.log('Warning: Events tab is empty. Run setupSheet() to seed events.');
+    return [];
+  }
   return sheetToObjects(sheet)
-    .filter(r => String(r.active).toUpperCase() === 'TRUE');
+    .filter(r => String(r.active).toUpperCase() === 'TRUE')
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+// ── Name normalisation ───────────────────────────────────
+function normaliseName(str) {
+  return String(str || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/['\u2018\u2019]/g, '')
+    .replace(/[-]/g, ' ')
+    .trim();
 }
 
 // ── validateGuest ─────────────────────────────────────────
@@ -119,17 +135,26 @@ function validateGuest(code, firstName, lastName) {
   if (!code || !firstName || !lastName) {
     throw new Error('Code, first name and last name are required.');
   }
-  const guests = getGuests();
-  const match  = guests.find(g =>
-    String(g.invitation_code).toUpperCase() === code.toUpperCase() &&
-    String(g.first_name).trim().toLowerCase() === firstName.trim().toLowerCase() &&
-    String(g.last_name).trim().toLowerCase()  === lastName.trim().toLowerCase()
+
+  const guests    = getGuests();
+  const normFirst = normaliseName(firstName);
+  const normLast  = normaliseName(lastName);
+  const normCode  = code.toUpperCase().trim();
+
+  const match = guests.find(g =>
+    String(g.invitation_code || '').toUpperCase().trim() === normCode &&
+    normaliseName(g.first_name) === normFirst &&
+    normaliseName(g.last_name)  === normLast
   );
+
   if (!match) throw new Error('No matching guest found. Please check your name and code.');
 
   // Build allocations object per event
+  const eventIds = String(match.events).split(',')
+    .map(s => s.trim()).filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+
   const allocations = {};
-  const eventIds = String(match.events).split(',').map(s => s.trim()).filter(Boolean);
   eventIds.forEach(id => {
     allocations[id] = {
       adults:   Number(match[id + '_adults'])   || 0,
@@ -145,7 +170,7 @@ function validateGuest(code, firstName, lastName) {
     invitationCode: match.invitation_code,
     events:         eventIds,
     allocations,
-    isOverseas:     String(match.is_overseas).toUpperCase() === 'TRUE',
+    isOverseas:     String(match.is_overseas || '').toUpperCase() === 'TRUE',
   };
 }
 
@@ -175,11 +200,16 @@ function addGuest(payload) {
     sheet.appendRow(headers);
   }
 
+  // Generate invitation_code from sorted event IDs
+  const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
+    .map(s => s.trim()).filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+  payload.invitation_code = sortedIds.join('') + '2027';
+
   const id  = 'g-' + Date.now();
   const row = headers.map(h => {
     if (h === 'id') return id;
-    if (h === 'events') return Array.isArray(payload.events)
-      ? payload.events.join(',') : (payload.events || '');
+    if (h === 'events') return sortedIds.join(',');
     return payload[h] !== undefined ? payload[h] : '';
   });
   sheet.appendRow(row);
@@ -191,13 +221,19 @@ function updateGuest(payload) {
   const sheet  = getSheet(TABS.guests);
   const rowNum = findRowById(sheet, payload.id);
   if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
+
+  // Regenerate invitation_code from sorted event IDs
+  if (payload.events !== undefined) {
+    const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
+      .map(s => s.trim()).filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    payload.events = sortedIds.join(',');
+    payload.invitation_code = sortedIds.join('') + '2027';
+  }
+
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   headers.forEach((h, i) => {
     if (h === 'id') return;
-    if (h === 'events' && Array.isArray(payload.events)) {
-      sheet.getRange(rowNum, i + 1).setValue(payload.events.join(','));
-      return;
-    }
     if (payload[h] !== undefined) {
       sheet.getRange(rowNum, i + 1).setValue(payload[h]);
     }
@@ -223,6 +259,7 @@ function deleteGuest(payload) {
 }
 
 function markRSVPRowsDeleted(invitationCode) {
+  const normCode = String(invitationCode).toUpperCase().trim();
   [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
     try {
       const sheet = getSheet(tabName);
@@ -233,7 +270,7 @@ function markRSVPRowsDeleted(invitationCode) {
       if (statusIdx === -1 || codeIdx === -1) return;
       const data = sheet.getDataRange().getValues();
       for (let i = 1; i < data.length; i++) {
-        if (String(data[i][codeIdx]) === invitationCode) {
+        if (String(data[i][codeIdx]).toUpperCase().trim() === normCode) {
           sheet.getRange(i + 1, statusIdx + 1).setValue('DELETED');
         }
       }
@@ -259,6 +296,7 @@ function restoreGuest(payload) {
 }
 
 function restoreRSVPRows(invitationCode) {
+  const normCode = String(invitationCode).toUpperCase().trim();
   [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
     try {
       const sheet = getSheet(tabName);
@@ -269,7 +307,7 @@ function restoreRSVPRows(invitationCode) {
       if (statusIdx === -1 || codeIdx === -1) return;
       const data = sheet.getDataRange().getValues();
       for (let i = 1; i < data.length; i++) {
-        if (String(data[i][codeIdx]) === invitationCode) {
+        if (String(data[i][codeIdx]).toUpperCase().trim() === normCode) {
           sheet.getRange(i + 1, statusIdx + 1).setValue('');
         }
       }
@@ -296,10 +334,14 @@ function bulkAddGuests(payload) {
         return;
       }
       const id  = 'g-' + Date.now() + '-' + idx;
+      // Generate invitation_code from sorted event IDs
+      const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
+        .map(s => s.trim()).filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+      g.invitation_code = sortedEvIds.join('') + '2027';
       const row = headers.map(h => {
         if (h === 'id') return id;
-        if (h === 'events') return Array.isArray(g.events)
-          ? g.events.join(',') : (g.events || '');
+        if (h === 'events') return sortedEvIds.join(',');
         return g[h] !== undefined ? g[h] : '';
       });
       sheet.appendRow(row);
@@ -316,7 +358,8 @@ function bulkAddGuests(payload) {
 
 // ── submitRSVP ────────────────────────────────────────────
 function submitRSVP(payload) {
-  const { submissionName, invitationCode, events, submittedAt } = payload;
+  const { submissionName, events, submittedAt } = payload;
+  const invitationCode = String(payload.invitationCode || '').toUpperCase().trim();
   const ts = submittedAt || new Date().toISOString();
 
   // RSVPs_by_event (tall)
@@ -398,7 +441,7 @@ function getRSVPsByFamily() {
 // ── getStats ──────────────────────────────────────────────
 function getStats() {
   const guests   = getGuests();                // already excludes DELETED
-  const activeGuestCodes = new Set(guests.map(g => g.invitation_code));
+  const activeGuestCodes = new Set(guests.map(g => String(g.invitation_code || '').toUpperCase().trim()));
 
   const byEventAll  = sheetToObjects(getSheet(TABS.rsvpByEvent));
   const byFamilyAll = sheetToObjects(getSheet(TABS.rsvpByFamily));
@@ -410,7 +453,8 @@ function getStats() {
   // ── Deduplicate submissions ──────────────────────────
   const latestByCode = {};
   byFamily.forEach(row => {
-    const code = row.invitation_code;
+    const code = String(row.invitation_code || '').toUpperCase().trim();
+    if (!code) return;
     if (!activeGuestCodes.has(code)) return;   // orphaned submission
     if (
       !latestByCode[code] ||
@@ -420,7 +464,7 @@ function getStats() {
     }
   });
   const dedupedSubmissions = Object.values(latestByCode);
-  const submittedCodes     = new Set(dedupedSubmissions.map(r => r.invitation_code));
+  const submittedCodes     = new Set(Object.keys(latestByCode));
 
   // ── Overall guest counts ─────────────────────────────
   let totalInvitedAdults = 0, totalInvitedChildren = 0;
@@ -463,11 +507,11 @@ function getStats() {
   });
 
   // Deduplicate byEvent rows — keep only rows whose code is in dedupedSubmissions
-  const dedupedEventCodes = new Set(dedupedSubmissions.map(r => r.invitation_code));
+  const dedupedEventCodes = new Set(Object.keys(latestByCode));
 
   byEvent.forEach(row => {
     const id   = row.event_id;
-    const code = row.invitation_code;
+    const code = String(row.invitation_code || '').toUpperCase().trim();
     if (!perEvent[id]) return;
     if (!dedupedEventCodes.has(code)) return;
 
@@ -484,11 +528,11 @@ function getStats() {
     const invitedCodes = new Set(
       guests
         .filter(g => String(g.events || '').split(',').map(s=>s.trim()).includes(id))
-        .map(g => g.invitation_code)
+        .map(g => String(g.invitation_code || '').toUpperCase().trim())
     );
     let pending = 0;
     invitedCodes.forEach(code => {
-      if (!submittedCodes.has(code)) pending++;
+      if (code && !submittedCodes.has(code)) pending++;
     });
     perEvent[id].pending = Math.max(0, pending);
   });
@@ -532,7 +576,8 @@ function getDuplicates() {
   const byCode  = {};
 
   rows.forEach(r => {
-    const code = r.invitation_code;
+    const code = String(r.invitation_code || '').toUpperCase().trim();
+    if (!code) return;
     counts[code] = (counts[code] || 0) + 1;
     if (!byCode[code]) byCode[code] = [];
     byCode[code].push({
@@ -561,10 +606,11 @@ function getDuplicates() {
 function getSubmittedCodes() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
-  const rows = sheetToObjects(sheet).filter(r => String(r.status).toUpperCase() !== 'DELETED');
+  const rows = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
   const latest = {};
   rows.forEach(r => {
-    const code = r.invitation_code;
+    const code = String(r.invitation_code || '').toUpperCase().trim();
+    if (!code) return;
     if (!latest[code] || new Date(r.timestamp) > new Date(latest[code].timestamp)) {
       latest[code] = r;
     }
@@ -588,12 +634,12 @@ function setupSheet() {
   evSheet.clearContents();
   evSheet.appendRow(['id','name','date','time','venue','icon','active']);
   [
+    ['A','Mandvo',           'TBC','TBC','TBC','🎶','TRUE'],
+    ['B','Black Tie',        'TBC','TBC','TBC','🎩','TRUE'],
+    ['G','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE'],
     ['L','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE'],
     ['S','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE'],
-    ['A','Mandvo',           'TBC','TBC','TBC','🎶','TRUE'],
-    ['G','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE'],
     ['W','Wedding',          'TBC','TBC','TBC','💍','TRUE'],
-    ['B','Black Tie',        'TBC','TBC','TBC','🎩','TRUE'],
   ].forEach(row => evSheet.appendRow(row));
 
   // Guests

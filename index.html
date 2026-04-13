@@ -433,10 +433,11 @@ function postRSVP(payload) {
    CODE MAP
 ══════════════════════════════════════════════ */
 function buildCodesMap(events) {
+  const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
   const map = {};
-  const n = events.length;
+  const n   = sorted.length;
   for (let i = 1; i < (1 << n); i++) {
-    const ids = events.filter((_, j) => i & (1 << j)).map(e => e.id);
+    const ids = sorted.filter((_, j) => i & (1 << j)).map(e => e.id);
     map[ids.join('') + '2027'] = ids;
   }
   return map;
@@ -454,11 +455,16 @@ async function init() {
   showLoadingSpinner();
   try {
     EVENTS = await fetchEvents();
+    if (!EVENTS || EVENTS.length === 0) {
+      hideLoadingSpinner();
+      showEventLoadError('Events are not yet configured. Please contact the wedding team.');
+      return;
+    }
     CODES_MAP = buildCodesMap(EVENTS);
     hideLoadingSpinner();
   } catch (err) {
     hideLoadingSpinner();
-    showEventLoadError();
+    showEventLoadError('Unable to load event data. Please refresh the page.');
   }
 }
 
@@ -470,10 +476,13 @@ function hideLoadingSpinner() {
   document.getElementById('landing-loader').classList.add('hidden');
   document.getElementById('code-box').classList.remove('hidden');
 }
-function showEventLoadError() {
+function showEventLoadError(message) {
   document.getElementById('landing-loader').classList.add('hidden');
   document.getElementById('code-box').classList.add('hidden');
-  document.getElementById('landing-error').classList.remove('hidden');
+  var errEl = document.getElementById('landing-error');
+  errEl.classList.remove('hidden');
+  var msgEl = errEl.querySelector('p');
+  if (msgEl && message) msgEl.textContent = message;
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -499,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function() {
 async function submitEntry() {
   var firstName = document.getElementById('first-name-input').value.trim();
   var lastName  = document.getElementById('last-name-input').value.trim();
-  var code      = document.getElementById('code-input').value.trim();
+  var code      = document.getElementById('code-input').value.trim().toUpperCase();
   var errEl     = document.getElementById('entry-error');
   var btn       = document.getElementById('enter-btn');
   errEl.textContent = '';
@@ -511,7 +520,7 @@ async function submitEntry() {
   try {
     currentGuest    = await validateGuest(firstName, lastName, code);
     currentCode     = currentGuest.invitationCode;
-    currentEventIds = currentGuest.events;
+    currentEventIds = [...currentGuest.events].sort((a, b) => a.localeCompare(b));
     loadGuestPage();
   } catch (err) {
     errEl.textContent = err.message || 'Invalid details. Please check and try again.';
@@ -540,6 +549,9 @@ function loadGuestPage() {
 
   // Reset to RSVP tab
   showGuestSection('rsvp', document.querySelector('.subnav-btn'));
+
+  // Filter out event IDs that don't exist in EVENTS array
+  currentEventIds = currentEventIds.filter(id => EVENTS.find(e => e.id === id));
 
   eventRSVPs = {};
   currentEventIds.forEach(id => {
