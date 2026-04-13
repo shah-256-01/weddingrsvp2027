@@ -163,6 +163,19 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .deleted-guest-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem .8rem;border-bottom:1px solid rgba(0,0,0,.05);font-size:.78rem;opacity:.6;}
 .deleted-guest-row:hover{opacity:1;}
 .overseas-badge{font-size:.65rem;background:rgba(74,124,116,.12);color:var(--teal);padding:.1rem .4rem;border-radius:10px;margin-left:.35rem;white-space:nowrap;}
+/* ── Pagination ── */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:.8rem 0;margin-top:.8rem;flex-wrap:wrap;gap:.5rem;}
+.pagination-info{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;}
+.pagination-controls{display:flex;gap:.4rem;align-items:center;}
+.page-btn{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.12em;padding:.38rem .75rem;border:1px solid rgba(0,0,0,.1);background:transparent;cursor:pointer;border-radius:2px;color:var(--muted);transition:all .18s;}
+.page-btn:hover:not(:disabled){background:var(--blush);color:var(--wine);}
+.page-btn:disabled{opacity:.35;cursor:default;}
+.page-btn.active{background:var(--wine);color:var(--gold-lt);border-color:var(--wine);}
+/* ── Session Warning ── */
+.session-warning{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--wine);color:var(--gold-lt);padding:1rem 1.4rem;border-radius:2px;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;z-index:999;display:flex;align-items:center;gap:1rem;box-shadow:0 4px 20px rgba(0,0,0,.25);animation:slideUp .3s ease;}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.session-warning-text{line-height:1.5;}
+.session-warning-extend{background:var(--gold);color:var(--wine);border:none;padding:.4rem .9rem;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;border-radius:1px;white-space:nowrap;flex-shrink:0;}
 </style></head>
 <body>
 
@@ -401,6 +414,17 @@ var parsedCSVRows = [];
 var _eventViewGuests = [];
 var _eventViewStats = {};
 
+// ── Pagination ─────────────────────────────
+const PAGE_SIZE     = 50;
+let   currentPage   = 1;
+let   filteredGuests = [];
+
+// ── Session Timeout ────────────────────────
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const WARNING_BEFORE_MS  =  2 * 60 * 1000; //  2 minutes warning before timeout
+let   sessionTimer       = null;
+let   warningTimer       = null;
+
 // ── Helpers ────────────────────────────────
 function codeForIds(ids) {
   if (!ids || !ids.length) return '';
@@ -481,6 +505,8 @@ function switchTab(name, btn) {
 function loadDashboard() {
   document.getElementById('admin-login-screen').classList.add('hidden');
   document.getElementById('admin-dashboard').classList.remove('hidden');
+  startSessionTimer();
+  startActivityListeners();
   loadEvents();
   loadStats();
   loadGuests();
@@ -572,25 +598,6 @@ function loadGuests() {
     .getGuests();
 }
 
-// ── Guest Filtering ────────────────────────
-function getFilteredGuests() {
-  var search = (document.getElementById('guest-search').value || '').toLowerCase();
-  var rel = document.getElementById('filter-relationship').value;
-  var rsvpFilter = document.getElementById('filter-rsvp').value;
-  var overseasFilter = document.getElementById('filter-overseas').value;
-  return allGuests.filter(function(g) {
-    var fullName = ((g.first_name || '') + ' ' + (g.last_name || '')).toLowerCase();
-    if (search && fullName.indexOf(search) === -1) return false;
-    if (rel && g.relationship !== rel) return false;
-    if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
-    if (rsvpFilter === 'pending' && allSubmittedCodes.has(g.invitation_code)) return false;
-    var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
-    if (overseasFilter === 'overseas' && !isOverseas) return false;
-    if (overseasFilter === 'local' && isOverseas) return false;
-    return true;
-  });
-}
-
 // ── View Switching + Rendering ─────────────
 function setGuestView(view) {
   currentView = view;
@@ -600,18 +607,41 @@ function setGuestView(view) {
 }
 
 function renderGuestView() {
+  // Rebuild filteredGuests from current filters
+  var q = (document.getElementById('guest-search').value || '').toLowerCase();
+  var relFilter = document.getElementById('filter-relationship').value;
+  var rsvpFilter = document.getElementById('filter-rsvp').value;
+  var overseasFilter = document.getElementById('filter-overseas').value;
+
+  filteredGuests = allGuests.filter(function(g) {
+    if (q && !([g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
+      .join(' ').toLowerCase().includes(q))) return false;
+    if (relFilter && g.relationship !== relFilter) return false;
+    if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
+    if (rsvpFilter === 'pending'   &&  allSubmittedCodes.has(g.invitation_code)) return false;
+    var isOverseas = String(g.is_overseas || '').toUpperCase() === 'TRUE';
+    if (overseasFilter === 'overseas' && !isOverseas) return false;
+    if (overseasFilter === 'local'    &&  isOverseas) return false;
+    return true;
+  });
+
+  renderCurrentView();
+}
+
+function renderCurrentView() {
   var container = document.getElementById('guest-view-container');
-  var guests = getFilteredGuests();
   if (currentView === 'event') { renderEventView(allGuests, allStats); return; }
-  if (currentView === 'rsvp-status') { renderRSVPStatusView(guests, container); return; }
-  if (!guests.length) { container.innerHTML = '<div class="empty-state">No guests found.</div>'; return; }
-  if (currentView === 'list') renderTableView(guests, container);
-  else if (currentView === 'grouped') renderGroupedView(guests, container);
+  if (currentView === 'rsvp-status') { renderRSVPStatusView(filteredGuests, container); return; }
+  if (!filteredGuests.length) { container.innerHTML = '<div class="empty-state">No guests found.</div>'; return; }
+  if (currentView === 'list') renderTableView(filteredGuests, container);
+  else if (currentView === 'grouped') renderGroupedView(filteredGuests, container);
 }
 
 // ── Table View ─────────────────────────────
 function renderTableView(guests, container) {
-  var rows = guests.map(function(g) {
+  var pageGuests = getPageGuests();
+
+  var rows = pageGuests.map(function(g) {
     var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
     var code = g.invitation_code || '';
     var submitted = isSubmitted(g);
@@ -639,8 +669,55 @@ function renderTableView(guests, container) {
     '<div class="admin-card" style="padding:0;overflow:hidden;"><div class="guest-table-wrap">' +
     '<table class="guest-table"><thead><tr>' +
     '<th>Name</th><th>Events</th><th>Code</th><th>RSVP Status</th><th style="text-align:right;">Actions</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table></div></div>' +
-    renderDeletedSection();
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+
+  renderPagination(container);
+  container.innerHTML += renderDeletedSection();
+}
+
+// ── Pagination Helpers ────────────────────
+function getTotalPages() {
+  return Math.max(1, Math.ceil(filteredGuests.length / PAGE_SIZE));
+}
+
+function getPageGuests() {
+  var start = (currentPage - 1) * PAGE_SIZE;
+  return filteredGuests.slice(start, start + PAGE_SIZE);
+}
+
+function goToPage(page) {
+  var total = getTotalPages();
+  currentPage = Math.min(total, Math.max(1, page));
+  renderCurrentView();
+  var el = document.getElementById('guest-view-container');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderPagination(container) {
+  var total   = getTotalPages();
+  var start   = (currentPage - 1) * PAGE_SIZE + 1;
+  var end     = Math.min(currentPage * PAGE_SIZE, filteredGuests.length);
+  var total_g = filteredGuests.length;
+
+  if (total <= 1 && total_g <= PAGE_SIZE) return;
+
+  var paginationHTML =
+    '<div class="pagination">' +
+      '<span class="pagination-info">' +
+        'Showing ' + start + '\u2013' + end + ' of ' + total_g + ' guests' +
+      '</span>' +
+      '<div class="pagination-controls">' +
+        '<button class="page-btn" onclick="goToPage(1)"' + (currentPage === 1 ? ' disabled' : '') + '>\u00AB</button>' +
+        '<button class="page-btn" onclick="goToPage(' + (currentPage - 1) + ')"' + (currentPage === 1 ? ' disabled' : '') + '>\u2039 Prev</button>' +
+        '<span class="pagination-info" style="padding:0 .5rem;">' +
+          'Page ' + currentPage + ' of ' + total +
+        '</span>' +
+        '<button class="page-btn" onclick="goToPage(' + (currentPage + 1) + ')"' + (currentPage === total ? ' disabled' : '') + '>Next \u203A</button>' +
+        '<button class="page-btn" onclick="goToPage(' + total + ')"' + (currentPage === total ? ' disabled' : '') + '>\u00BB</button>' +
+      '</div>' +
+    '</div>';
+
+  container.insertAdjacentHTML('beforeend', paginationHTML);
 }
 
 // ── Grouped (By Code) View ─────────────────
@@ -812,15 +889,94 @@ function selectEventFilter(eventId) {
 function submitPin() { checkLogin(); }
 
 // ── applyFilters (HTML calls this) ────────────
-function applyFilters() { renderGuestView(); }
+function applyFilters() {
+  var q = (document.getElementById('guest-search').value || '').toLowerCase();
+  var relFilter = document.getElementById('filter-relationship').value;
+  var rsvpFilter = document.getElementById('filter-rsvp').value;
+  var overseasFilter = document.getElementById('filter-overseas').value;
+
+  filteredGuests = allGuests.filter(function(g) {
+    if (q && !([g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
+      .join(' ').toLowerCase().includes(q))) return false;
+    if (relFilter && g.relationship !== relFilter) return false;
+    if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
+    if (rsvpFilter === 'pending'   &&  allSubmittedCodes.has(g.invitation_code)) return false;
+    var isOverseas = String(g.is_overseas || '').toUpperCase() === 'TRUE';
+    if (overseasFilter === 'overseas' && !isOverseas) return false;
+    if (overseasFilter === 'local'    &&  isOverseas) return false;
+    return true;
+  });
+
+  currentPage = 1;
+  renderCurrentView();
+}
 
 // ── adminLogout ───────────────────────────────
 function adminLogout() {
+  clearSessionTimers();
+  hideSessionWarning();
   sessionStorage.removeItem('adminAuth');
   document.getElementById('admin-dashboard').classList.add('hidden');
   document.getElementById('admin-login-screen').classList.remove('hidden');
   document.getElementById('pin-input').value = '';
   document.getElementById('pin-error').textContent = '';
+}
+
+// ── Session Timeout Management ────────────────
+function startSessionTimer() {
+  clearSessionTimers();
+
+  warningTimer = setTimeout(function() {
+    showSessionWarning();
+  }, SESSION_TIMEOUT_MS - WARNING_BEFORE_MS);
+
+  sessionTimer = setTimeout(function() {
+    hideSessionWarning();
+    sessionStorage.clear();
+    location.reload();
+  }, SESSION_TIMEOUT_MS);
+}
+
+function clearSessionTimers() {
+  if (sessionTimer)  { clearTimeout(sessionTimer);  sessionTimer  = null; }
+  if (warningTimer)  { clearTimeout(warningTimer);   warningTimer  = null; }
+}
+
+function resetSessionTimer() {
+  if (!sessionStorage.getItem('adminAuth')) return;
+  clearSessionTimers();
+  hideSessionWarning();
+  startSessionTimer();
+}
+
+function extendSession() {
+  resetSessionTimer();
+}
+
+function showSessionWarning() {
+  if (document.getElementById('session-warning')) return;
+  var el = document.createElement('div');
+  el.className = 'session-warning';
+  el.id        = 'session-warning';
+  el.innerHTML =
+    '<div class="session-warning-text">' +
+      'Your session will expire in 2 minutes.<br>' +
+      '<span style="opacity:.7;font-size:.9em;">Any unsaved changes will be lost.</span>' +
+    '</div>' +
+    '<button class="session-warning-extend" onclick="extendSession()">Stay Logged In</button>';
+  document.body.appendChild(el);
+}
+
+function hideSessionWarning() {
+  var el = document.getElementById('session-warning');
+  if (el) el.remove();
+}
+
+function startActivityListeners() {
+  var events = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'];
+  events.forEach(function(evt) {
+    document.addEventListener(evt, resetSessionTimer, { passive: true });
+  });
 }
 
 // ══════════════════════════════════════════════
