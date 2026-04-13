@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<meta http-equiv="X-Frame-Options" content="DENY"/>
+<meta http-equiv="Referrer-Policy" content="strict-origin"/>
+<meta name="robots" content="noindex, nofollow"/>
+<title>Wedding Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Cinzel:wght@400;600;700&family=Jost:wght@200;300;400&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --blush:#f5e6da; --rose:#c97b84; --wine:#6b2737; --wine-d:#4a1a25;
+  --gold:#b8924a;  --gold-lt:#e8c87a; --gold-pale:#f7edda;
+  --green:#2d4a3e; --cream:#fdf6ef; --ink:#2a1f1a; --teal:#4a7c74;
+  --muted:#8a7060; --border:rgba(184,146,74,.22);
+  --red:#8b2020;   --admin-bg:#f0ebe4; --card-bg:#fff;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;font-weight:300;overflow-x:hidden;}
+.hidden{display:none!important;}
+.btn{display:inline-flex;align-items:center;gap:.45rem;padding:.82rem 1.8rem;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;border:none;cursor:pointer;transition:all .22s;border-radius:1px;white-space:nowrap;}
+.btn-primary{background:var(--wine);color:var(--gold-lt);}
+.btn-primary:hover{background:var(--gold);color:var(--wine);}
+.btn-secondary{background:transparent;color:var(--wine);border:1px solid var(--border);}
+.btn-secondary:hover{background:var(--blush);}
+.btn-ghost{background:transparent;color:var(--muted);padding:.45rem .9rem;font-size:.58rem;}
+.btn-ghost:hover{color:var(--wine);}
+.btn-sm{padding:.52rem 1.1rem;font-size:.58rem;}
+.btn-danger{background:var(--red);color:#fde;}
+.btn-danger:hover{background:#6b1515;}
+.btn-icon{padding:.5rem;width:30px;height:30px;justify-content:center;font-size:.8rem;}
+.admin-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);}
+.admin-login-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:2.4rem;width:100%;max-width:330px;text-align:center;}
+.admin-login-title{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.25em;color:var(--gold-lt);text-transform:uppercase;margin-bottom:1.3rem;}
+.admin-login-input{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);padding:.78rem 1rem;color:#fff;font-family:'Jost',sans-serif;font-size:.88rem;outline:none;border-radius:2px;letter-spacing:.15em;text-align:center;transition:border-color .2s;margin-bottom:.75rem;}
+.admin-login-input:focus{border-color:var(--gold);}
+.admin-login-err{font-size:.7rem;color:#f87;margin-bottom:.7rem;min-height:1rem;display:block;}
+.admin-nav{background:var(--ink);padding:.9rem 1.8rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:60;}
+.admin-nav-title{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.2em;color:var(--gold-lt);}
+.admin-tabs{background:var(--wine-d);display:flex;gap:0;overflow-x:auto;}
+.admin-tab{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;padding:.85rem 1.8rem;color:rgba(255,255,255,.45);cursor:pointer;border:none;background:transparent;white-space:nowrap;transition:all .2s;border-bottom:2px solid transparent;}
+.admin-tab:hover{color:rgba(255,255,255,.75);}
+.admin-tab.active{color:var(--gold-lt);border-bottom-color:var(--gold);}
+.admin-panel{display:none;max-width:1100px;margin:0 auto;padding:2rem 1.5rem;}
+.admin-panel.active{display:block;}
+.admin-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);padding:1.5rem;border-radius:2px;margin-bottom:1.4rem;}
+.admin-card-title{font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:.2em;color:var(--wine);text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:.55rem;}
+.admin-card-title::after{content:'';flex:1;height:1px;background:rgba(184,146,74,.17);}
+.stats-row{display:flex;gap:.85rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.stat-card{flex:1;min-width:100px;background:var(--card-bg);border:1px solid rgba(0,0,0,.07);padding:1rem;text-align:center;border-radius:2px;}
+.stat-num{font-family:'Cormorant Garamond',serif;font-size:1.85rem;color:var(--wine);line-height:1;}
+.stat-lbl{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:.22rem;}
+.form-row{margin-bottom:.85rem;}
+.form-row label{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.32rem;}
+.form-row input,.form-row select,.form-row textarea{width:100%;border:1px solid rgba(0,0,0,.11);background:transparent;padding:.6rem .78rem;font-family:'Jost',sans-serif;font-size:.83rem;color:var(--ink);outline:none;transition:border-color .2s;border-radius:2px;}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--gold);}
+.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
+@media(max-width:580px){.form-grid-2{grid-template-columns:1fr;}}
+.event-tick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.4rem;margin-top:.35rem;}
+.event-tick{display:flex;align-items:center;gap:.45rem;padding:.5rem .65rem;border:1px solid rgba(0,0,0,.09);background:#faf9f7;cursor:pointer;border-radius:2px;transition:all .18s;}
+.event-tick:hover{background:var(--blush);}
+.event-tick.selected{border-color:var(--wine);background:rgba(107,39,55,.06);}
+.event-tick input{accent-color:var(--wine);width:13px;height:13px;flex-shrink:0;}
+.event-tick span{font-size:.76rem;color:var(--ink);}
+.guest-table-wrap{overflow-x:auto;}
+.guest-table{width:100%;border-collapse:collapse;font-size:.78rem;}
+.guest-table th{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;padding:.5rem .7rem;text-align:left;border-bottom:2px solid rgba(0,0,0,.07);white-space:nowrap;}
+.guest-table td{padding:.58rem .7rem;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle;}
+.guest-table tr:last-child td{border-bottom:none;}
+.guest-table tr:hover td{background:#faf8f5;}
+.guest-table .guest-name{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);font-weight:400;}
+.guest-table .guest-contact{font-size:.7rem;color:var(--muted);}
+.code-pill{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.13em;color:var(--wine);background:var(--gold-pale);padding:.16rem .5rem;border-radius:10px;white-space:nowrap;}
+.event-dot{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;font-size:.65rem;margin:.1rem;}
+.rsvp-pill{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.1em;padding:.2rem .6rem;border-radius:20px;white-space:nowrap;}
+.rsvp-submitted{background:rgba(45,74,62,.12);color:var(--green);}
+.rsvp-pending{background:rgba(184,146,74,.1);color:var(--gold);}
+.row-actions{display:flex;gap:.35rem;justify-content:flex-end;}
+.view-switcher{display:flex;gap:.4rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center;}
+.view-btn{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.14em;text-transform:uppercase;padding:.42rem .9rem;border:1px solid rgba(0,0,0,.1);background:transparent;cursor:pointer;border-radius:2px;color:var(--muted);transition:all .18s;}
+.view-btn.active{background:var(--wine);color:var(--gold-lt);border-color:var(--wine);}
+.view-btn:hover:not(.active){background:var(--blush);color:var(--wine);}
+.filter-bar{display:flex;gap:.6rem;margin-bottom:1.1rem;flex-wrap:wrap;}
+.filter-bar input{flex:1;min-width:160px;border:1px solid rgba(0,0,0,.1);background:var(--card-bg);padding:.55rem .8rem;font-family:'Jost',sans-serif;font-size:.8rem;color:var(--ink);outline:none;border-radius:2px;}
+.filter-bar input:focus{border-color:var(--gold);}
+.filter-bar select{border:1px solid rgba(0,0,0,.1);background:var(--card-bg);padding:.55rem .8rem;font-family:'Jost',sans-serif;font-size:.78rem;color:var(--ink);outline:none;border-radius:2px;cursor:pointer;}
+.group-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);border-radius:2px;margin-bottom:1rem;overflow:hidden;}
+.group-card-header{padding:.9rem 1.1rem;background:var(--gold-pale);display:flex;align-items:center;justify-content:space-between;gap:.8rem;border-bottom:1px solid rgba(184,146,74,.2);}
+.group-code{font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.2em;color:var(--wine);}
+.group-events{display:flex;gap:.3rem;flex-wrap:wrap;}
+.group-card-body{padding:.8rem 1.1rem;}
+.group-guest-row{display:flex;align-items:center;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:.78rem;}
+.group-guest-row:last-child{border-bottom:none;}
+.rsvp-breakdown{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;}
+.event-rsvp-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);border-radius:2px;overflow:hidden;}
+.event-rsvp-header{padding:.7rem .9rem;display:flex;align-items:center;gap:.5rem;}
+.event-rsvp-title{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);}
+.event-rsvp-stats{padding:.6rem .9rem;display:flex;gap:.5rem;border-top:1px solid rgba(0,0,0,.05);}
+.ersvp-stat{flex:1;text-align:center;}
+.ersvp-num{font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:var(--wine);line-height:1;}
+.ersvp-lbl{font-size:.58rem;color:var(--muted);}
+.modal-overlay{position:fixed;inset:0;background:rgba(42,31,26,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:lbFade .25s ease;}
+@keyframes lbFade{from{opacity:0}to{opacity:1}}
+.modal{background:var(--card-bg);width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:2px;animation:modalUp .3s cubic-bezier(0.23,1,0.32,1);}
+@keyframes modalUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-header{padding:1.3rem 1.5rem;border-bottom:1px solid rgba(0,0,0,.07);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card-bg);z-index:1;}
+.modal-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.3rem;color:var(--wine);}
+.modal-close{width:30px;height:30px;border:none;background:transparent;font-size:1.1rem;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background .18s;}
+.modal-close:hover{background:var(--blush);}
+.modal-body{padding:1.5rem;}
+.modal-footer{padding:1rem 1.5rem;border-top:1px solid rgba(0,0,0,.07);display:flex;gap:.6rem;justify-content:flex-end;background:var(--card-bg);position:sticky;bottom:0;}
+.skeleton-loader{height:120px;background:linear-gradient(90deg,#f0ebe4 25%,#e8e1d8 50%,#f0ebe4 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:2px;}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.load-error{padding:1.2rem;background:rgba(139,32,32,.06);border:1px solid rgba(139,32,32,.2);color:#8b2020;font-size:.8rem;border-radius:2px;display:flex;align-items:center;gap:.8rem;}
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--muted);font-style:italic;font-size:.84rem;}
+.invite-link-row{display:flex;align-items:center;gap:.4rem;margin-top:.4rem;}
+.invite-link-input{flex:1;border:1px solid rgba(0,0,0,.11);background:#faf9f7;padding:.4rem .6rem;font-size:.72rem;color:var(--muted);border-radius:2px;font-family:'Jost',sans-serif;}
+</style></head>
+<body>
+
+<!-- PIN Login Screen -->
+<div id="admin-login-screen">
+  <div class="admin-login">
+    <div class="admin-login-card">
+      <div class="admin-login-title">Admin Access</div>
+      <input class="admin-login-input" id="pin-input" type="password" placeholder="Enter PIN" onkeydown="if(event.key==='Enter')submitPin()"/>
+      <span class="admin-login-err" id="pin-error"></span>
+      <button class="btn btn-primary" style="width:100%;" onclick="submitPin()">Enter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard (hidden until auth) -->
+<div id="admin-dashboard" class="hidden">
+  <nav class="admin-nav">
+    <span class="admin-nav-title">✦ Wedding Admin</span>
+    <div style="display:flex;gap:.6rem;align-items:center;">
+      <button class="btn btn-sm btn-danger" onclick="adminLogout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Tabs -->
+  <div class="admin-tabs">
+    <button class="admin-tab active" data-tab="guests" onclick="switchTab('guests',this)">👥 Guest List</button>
+    <button class="admin-tab" data-tab="codes" onclick="switchTab('codes',this)">🔑 Codes</button>
+    <button class="admin-tab" data-tab="rsvps" onclick="switchTab('rsvps',this)">📋 RSVPs</button>
+    <button class="admin-tab" data-tab="settings" onclick="switchTab('settings',this)">⚙️ Settings</button>
+  </div>
+
+  <!-- ── TAB: GUESTS ── -->
+  <div class="admin-panel active" id="tab-guests">
+    <div class="stats-row" id="guest-stats">
+      <div class="skeleton-loader" style="height:70px;flex:1;"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
+      <div class="view-switcher">
+        <button class="view-btn active" onclick="setGuestView('table')" id="vbtn-table">☰ List</button>
+        <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">⊞ By Code</button>
+        <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">✓ RSVP Status</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAddGuest()">+ Add Guest</button>
+    </div>
+
+    <div class="filter-bar">
+      <input type="text" id="guest-search" placeholder="Search name, contact, notes…" oninput="applyFilters()"/>
+      <select id="filter-event" onchange="applyFilters()">
+        <option value="">All Events</option>
+      </select>
+      <select id="filter-rsvp" onchange="applyFilters()">
+        <option value="">All RSVP Status</option>
+        <option value="submitted">Submitted</option>
+        <option value="pending">Pending</option>
+      </select>
+    </div>
+
+    <div id="guest-view-container">
+      <div class="skeleton-loader"></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: CODES ── -->
+  <div class="admin-panel" id="tab-codes">
+    <div class="admin-card">
+      <div class="admin-card-title">Generate Invitation Code</div>
+      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Select which events to generate a code for:</p>
+      <div class="event-tick-grid" id="code-gen-ticks" style="margin-bottom:.9rem;"></div>
+      <div style="background:var(--gold-pale);border:1px solid rgba(184,146,74,.3);padding:1rem;text-align:center;border-radius:2px;margin:.7rem 0;">
+        <div style="font-family:'Cinzel',serif;font-size:1.55rem;letter-spacing:.3em;color:var(--wine);" id="gen-code-out">—</div>
+        <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Select events above</div>
+        <div class="invite-link-row hidden" id="gen-invite-row" style="margin-top:.5rem;">
+          <input class="invite-link-input" id="gen-invite-link" readonly/>
+          <button class="btn btn-secondary btn-sm" onclick="copyText(document.getElementById('gen-invite-link').value)">Copy Link</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="copyGenCode()">Copy Code</button>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="copyGenLink()">Copy Invite Link</button>
+      </div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-title">All Valid Codes</div>
+      <div style="overflow-x:auto;">
+        <table class="guest-table">
+          <thead><tr><th>Code</th><th>Events</th><th>Guests Assigned</th><th>Copy Link</th></tr></thead>
+          <tbody id="all-codes-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: RSVPs ── -->
+  <div class="admin-panel" id="tab-rsvps">
+    <div style="margin-bottom:1.2rem;">
+      <div class="rsvp-breakdown" id="rsvp-event-breakdown">
+        <div class="skeleton-loader"></div>
+      </div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-title">Submitted RSVPs</div>
+      <div id="rsvp-responses-list"><div class="skeleton-loader"></div></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: SETTINGS ── -->
+  <div class="admin-panel" id="tab-settings">
+    <div class="admin-card">
+      <div class="admin-card-title">Events Configuration</div>
+      <div id="events-config-list"><div class="skeleton-loader"></div></div>
+      <p style="font-size:.67rem;color:var(--muted);margin-top:.75rem;font-style:italic;">Events are managed in the Google Sheet "Events" tab. Changes are live immediately.</p>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-title">Site URL</div>
+      <div class="form-row">
+        <label>GitHub Pages URL</label>
+        <input type="text" id="site-url-input" placeholder="https://yourname.github.io/weddingrsvp2027/"/>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="saveSiteUrl()">Save</button>
+      <p style="font-size:.65rem;color:var(--muted);margin-top:.5rem;">This URL is used to generate invite links for guests.</p>
+    </div>
+  </div>
+
+</div><!-- /admin-dashboard -->
+
+<!-- ████  ADD / EDIT GUEST MODAL  ████ -->
+<div class="modal-overlay hidden" id="guest-modal-overlay" onclick="if(event.target===this)closeGuestModal()">
+  <div class="modal" id="guest-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Add Guest</span>
+      <button class="modal-close" onclick="closeGuestModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="m-id"/>
+      <div class="form-grid-2">
+        <div class="form-row" style="grid-column:1/-1;">
+          <label>Name / Family Name *</label>
+          <input type="text" id="m-name" placeholder="e.g. The Sharma Family"/>
+        </div>
+        <div class="form-row">
+          <label>Phone / WhatsApp</label>
+          <input type="text" id="m-phone" placeholder="+91 98765 43210"/>
+        </div>
+        <div class="form-row">
+          <label>Email</label>
+          <input type="email" id="m-email" placeholder="guest@email.com"/>
+        </div>
+        <div class="form-row">
+          <label>Relationship / Side</label>
+          <select id="m-relationship">
+            <option value="">— Select —</option>
+            <option>Bride's Family</option>
+            <option>Groom's Family</option>
+            <option>Bride's Friend</option>
+            <option>Groom's Friend</option>
+            <option>Colleague</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Notes</label>
+          <input type="text" id="m-notes" placeholder="Any notes…"/>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:.3rem;">
+        <label>Invited to Events *</label>
+        <div class="event-tick-grid" id="modal-event-ticks"></div>
+      </div>
+      <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;text-align:center;" id="modal-code-preview">
+        <span style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.3rem;">Invitation Code</span>
+        <span style="font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:.25em;color:var(--wine);" id="modal-code-out">—</span>
+        <div class="invite-link-row" id="modal-invite-row" style="margin-top:.5rem;">
+          <input class="invite-link-input" id="modal-invite-link" readonly/>
+          <button class="btn btn-secondary btn-sm" onclick="copyText(document.getElementById('modal-invite-link').value)">Copy</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeGuestModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="save-guest-btn" onclick="saveGuest()">Save Guest</button>
+    </div>
+  </div>
+</div>
+
+<!-- ████  VIEW GUEST/RSVP MODAL  ████ -->
+<div class="modal-overlay hidden" id="view-modal-overlay" onclick="if(event.target===this)closeViewModal()">
+  <div class="modal" id="view-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="view-modal-title">Details</span>
+      <button class="modal-close" onclick="closeViewModal()">✕</button>
+    </div>
+    <div class="modal-body" id="view-modal-body"></div>
+  </div>
+</div>
+<script>
+/* ══════════════════════════════════════════════
+   WEDDING ADMIN — JavaScript Part A
+   Config, Auth, Data Loading, Guest Views
+══════════════════════════════════════════════ */
+
+// ── Config ──────────────────────────────────
+let SITE_URL = localStorage.getItem('adminSiteUrl') || '';
+let allEvents = [];
+let allGuests = [];
+let allRSVPs = [];
+let allStats = {};
+let allDuplicates = [];
+let currentGuestView = 'table';
+
+function codeForIds(ids) { return ids.join('') + '2027'; }
+
+function buildCodesMap(events) {
+  const map = {};
+  const n = events.length;
+  for (let i = 1; i < (1 << n); i++) {
+    const ids = events.filter((_, j) => i & (1 << j)).map(e => e.id);
+    map[ids.join('') + '2027'] = ids;
+  }
+  return map;
+}
+
+function inviteLink(code) {
+  return SITE_URL ? SITE_URL + '?code=' + code : '?code=' + code;
+}
+
+// ── Helpers ─────────────────────────────────
+function showLoadError(containerId, msg, retryFn) {
+  document.getElementById(containerId).innerHTML =
+    '<div class="load-error">⚠ ' + msg +
+    ' <button class="btn btn-secondary btn-sm" onclick="' + retryFn + '()">Retry</button></div>';
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(function() { alert('Copied: ' + text); });
+}
+
+// ── Auth ────────────────────────────────────
+function submitPin() {
+  var pin = document.getElementById('pin-input').value.trim();
+  if (!pin) { document.getElementById('pin-error').textContent = 'Please enter the PIN.'; return; }
+  google.script.run
+    .withSuccessHandler(function(ok) {
+      if (ok) {
+        sessionStorage.setItem('adminAuthed', '1');
+        showDashboard();
+        loadDashboard();
+      } else {
+        document.getElementById('pin-error').textContent = 'Incorrect PIN. Please try again.';
+      }
+    })
+    .withFailureHandler(function() {
+      document.getElementById('pin-error').textContent = 'Error checking PIN. Please retry.';
+    })
+    .checkPin(pin);
+}
+
+function showDashboard() {
+  document.getElementById('admin-login-screen').classList.add('hidden');
+  document.getElementById('admin-dashboard').classList.remove('hidden');
+}
+
+function adminLogout() {
+  sessionStorage.clear();
+  location.reload();
+}
+
+// ── Init on page load ───────────────────────
+(function() {
+  if (sessionStorage.getItem('adminAuthed')) {
+    showDashboard();
+    loadDashboard();
+  }
+  var saved = localStorage.getItem('adminSiteUrl');
+  if (saved) {
+    SITE_URL = saved;
+    var el = document.getElementById('site-url-input');
+    if (el) el.value = saved;
+  }
+})();
+
+// ── Dashboard Load ──────────────────────────
+function loadDashboard() {
+  loadEvents();
+  loadStats();
+  loadGuests();
+}
+
+// ── Load Events ─────────────────────────────
+function loadEvents() {
+  google.script.run
+    .withSuccessHandler(function(data) {
+      allEvents = data || [];
+      populateEventFilters();
+      renderCodesTab();
+      renderSettingsTab();
+    })
+    .withFailureHandler(function(err) {
+      console.error('Failed to load events:', err);
+    })
+    .getEvents();
+}
+
+// ── Load Stats ──────────────────────────────
+function loadStats() {
+  document.getElementById('guest-stats').innerHTML =
+    '<div class="skeleton-loader" style="height:70px;flex:1;"></div>';
+  google.script.run
+    .withSuccessHandler(function(data) {
+      allStats = data || {};
+      renderStats();
+    })
+    .withFailureHandler(function(err) {
+      showLoadError('guest-stats', err.message || 'Failed to load stats', 'loadStats');
+    })
+    .getStats();
+}
+
+function renderStats() {
+  var s = allStats;
+  var dupStyle = s.duplicates > 0 ? 'color:var(--red);' : '';
+  document.getElementById('guest-stats').innerHTML =
+    '<div class="stat-card"><div class="stat-num">' + (s.totalGuests || 0) + '</div><div class="stat-lbl">Guests</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (s.submitted || 0) + '</div><div class="stat-lbl">RSVPd</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (s.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (s.totalAdults || 0) + '</div><div class="stat-lbl">Adults</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (s.totalChildren || 0) + '</div><div class="stat-lbl">Children</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="' + dupStyle + '">' + (s.duplicates || 0) + '</div><div class="stat-lbl">Duplicates</div></div>';
+}
+
+// ── Load Guests ─────────────────────────────
+function loadGuests() {
+  document.getElementById('guest-view-container').innerHTML = '<div class="skeleton-loader"></div>';
+  google.script.run
+    .withSuccessHandler(function(data) {
+      allGuests = data || [];
+      loadRSVPsForGuests();
+    })
+    .withFailureHandler(function(err) {
+      showLoadError('guest-view-container', err.message || 'Failed to load guests', 'loadGuests');
+    })
+    .getGuests();
+}
+
+function loadRSVPsForGuests() {
+  google.script.run
+    .withSuccessHandler(function(data) {
+      allRSVPs = data || [];
+      google.script.run
+        .withSuccessHandler(function(dups) {
+          allDuplicates = dups || [];
+          renderGuestView();
+        })
+        .withFailureHandler(function() {
+          allDuplicates = [];
+          renderGuestView();
+        })
+        .getDuplicates();
+    })
+    .withFailureHandler(function() {
+      allRSVPs = [];
+      renderGuestView();
+    })
+    .getRSVPsByFamily();
+}
+
+// ── Populate Event Filters ──────────────────
+function populateEventFilters() {
+  var sel = document.getElementById('filter-event');
+  sel.innerHTML = '<option value="">All Events</option>';
+  allEvents.forEach(function(ev) {
+    sel.innerHTML += '<option value="' + ev.id + '">' + ev.icon + ' ' + ev.name + '</option>';
+  });
+}
+
+// ── Tab Switching ───────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.admin-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.admin-panel').forEach(function(p) { p.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'guests') { loadGuests(); loadStats(); }
+  if (name === 'codes') renderCodesTab();
+  if (name === 'rsvps') loadRSVPsTab();
+  if (name === 'settings') renderSettingsTab();
+}
+
+// ── View Switching ──────────────────────────
+function setGuestView(v) {
+  currentGuestView = v;
+  ['table', 'grouped', 'rsvp-status'].forEach(function(n) {
+    document.getElementById('vbtn-' + n).classList.toggle('active', n === v);
+  });
+  renderGuestView();
+}
+
+// ── Filter / Search ─────────────────────────
+function applyFilters() { renderGuestView(); }
+
+function getFilteredGuests() {
+  var q = (document.getElementById('guest-search') || { value: '' }).value.toLowerCase();
+  var evFilter = (document.getElementById('filter-event') || { value: '' }).value;
+  var rsvpFilter = (document.getElementById('filter-rsvp') || { value: '' }).value;
+  var submittedCodes = {};
+  allRSVPs.forEach(function(r) { submittedCodes[r.invitation_code] = true; });
+
+  return allGuests.filter(function(g) {
+    var searchStr = (g.name || '') + (g.phone || '') + (g.email || '') + (g.notes || '') + (g.relationship || '');
+    if (q && searchStr.toLowerCase().indexOf(q) === -1) return false;
+    var gEvents = String(g.events || '').split(',').filter(Boolean);
+    if (evFilter && gEvents.indexOf(evFilter) === -1) return false;
+    if (rsvpFilter) {
+      var code = g.invitation_code || '';
+      var hasRSVP = !!submittedCodes[code];
+      if (rsvpFilter === 'submitted' && !hasRSVP) return false;
+      if (rsvpFilter === 'pending' && hasRSVP) return false;
+    }
+    return true;
+  });
+}
+
+function getGuestRSVPStatus(g) {
+  var code = g.invitation_code || '';
+  var match = null;
+  for (var i = 0; i < allRSVPs.length; i++) {
+    if (allRSVPs[i].invitation_code === code) { match = allRSVPs[i]; break; }
+  }
+  if (!match) return { label: 'Pending', cls: 'rsvp-pending' };
+  return { label: 'Submitted', cls: 'rsvp-submitted' };
+}
+
+// ── Render Guest View (dispatcher) ──────────
+function renderGuestView() {
+  var guests = getFilteredGuests();
+  var container = document.getElementById('guest-view-container');
+  if (!guests.length) {
+    container.innerHTML = '<div class="empty-state">No guests found. Add one above.</div>';
+    return;
+  }
+  if (currentGuestView === 'table') renderTableView(guests, container);
+  else if (currentGuestView === 'grouped') renderGroupedView(guests, container);
+  else renderRSVPStatusView(guests, container);
+}
+
+// ── Table View ──────────────────────────────
+function renderTableView(guests, container) {
+  var rows = guests.map(function(g) {
+    var gEvents = String(g.events || '').split(',').filter(Boolean);
+    var code = g.invitation_code || '';
+    var rsvp = getGuestRSVPStatus(g);
+    var dots = gEvents.map(function(id) {
+      var ev = allEvents.find(function(e) { return e.id === id; });
+      if (!ev) return '';
+      return '<span class="event-dot" title="' + ev.name + '" style="background:rgba(107,39,55,.1);color:var(--wine);">' + ev.icon + '</span>';
+    }).join('');
+    var link = inviteLink(code);
+    return '<tr>' +
+      '<td><div class="guest-name">' + (g.name || '') + '</div><div class="guest-contact">' +
+        [g.relationship, g.phone, g.email].filter(Boolean).join(' · ') + '</div></td>' +
+      '<td>' + dots + '</td>' +
+      '<td><span class="code-pill">' + code + '</span></td>' +
+      '<td><button class="btn btn-ghost btn-sm" onclick="copyText(\'' + link.replace(/'/g, "\\'") + '\')">Copy Link</button></td>' +
+      '<td><span class="rsvp-pill ' + rsvp.cls + '">' + rsvp.label + '</span></td>' +
+      '<td><div class="row-actions">' +
+        '<button class="btn btn-icon btn-ghost" title="View" onclick="openViewGuest(\'' + g.id + '\')">👁</button>' +
+        '<button class="btn btn-icon btn-ghost" title="Edit" onclick="openEditGuest(\'' + g.id + '\')">✏️</button>' +
+        '<button class="btn btn-icon btn-ghost" title="Delete" onclick="removeGuest(\'' + g.id + '\')" style="color:var(--red)">✕</button>' +
+      '</div></td></tr>';
+  }).join('');
+
+  container.innerHTML =
+    '<div class="admin-card" style="padding:0;overflow:hidden;"><div class="guest-table-wrap">' +
+    '<table class="guest-table"><thead><tr>' +
+    '<th>Name</th><th>Events</th><th>Code</th><th>Invite Link</th><th>RSVP</th><th style="text-align:right;">Actions</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+}
+
+// ── Grouped (By Code) View ──────────────────
+function renderGroupedView(guests, container) {
+  var groups = {};
+  guests.forEach(function(g) {
+    var code = g.invitation_code || 'NO_CODE';
+    if (!groups[code]) {
+      var gEvents = String(g.events || '').split(',').filter(Boolean);
+      groups[code] = { ids: gEvents, guests: [] };
+    }
+    groups[code].guests.push(g);
+  });
+
+  var html = Object.keys(groups).map(function(code) {
+    var group = groups[code];
+    var eventDots = group.ids.map(function(id) {
+      var ev = allEvents.find(function(e) { return e.id === id; });
+      if (!ev) return '';
+      return '<span class="event-dot" style="background:rgba(107,39,55,.08);color:var(--wine);padding:0 .4rem;border-radius:10px;font-size:.75rem;">' + ev.icon + ' <span style="font-size:.6rem;">' + ev.name + '</span></span>';
+    }).join('');
+
+    var guestRows = group.guests.map(function(g) {
+      var rsvp = getGuestRSVPStatus(g);
+      return '<div class="group-guest-row">' +
+        '<div><span style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' + (g.name || '') + '</span>' +
+        (g.relationship ? '<span style="font-size:.68rem;color:var(--muted);margin-left:.4rem;">' + g.relationship + '</span>' : '') +
+        '</div><div style="display:flex;gap:.5rem;align-items:center;">' +
+        '<span class="rsvp-pill ' + rsvp.cls + '">' + rsvp.label + '</span>' +
+        '<button class="btn btn-icon btn-ghost" onclick="openEditGuest(\'' + g.id + '\')">✏️</button>' +
+        '<button class="btn btn-icon btn-ghost" style="color:var(--red)" onclick="removeGuest(\'' + g.id + '\')">✕</button>' +
+        '</div></div>';
+    }).join('');
+
+    var link = inviteLink(code);
+    return '<div class="group-card">' +
+      '<div class="group-card-header"><div>' +
+      '<div class="group-code">' + code + '</div>' +
+      '<div class="group-events" style="margin-top:.3rem;">' + eventDots + '</div>' +
+      '</div>' +
+      '<button class="btn btn-secondary btn-sm" onclick="copyText(\'' + link.replace(/'/g, "\\'") + '\')">Copy Invite Link</button>' +
+      '</div><div class="group-card-body">' + guestRows + '</div></div>';
+  }).join('');
+
+  container.innerHTML = html || '<div class="empty-state">No guests found.</div>';
+}
+
+// ── RSVP Status View ────────────────────────
+function renderRSVPStatusView(guests, container) {
+  var submittedCodes = {};
+  allRSVPs.forEach(function(r) { submittedCodes[r.invitation_code] = true; });
+
+  var submitted = guests.filter(function(g) { return !!submittedCodes[g.invitation_code]; });
+  var pending = guests.filter(function(g) { return !submittedCodes[g.invitation_code]; });
+
+  function guestCard(g) {
+    var gEvents = String(g.events || '').split(',').filter(Boolean);
+    var code = g.invitation_code || '';
+    var dots = gEvents.map(function(id) {
+      var ev = allEvents.find(function(e) { return e.id === id; });
+      return ev ? '<span title="' + ev.name + '" style="font-size:.9rem;">' + ev.icon + '</span>' : '';
+    }).join('');
+    var isSubmitted = !!submittedCodes[code];
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);gap:.5rem;">' +
+      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:.98rem;color:var(--wine);">' + (g.name || '') + '</div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">' + (g.relationship || '') + (g.phone ? ' · ' + g.phone : '') + '</div></div>' +
+      '<div style="display:flex;align-items:center;gap:.6rem;flex-shrink:0;">' +
+      '<span style="font-size:.82rem;">' + dots + '</span>' +
+      '<span class="code-pill">' + code + '</span>' +
+      (isSubmitted ? '<button class="btn btn-ghost btn-sm" onclick="openViewRSVP(\'' + code + '\')">View</button>' : '') +
+      '</div></div>';
+  }
+
+  var dupHtml = '';
+  if (allDuplicates.length > 0) {
+    var dupItems = allDuplicates.map(function(d) {
+      var subs = d.submissions.map(function(s) {
+        return '<div style="font-size:.72rem;padding:.25rem 0;border-bottom:1px solid rgba(0,0,0,.04);">' +
+          '<span style="color:var(--wine);">' + (s.name || 'Unknown') + '</span>' +
+          ' <span style="color:var(--muted);font-size:.65rem;">' + (s.timestamp || '') + '</span></div>';
+      }).join('');
+      return '<div style="border:1px solid rgba(139,32,32,.2);padding:.8rem;margin-bottom:.5rem;border-radius:2px;background:rgba(139,32,32,.03);">' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:.4rem;">' +
+        '<span class="code-pill" style="background:rgba(139,32,32,.1);color:var(--red);">' + d.code + '</span>' +
+        '<span style="font-size:.68rem;color:var(--red);">' + d.count + ' submissions</span></div>' + subs + '</div>';
+    }).join('');
+    dupHtml = '<div class="admin-card" style="margin-top:1.2rem;">' +
+      '<div class="admin-card-title" style="color:var(--red);">⚠ Duplicate Submissions (' + allDuplicates.length + ')</div>' +
+      '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">These codes have multiple RSVP submissions. Review and resolve manually in the Google Sheet.</p>' +
+      dupItems + '</div>';
+  }
+
+  container.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;">' +
+    '<div class="admin-card"><div class="admin-card-title" style="color:var(--green);">✓ Submitted (' + submitted.length + ')</div>' +
+    (submitted.length ? submitted.map(guestCard).join('') : '<div class="empty-state">None yet</div>') + '</div>' +
+    '<div class="admin-card"><div class="admin-card-title" style="color:var(--gold);">⏳ Pending (' + pending.length + ')</div>' +
+    (pending.length ? pending.map(guestCard).join('') : '<div class="empty-state">All responded!</div>') + '</div></div>' + dupHtml;
+}
+
+// ══════════════════════════════════════════════
+//   GUEST MODAL — ADD / EDIT
+// ══════════════════════════════════════════════
+
+function openAddGuest() {
+  document.getElementById('m-id').value = '';
+  document.getElementById('modal-title').textContent = 'Add Guest';
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-phone').value = '';
+  document.getElementById('m-email').value = '';
+  document.getElementById('m-relationship').value = '';
+  document.getElementById('m-notes').value = '';
+  buildModalEventTicks([]);
+  document.getElementById('modal-code-out').textContent = '—';
+  document.getElementById('modal-invite-link').value = '';
+  document.getElementById('guest-modal-overlay').classList.remove('hidden');
+}
+
+function openEditGuest(id) {
+  var g = allGuests.find(function(g) { return g.id === id; });
+  if (!g) return;
+  document.getElementById('m-id').value = g.id;
+  document.getElementById('modal-title').textContent = 'Edit Guest';
+  document.getElementById('m-name').value = g.name || '';
+  document.getElementById('m-phone').value = g.phone || '';
+  document.getElementById('m-email').value = g.email || '';
+  document.getElementById('m-relationship').value = g.relationship || '';
+  document.getElementById('m-notes').value = g.notes || '';
+  var gEvents = String(g.events || '').split(',').filter(Boolean);
+  buildModalEventTicks(gEvents);
+  updateModalCode();
+  document.getElementById('guest-modal-overlay').classList.remove('hidden');
+}
+
+function buildModalEventTicks(selected) {
+  var grid = document.getElementById('modal-event-ticks');
+  grid.innerHTML = allEvents.map(function(ev) {
+    var checked = selected.indexOf(ev.id) > -1;
+    return '<label class="event-tick' + (checked ? ' selected' : '') + '">' +
+      '<input type="checkbox" value="' + ev.id + '"' + (checked ? ' checked' : '') + ' onchange="onModalTickChange(this)"/>' +
+      '<span>' + ev.icon + ' ' + ev.name + '</span></label>';
+  }).join('');
+}
+
+function onModalTickChange(el) {
+  el.closest('.event-tick').classList.toggle('selected', el.checked);
+  updateModalCode();
+}
+
+function updateModalCode() {
+  var ids = [];
+  document.querySelectorAll('#modal-event-ticks input:checked').forEach(function(i) { ids.push(i.value); });
+  var code = ids.length ? codeForIds(ids) : '—';
+  document.getElementById('modal-code-out').textContent = code;
+  var link = ids.length ? inviteLink(code) : '';
+  document.getElementById('modal-invite-link').value = link;
+}
+
+function saveGuest() {
+  var name = document.getElementById('m-name').value.trim();
+  if (!name) { alert('Please enter a name.'); return; }
+  var ids = [];
+  document.querySelectorAll('#modal-event-ticks input:checked').forEach(function(i) { ids.push(i.value); });
+  if (!ids.length) { alert('Please select at least one event.'); return; }
+
+  var code = codeForIds(ids);
+  var link = inviteLink(code);
+  var editId = document.getElementById('m-id').value;
+
+  var guestData = {
+    name: name,
+    phone: document.getElementById('m-phone').value.trim(),
+    email: document.getElementById('m-email').value.trim(),
+    relationship: document.getElementById('m-relationship').value,
+    notes: document.getElementById('m-notes').value.trim(),
+    events: ids,
+    invitation_code: code,
+    invite_link: link
+  };
+
+  var btn = document.getElementById('save-guest-btn');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+
+  if (editId) {
+    guestData.id = editId;
+    google.script.run
+      .withSuccessHandler(function() {
+        btn.textContent = 'Save Guest';
+        btn.disabled = false;
+        closeGuestModal();
+        loadGuests();
+        loadStats();
+      })
+      .withFailureHandler(function(err) {
+        btn.textContent = 'Save Guest';
+        btn.disabled = false;
+        alert('Error saving guest: ' + (err.message || err));
+      })
+      .updateGuest(guestData);
+  } else {
+    google.script.run
+      .withSuccessHandler(function() {
+        btn.textContent = 'Save Guest';
+        btn.disabled = false;
+        closeGuestModal();
+        loadGuests();
+        loadStats();
+      })
+      .withFailureHandler(function(err) {
+        btn.textContent = 'Save Guest';
+        btn.disabled = false;
+        alert('Error saving guest: ' + (err.message || err));
+      })
+      .addGuest(guestData);
+  }
+}
+
+function closeGuestModal() {
+  document.getElementById('guest-modal-overlay').classList.add('hidden');
+}
+
+// ── Delete Guest ────────────────────────────
+function removeGuest(id) {
+  if (!confirm('Delete this guest?')) return;
+  google.script.run
+    .withSuccessHandler(function() { loadGuests(); loadStats(); })
+    .withFailureHandler(function(err) { alert('Error: ' + (err.message || err)); })
+    .deleteGuest({ id: id });
+}
+
+// ══════════════════════════════════════════════
+//   VIEW GUEST DETAIL MODAL
+// ══════════════════════════════════════════════
+
+function openViewGuest(id) {
+  var g = allGuests.find(function(g) { return g.id === id; });
+  if (!g) return;
+  var code = g.invitation_code || '';
+  var gEvents = String(g.events || '').split(',').filter(Boolean);
+  var rsvp = getGuestRSVPStatus(g);
+  var evtList = gEvents.map(function(id) {
+    var ev = allEvents.find(function(e) { return e.id === id; });
+    if (!ev) return '';
+    return '<span class="event-dot" style="background:rgba(107,39,55,.08);color:var(--wine);padding:0 .4rem;border-radius:10px;font-size:.75rem;">' + ev.icon + ' ' + ev.name + '</span>';
+  }).join(' ');
+  var link = inviteLink(code);
+
+  document.getElementById('view-modal-title').textContent = g.name || 'Guest';
+  document.getElementById('view-modal-body').innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:.65rem;">' +
+    (g.relationship ? '<div><span style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Relationship</span><p style="margin-top:.2rem;">' + g.relationship + '</p></div>' : '') +
+    (g.phone ? '<div><span style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Phone</span><p style="margin-top:.2rem;">' + g.phone + '</p></div>' : '') +
+    (g.email ? '<div><span style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Email</span><p style="margin-top:.2rem;">' + g.email + '</p></div>' : '') +
+    (g.notes ? '<div><span style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Notes</span><p style="margin-top:.2rem;">' + g.notes + '</p></div>' : '') +
+    '<div><span style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">Invited Events</span><div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.35rem;">' + evtList + '</div></div>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--gold-pale);padding:.7rem .9rem;border-radius:2px;">' +
+      '<span style="font-family:\'Cinzel\',serif;font-size:.6rem;letter-spacing:.15em;color:var(--muted);text-transform:uppercase;">Invitation Code</span>' +
+      '<div style="display:flex;align-items:center;gap:.5rem;">' +
+        '<span style="font-family:\'Cinzel\',serif;font-size:1.1rem;letter-spacing:.2em;color:var(--wine);">' + code + '</span>' +
+        '<button class="btn btn-secondary btn-sm" onclick="copyText(\'' + code + '\')">Copy</button></div></div>' +
+    '<div style="background:#faf9f7;padding:.6rem .9rem;border-radius:2px;display:flex;align-items:center;justify-content:space-between;">' +
+      '<span style="font-size:.72rem;color:var(--muted);word-break:break-all;">' + link + '</span>' +
+      '<button class="btn btn-secondary btn-sm" onclick="copyText(\'' + link.replace(/'/g, "\\'") + '\')">Copy Link</button></div>' +
+    '<div style="display:flex;align-items:center;gap:.6rem;">' +
+      '<span style="font-family:\'Cinzel\',serif;font-size:.55rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;">RSVP Status</span>' +
+      '<span class="rsvp-pill ' + rsvp.cls + '">' + rsvp.label + '</span></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:.5rem;margin-top:1.2rem;">' +
+      '<button class="btn btn-secondary btn-sm" onclick="openEditGuest(\'' + g.id + '\');closeViewModal()">Edit</button>' +
+      '<button class="btn btn-danger btn-sm" onclick="removeGuest(\'' + g.id + '\');closeViewModal()">Delete</button></div>';
+
+  document.getElementById('view-modal-overlay').classList.remove('hidden');
+}
+
+function closeViewModal() {
+  document.getElementById('view-modal-overlay').classList.add('hidden');
+}
+
+// ══════════════════════════════════════════════
+//   VIEW RSVP RESPONSE MODAL
+// ══════════════════════════════════════════════
+
+function openViewRSVP(code) {
+  // Load fresh RSVP data from RSVPs_by_family sheet
+  google.script.run
+    .withSuccessHandler(function(rsvps) {
+      var matches = (rsvps || []).filter(function(r) { return r.invitation_code === code; });
+      if (!matches.length) { alert('No RSVP found for code: ' + code); return; }
+      var r = matches[matches.length - 1]; // show latest
+      document.getElementById('view-modal-title').textContent = (r.submission_name || 'Guest') + ' — RSVP';
+
+      var eventsHtml = allEvents.map(function(ev) {
+        var attKey = ev.name + ' Attending';
+        var adKey = ev.name + ' Adults';
+        var chKey = ev.name + ' Children';
+        var nKey = ev.name + ' Notes';
+        if (r[attKey] === undefined) return '';
+        var attending = String(r[attKey]).toUpperCase() === 'YES';
+        return '<div style="border:1px solid rgba(0,0,0,.07);padding:.9rem;margin-bottom:.6rem;border-radius:2px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:' + (attending ? '.5rem' : '0') + ';">' +
+          '<span style="font-family:\'Cormorant Garamond\',serif;font-size:1rem;color:var(--wine);">' + ev.icon + ' ' + ev.name + '</span>' +
+          '<span style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:' + (attending ? 'var(--green)' : 'var(--red)') + ';">' + (attending ? 'ATTENDING' : 'DECLINED') + '</span></div>' +
+          (attending ? '<div style="font-size:.78rem;color:var(--muted);">Adults: ' + (r[adKey] || 0) + ' · Children: ' + (r[chKey] || 0) + '</div>' +
+            (r[nKey] ? '<div style="font-size:.75rem;color:var(--muted);margin-top:.3rem;font-style:italic;">"' + r[nKey] + '"</div>' : '') : '') +
+          '</div>';
+      }).join('');
+
+      document.getElementById('view-modal-body').innerHTML =
+        '<p style="font-size:.72rem;color:var(--muted);margin-bottom:1rem;">Submitted: ' + (r.timestamp || '') + '</p>' + eventsHtml;
+      document.getElementById('view-modal-overlay').classList.remove('hidden');
+    })
+    .withFailureHandler(function(err) {
+      alert('Error loading RSVP: ' + (err.message || err));
+    })
+    .getRSVPsByFamily();
+}
+
+// ══════════════════════════════════════════════
+//   CODES TAB
+// ══════════════════════════════════════════════
+
+function renderCodesTab() {
+  if (!allEvents.length) return;
+
+  // Code gen ticks
+  document.getElementById('code-gen-ticks').innerHTML = allEvents.map(function(ev) {
+    return '<label class="event-tick">' +
+      '<input type="checkbox" value="' + ev.id + '" onchange="updateCodeGenOut()"/>' +
+      '<span>' + ev.icon + ' ' + ev.name + '</span></label>';
+  }).join('');
+
+  // All codes table
+  var codesMap = buildCodesMap(allEvents);
+  var tbody = document.getElementById('all-codes-tbody');
+  tbody.innerHTML = Object.keys(codesMap).map(function(code) {
+    var ids = codesMap[code];
+    var count = allGuests.filter(function(g) { return (g.invitation_code || '') === code; }).length;
+    var tags = ids.map(function(id) {
+      var ev = allEvents.find(function(e) { return e.id === id; });
+      if (!ev) return '';
+      return '<span style="display:inline-block;font-size:.6rem;padding:.1rem .4rem;border-radius:10px;background:var(--wine);color:#fff;margin:.1rem;">' + ev.icon + ' ' + ev.name + '</span>';
+    }).join('');
+    var link = inviteLink(code);
+    return '<tr><td><span class="code-pill">' + code + '</span></td><td>' + tags + '</td><td>' + count + '</td>' +
+      '<td><button class="btn btn-ghost btn-sm" onclick="copyText(\'' + link.replace(/'/g, "\\'") + '\')">Copy</button></td></tr>';
+  }).join('');
+}
+
+function updateCodeGenOut() {
+  var ids = [];
+  document.querySelectorAll('#code-gen-ticks input:checked').forEach(function(i) { ids.push(i.value); });
+  var code = ids.length ? codeForIds(ids) : '—';
+  document.getElementById('gen-code-out').textContent = code;
+  document.getElementById('gen-code-events').textContent = ids.length
+    ? ids.map(function(id) { var ev = allEvents.find(function(e) { return e.id === id; }); return ev ? ev.name : id; }).join(' · ')
+    : 'Select events above';
+  var link = ids.length ? inviteLink(code) : '';
+  document.getElementById('gen-invite-link').value = link;
+  document.getElementById('gen-invite-row').classList.toggle('hidden', !ids.length);
+}
+
+function copyGenCode() {
+  var c = document.getElementById('gen-code-out').textContent;
+  if (c === '—') { alert('Select at least one event.'); return; }
+  copyText(c);
+}
+
+function copyGenLink() {
+  var link = document.getElementById('gen-invite-link').value;
+  if (!link) { alert('Select at least one event.'); return; }
+  copyText(link);
+}
+
+// ══════════════════════════════════════════════
+//   RSVPs TAB
+// ══════════════════════════════════════════════
+
+function loadRSVPsTab() {
+  document.getElementById('rsvp-event-breakdown').innerHTML = '<div class="skeleton-loader"></div>';
+  document.getElementById('rsvp-responses-list').innerHTML = '<div class="skeleton-loader"></div>';
+
+  google.script.run
+    .withSuccessHandler(function(guests) {
+      allGuests = guests || [];
+      google.script.run
+        .withSuccessHandler(function(rsvps) {
+          allRSVPs = rsvps || [];
+          renderRSVPsTab();
+        })
+        .withFailureHandler(function(err) {
+          showLoadError('rsvp-responses-list', err.message || 'Failed', 'loadRSVPsTab');
+        })
+        .getRSVPsByFamily();
+    })
+    .withFailureHandler(function(err) {
+      showLoadError('rsvp-event-breakdown', err.message || 'Failed', 'loadRSVPsTab');
+    })
+    .getGuests();
+}
+
+function renderRSVPsTab() {
+  // Per-event breakdown cards
+  var submittedCodes = {};
+  allRSVPs.forEach(function(r) { submittedCodes[r.invitation_code] = true; });
+
+  var breakdown = allEvents.map(function(ev) {
+    // Count guests invited to this event
+    var invitedGuests = allGuests.filter(function(g) {
+      var gEvents = String(g.events || '').split(',').filter(Boolean);
+      return gEvents.indexOf(ev.id) > -1;
+    });
+    var submittedGuests = invitedGuests.filter(function(g) { return !!submittedCodes[g.invitation_code]; });
+    var pendingGuests = invitedGuests.filter(function(g) { return !submittedCodes[g.invitation_code]; });
+
+    return '<div class="event-rsvp-card">' +
+      '<div class="event-rsvp-header" style="background:rgba(107,39,55,.06);">' +
+      '<span style="font-size:1.2rem;">' + ev.icon + '</span>' +
+      '<span class="event-rsvp-title">' + ev.name + '</span></div>' +
+      '<div class="event-rsvp-stats">' +
+      '<div class="ersvp-stat"><div class="ersvp-num" style="color:var(--green);">' + submittedGuests.length + '</div><div class="ersvp-lbl">Responded</div></div>' +
+      '<div class="ersvp-stat"><div class="ersvp-num" style="color:var(--gold);">' + pendingGuests.length + '</div><div class="ersvp-lbl">Pending</div></div>' +
+      '</div></div>';
+  }).join('');
+  document.getElementById('rsvp-event-breakdown').innerHTML = breakdown || '<div class="empty-state">No events configured.</div>';
+
+  // Response list - show from allRSVPs
+  if (!allRSVPs.length) {
+    document.getElementById('rsvp-responses-list').innerHTML = '<div class="empty-state">No responses yet.</div>';
+    return;
+  }
+  document.getElementById('rsvp-responses-list').innerHTML = allRSVPs.map(function(r) {
+    var code = r.invitation_code || '';
+    var name = r.submission_name || r.name || 'Guest';
+    var ts = r.timestamp || r.created_at || '';
+    return '<div style="border:1px solid rgba(0,0,0,.07);padding:1rem 1.1rem;margin-bottom:.65rem;border-radius:2px;background:#fff;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;">' +
+      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:1.05rem;color:var(--wine);">' + name + '</div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">Code: ' + code + ' · ' + ts + '</div></div>' +
+      '<button class="btn btn-secondary btn-sm" onclick="openViewRSVP(\'' + code + '\')">View</button></div></div>';
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+//   SETTINGS TAB
+// ══════════════════════════════════════════════
+
+function renderSettingsTab() {
+  if (!allEvents.length) return;
+  document.getElementById('events-config-list').innerHTML = allEvents.map(function(ev) {
+    return '<div style="border:1px solid rgba(0,0,0,.07);padding:.85rem 1rem;display:flex;align-items:center;gap:.9rem;background:#faf9f7;border-radius:2px;margin-bottom:.5rem;">' +
+      '<div style="flex:1;">' +
+      '<div style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' + ev.icon + ' ' + ev.name + '</div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">' + (ev.date || '') + ' · ' + (ev.time || '') + '</div>' +
+      '<div style="font-size:.65rem;color:var(--teal);">' + (ev.venue || '') + '</div></div>' +
+      '<span style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.13em;color:var(--gold);background:rgba(184,146,74,.1);padding:.15rem .5rem;border-radius:10px;">' + ev.id + '</span></div>';
+  }).join('');
+
+  var el = document.getElementById('site-url-input');
+  if (SITE_URL && el) el.value = SITE_URL;
+}
+
+function saveSiteUrl() {
+  var url = document.getElementById('site-url-input').value.trim();
+  // Remove trailing slash
+  if (url.endsWith('/')) url = url.slice(0, -1);
+  SITE_URL = url;
+  localStorage.setItem('adminSiteUrl', url);
+  alert(url ? 'Site URL saved. Invite links will now use: ' + url : 'Site URL cleared.');
+}
+
+
+</script>
+</body>
+</html>
