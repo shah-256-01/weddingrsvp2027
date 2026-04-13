@@ -6,6 +6,11 @@
 const SHEET_ID  = '1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc';
 const ADMIN_PIN = '2027'; // ← change before going live
 
+// RSVP deadline — submissions after this date are rejected
+// Format: 'YYYY-MM-DD' — set to day AFTER the deadline
+// e.g. if deadline is 30 Nov 2027, set to '2027-12-01'
+const RSVP_DEADLINE = '2027-12-01';
+
 const TABS = {
   events:       'Events',
   guests:       'Guests',
@@ -448,6 +453,17 @@ function bulkAddGuests(payload) {
 
 // ── submitRSVP ────────────────────────────────────────────
 function submitRSVP(payload) {
+  // Check deadline
+  if (RSVP_DEADLINE) {
+    const now      = new Date();
+    const deadline = new Date(RSVP_DEADLINE);
+    if (now >= deadline) {
+      throw new Error(
+        'The RSVP deadline has passed. Please contact us directly if you need to update your response.'
+      );
+    }
+  }
+
   // ── Duplicate check — name + code ───────────────────
   const normCode = String(payload.invitationCode || '').toUpperCase().trim();
   const existing = getExistingRSVP(normCode, payload.submissionName);

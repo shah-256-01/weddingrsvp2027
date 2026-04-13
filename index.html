@@ -395,6 +395,8 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 // Replace with your Apps Script Web App URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_meK_ZwbNIdeqY1pHGLbJn27wIslfRnj1TdQ1AjwC5miCnmh0C5jnvMU2oJA_jYR6A/exec';
 const WEDDING_DATETIME = '2027-12-25T19:30:00+05:30';
+const RSVP_DEADLINE_DATE = '2027-11-30';  // Display deadline (inclusive)
+const RSVP_DEADLINE_BLOCK = '2027-12-01'; // Block submissions from this date
 
 let EVENTS = [];
 let CODES_MAP = {};
@@ -507,7 +509,17 @@ document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById(id);
     if (el) el.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitEntry(); });
   });
+  // Update submit note with deadline from constant
+  var noteEl = document.querySelector('.submit-note');
+  if (noteEl) {
+    noteEl.textContent = 'Please confirm by ' + formatDeadlineDate(RSVP_DEADLINE_DATE);
+  }
 });
+
+function formatDeadlineDate(dateStr) {
+  var d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 async function submitEntry() {
   var firstName = document.getElementById('first-name-input').value.trim();
@@ -567,11 +579,23 @@ function loadGuestPage() {
   eventRSVPs = {};
   currentEventIds.forEach(function(id) {
     var alloc       = (currentGuest.allocations && currentGuest.allocations[id]) || {};
-    var maxAdults   = Number(alloc.adults)   || 1;
+    var maxAdults   = Number(alloc.adults)   || 0;
     var maxChildren = Number(alloc.children) || 0;
+
+    // If both are 0, flag as unallocated
+    var isUnallocated = maxAdults === 0 && maxChildren === 0;
+
+    // Default adults to 1 if unallocated — better than blocking entirely
+    if (isUnallocated) maxAdults = 1;
+
     eventRSVPs[id] = {
-      attending: null, adults: maxAdults, children: maxChildren,
-      maxAdults: maxAdults, maxChildren: maxChildren, notes: '',
+      attending:     null,
+      adults:        maxAdults,
+      children:      maxChildren,
+      maxAdults:     maxAdults,
+      maxChildren:   maxChildren,
+      notes:         '',
+      isUnallocated: isUnallocated,
     };
   });
 
@@ -679,6 +703,13 @@ function renderEventCards() {
             '</div></div>' +
           '</div>' +
           '<div style="font-size:.68rem;color:var(--muted);margin-top:-.6rem;margin-bottom:1rem;font-style:italic;">Max: ' + eventRSVPs[id].maxAdults + ' adults, ' + eventRSVPs[id].maxChildren + ' children</div>' +
+          (eventRSVPs[id].isUnallocated
+            ? '<div style="font-size:.78rem;color:var(--red);margin-top:.4rem;padding:.5rem .7rem;' +
+              'background:rgba(139,32,32,.06);border-radius:2px;">' +
+              '\u26A0 Your allocation for this event hasn\'t been set. ' +
+              'Please contact us if you believe this is an error.' +
+              '</div>'
+            : '') +
           '<div class="field-section">' +
             '<span class="field-label">Notes for this event</span>' +
             '<textarea class="notes-field" placeholder="Any additional notes…" oninput="eventRSVPs[\'' + id + '\'].notes=this.value"></textarea>' +
@@ -705,6 +736,7 @@ function setAttending(id, val) {
 function adjCount(id, field, delta) {
   var r   = eventRSVPs[id];
   var max = field === 'adults' ? r.maxAdults : r.maxChildren;
+  if (max === 0 && field === 'adults') max = 1; // safety fallback
   r[field] = Math.min(max, Math.max(field === 'adults' ? 1 : 0, r[field] + delta));
   document.getElementById(field + '-' + id).textContent = r[field];
 }
@@ -726,7 +758,28 @@ function renderSummary() {
   });
 }
 
+/*
+  RSVP BACKUP STRATEGY:
+  Because we use no-cors, we cannot confirm if the submission reached Apps Script.
+  We save a copy to localStorage before submitting.
+  If a guest reports their RSVP wasn't received, check their browser's localStorage
+  for 'rsvp_backups' — the data will be there if they submitted successfully on their end.
+  To retrieve: open browser console on the wedding site and run getPendingRSVPBackups()
+*/
+
 async function submitRSVP() {
+  // Client-side deadline check
+  var now = new Date();
+  var blockDate = new Date(RSVP_DEADLINE_BLOCK);
+  if (now >= blockDate) {
+    var errEl = document.getElementById('submit-error');
+    if (errEl) {
+      errEl.textContent = 'The RSVP deadline has passed. Please contact us if you need to update your response.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
   if (currentEventIds.some(id => eventRSVPs[id].attending === null)) {
     var errEl = document.getElementById('submit-error');
     if (errEl) {
@@ -736,32 +789,61 @@ async function submitRSVP() {
     }
     return;
   }
+
   var btn = document.getElementById('submit-btn');
-  btn.textContent = 'Submitting…'; btn.disabled = true;
+  btn.textContent = 'Submitting\u2026';
+  btn.disabled    = true;
 
   var payload = {
     submissionName: currentGuest.familyName,
     invitationCode: currentCode,
-    submittedAt: new Date().toISOString(),
-    events: currentEventIds.map(id => {
-      var r = eventRSVPs[id];
-      var evt = EVENTS.find(e => e.id === id);
+    submittedAt:    new Date().toISOString(),
+    events: currentEventIds.map(function(id) {
+      var r   = eventRSVPs[id];
+      var evt = EVENTS.find(function(e) { return e.id === id; });
       return {
         id: id, name: evt.name, attending: r.attending,
-        adults: r.attending ? r.adults : 0,
+        adults:   r.attending ? r.adults   : 0,
         children: r.attending ? r.children : 0,
-        notes: r.notes || '',
+        notes:    r.notes || '',
       };
     }),
+    _syncStatus: 'pending',
   };
 
-  postRSVP(payload).catch(console.error);
+  // Save to localStorage BEFORE submitting — backup in case network fails
+  try {
+    var backupKey  = 'rsvp_backup_' + currentCode + '_' + Date.now();
+    var allBackups = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
+    allBackups.push({ key: backupKey, payload: payload, savedAt: new Date().toISOString() });
+    localStorage.setItem('rsvp_backups', JSON.stringify(allBackups));
+  } catch (e) {
+    console.warn('Could not save RSVP backup to localStorage:', e);
+  }
 
-  ['events-section', 'rsvp-summary', 'submit-section']
-    .forEach(id => document.getElementById(id).classList.add('hidden'));
+  // Submit to Apps Script (fire and forget — no-cors)
+  postRSVP(payload).catch(function(err) {
+    console.warn('RSVP post failed:', err);
+    // Guest already sees success screen — backup is in localStorage
+  });
+
+  // Show success
+  ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
   document.getElementById('success-screen').classList.remove('hidden');
   if (currentGuest && currentGuest.isOverseas) {
     document.getElementById('overseas-success-link').classList.remove('hidden');
+  }
+}
+
+// Utility — call from browser console to see pending backups
+function getPendingRSVPBackups() {
+  try {
+    return JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
+  } catch (e) {
+    return [];
   }
 }
 
