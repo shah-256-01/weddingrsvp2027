@@ -56,7 +56,8 @@ function doPost(e) {
     else if (action === 'bulkAddGuests') result = bulkAddGuests(payload);
     else if (action === 'getGuests')    result = getGuests();
     else if (action === 'getStats')     result = getStats();
-    else if (action === 'getDuplicates') result = getDuplicates();
+    else if (action === 'getDuplicates')    result = getDuplicates();
+    else if (action === 'getSubmittedCodes') result = getSubmittedCodes();
     else if (action === 'checkPin')     result = { ok: String(payload.pin) === String(ADMIN_PIN) };
     else throw new Error('Unknown action: ' + action);
     return jsonResponse({ ok: true, data: result });
@@ -315,26 +316,129 @@ function getRSVPsByFamily() {
 
 // ── getStats ──────────────────────────────────────────────
 function getStats() {
-  const guests     = getGuests();
-  const byFamily   = sheetToObjects(getSheet(TABS.rsvpByFamily));
-  const submitted  = new Set(byFamily.map(r => r.invitation_code));
-  const rsvpd      = guests.filter(g => submitted.has(g.invitation_code)).length;
+  const guests   = getGuests();
+  const byEvent  = sheetToObjects(getSheet(TABS.rsvpByEvent));
+  const byFamily = sheetToObjects(getSheet(TABS.rsvpByFamily));
 
-  let totalAdults = 0, totalChildren = 0;
+  // ── Deduplicate submissions ──────────────────────────
+  // If same code submitted twice, keep only the most recent
+  const latestByCode = {};
   byFamily.forEach(row => {
-    Object.keys(row).forEach(key => {
-      if (key.endsWith(' Adults'))   totalAdults   += Number(row[key]) || 0;
-      if (key.endsWith(' Children')) totalChildren += Number(row[key]) || 0;
+    const code = row.invitation_code;
+    if (
+      !latestByCode[code] ||
+      new Date(row.timestamp) > new Date(latestByCode[code].timestamp)
+    ) {
+      latestByCode[code] = row;
+    }
+  });
+  const dedupedSubmissions = Object.values(latestByCode);
+  const submittedCodes     = new Set(dedupedSubmissions.map(r => r.invitation_code));
+
+  // ── Overall guest counts ─────────────────────────────
+  // Use the highest allocation across any single event as their "total"
+  // This avoids counting the same person multiple times across events
+  let totalInvitedAdults = 0, totalInvitedChildren = 0;
+  guests.forEach(g => {
+    let maxAdults = 0, maxChildren = 0;
+    EVENT_IDS.forEach(id => {
+      const a = Number(g[id + '_adults'])   || 0;
+      const c = Number(g[id + '_children']) || 0;
+      if (a > maxAdults)   maxAdults   = a;
+      if (c > maxChildren) maxChildren = c;
+    });
+    totalInvitedAdults   += maxAdults;
+    totalInvitedChildren += maxChildren;
+  });
+
+  // ── Per-event breakdown ──────────────────────────────
+  const perEvent = {};
+  EVENT_IDS.forEach(id => {
+    perEvent[id] = {
+      id,
+      invitedGuests:    0,
+      invitedAdults:    0,
+      invitedChildren:  0,
+      attending:        0,
+      attendingAdults:  0,
+      attendingChildren:0,
+      declined:         0,
+      pending:          0,
+    };
+  });
+
+  // Count invited per event from Guests sheet
+  guests.forEach(g => {
+    const eventIds = String(g.events || '').split(',').map(s => s.trim()).filter(Boolean);
+    eventIds.forEach(id => {
+      if (!perEvent[id]) return;
+      perEvent[id].invitedGuests++;
+      perEvent[id].invitedAdults   += Number(g[id + '_adults'])   || 0;
+      perEvent[id].invitedChildren += Number(g[id + '_children']) || 0;
     });
   });
 
+  // Count attending per event from RSVPs_by_event (deduped)
+  const dedupedEventCodes = new Set(dedupedSubmissions.map(r => r.invitation_code));
+  let confirmedAdults = 0, confirmedChildren = 0;
+
+  byEvent.forEach(row => {
+    const id   = row.event_id;
+    const code = row.invitation_code;
+    if (!perEvent[id]) return;
+    if (!dedupedEventCodes.has(code)) return;
+
+    if (String(row.attending).toLowerCase() === 'yes') {
+      perEvent[id].attending++;
+      perEvent[id].attendingAdults   += Number(row.adults)   || 0;
+      perEvent[id].attendingChildren += Number(row.children) || 0;
+    } else {
+      perEvent[id].declined++;
+    }
+  });
+
+  // Count pending per event
+  EVENT_IDS.forEach(id => {
+    const invitedCodes = new Set(
+      guests
+        .filter(g => String(g.events || '').split(',').map(s=>s.trim()).includes(id))
+        .map(g => g.invitation_code)
+    );
+    let pending = 0;
+    invitedCodes.forEach(code => {
+      if (!submittedCodes.has(code)) pending++;
+    });
+    perEvent[id].pending = pending;
+  });
+
+  // Confirmed adults/children — avoid double counting across events
+  // Use per-family max attending across events
+  const allEventsData = getEvents();
+  let finalConfirmedAdults = 0, finalConfirmedChildren = 0;
+  dedupedSubmissions.forEach(row => {
+    let maxA = 0, maxC = 0;
+    allEventsData.forEach(evt => {
+      const a = Number(row[evt.name + ' Adults'])   || 0;
+      const c = Number(row[evt.name + ' Children']) || 0;
+      if (String(row[evt.name + ' Attending']).toLowerCase() === 'yes') {
+        if (a > maxA) maxA = a;
+        if (c > maxC) maxC = c;
+      }
+    });
+    finalConfirmedAdults   += maxA;
+    finalConfirmedChildren += maxC;
+  });
+
   return {
-    totalGuests:  guests.length,
-    rsvpd,
-    pending:      guests.length - rsvpd,
-    totalAdults,
-    totalChildren,
-    duplicates:   getDuplicates().length,
+    totalGuests:           guests.length,
+    rsvpd:                 submittedCodes.size,
+    pending:               guests.length - submittedCodes.size,
+    totalInvitedAdults,
+    totalInvitedChildren,
+    confirmedAdults:       finalConfirmedAdults,
+    confirmedChildren:     finalConfirmedChildren,
+    duplicates:            byFamily.length - dedupedSubmissions.length,
+    perEvent:              Object.values(perEvent),
   };
 }
 
@@ -342,17 +446,49 @@ function getStats() {
 function getDuplicates() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
-  const rows  = sheetToObjects(sheet);
-  const counts = {}, byCode = {};
+  const rows    = sheetToObjects(sheet);
+  const counts  = {};
+  const byCode  = {};
+
   rows.forEach(r => {
     const code = r.invitation_code;
     counts[code] = (counts[code] || 0) + 1;
     if (!byCode[code]) byCode[code] = [];
-    byCode[code].push({ name: r.submission_name, timestamp: r.timestamp });
+    byCode[code].push({
+      name:      r.submission_name,
+      timestamp: r.timestamp,
+    });
   });
+
   return Object.entries(counts)
     .filter(([, n]) => n > 1)
-    .map(([code, count]) => ({ code, count, submissions: byCode[code] }));
+    .map(([code, count]) => ({
+      code,
+      count,
+      submissions: byCode[code].sort(
+        (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+      ),
+      latestTimestamp: byCode[code]
+        .map(s => new Date(s.timestamp))
+        .reduce((a, b) => a > b ? a : b)
+        .toISOString(),
+    }));
+}
+
+// ── getSubmittedCodes ─────────────────────────────────────
+// Returns deduped list of invitation codes that have at least one RSVP
+function getSubmittedCodes() {
+  const sheet = getSheet(TABS.rsvpByFamily);
+  if (sheet.getLastRow() < 2) return [];
+  const rows = sheetToObjects(sheet);
+  const latest = {};
+  rows.forEach(r => {
+    const code = r.invitation_code;
+    if (!latest[code] || new Date(r.timestamp) > new Date(latest[code].timestamp)) {
+      latest[code] = r;
+    }
+  });
+  return Object.keys(latest);
 }
 
 // ── checkPin ──────────────────────────────────────────────

@@ -133,6 +133,25 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .alloc-grid .alloc-evt{font-size:.78rem;color:var(--ink);display:flex;align-items:center;gap:.4rem;}
 .alloc-grid input[type="number"]{width:100%;border:1px solid rgba(0,0,0,.11);background:transparent;padding:.45rem .5rem;border-radius:2px;font-family:'Jost',sans-serif;font-size:.82rem;text-align:center;outline:none;transition:border-color .2s;}
 .alloc-grid input[type="number"]:focus{border-color:var(--gold);}
+/* ── Event filter bar (By Event view) ── */
+.event-filter-bar{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;}
+.event-filter-btn{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.13em;text-transform:uppercase;padding:.45rem .9rem;border:1px solid rgba(0,0,0,.1);background:transparent;cursor:pointer;border-radius:2px;color:var(--muted);transition:all .18s;}
+.event-filter-btn:hover{background:var(--blush);color:var(--wine);}
+.event-filter-btn.active{background:var(--wine);color:var(--gold-lt);border-color:var(--wine);}
+/* ── RSVP Status view ── */
+.status-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;}
+@media(max-width:640px){.status-grid{grid-template-columns:1fr;}}
+.status-col-title{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem;}
+.status-guest-row{display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);gap:.5rem;}
+.guest-name-cell{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);}
+.guest-sub{font-size:.68rem;color:var(--muted);}
+/* ── Duplicate section ── */
+.dup-section{background:var(--card-bg);border:1px solid rgba(139,32,32,.15);border-radius:2px;padding:1.2rem;}
+.dup-title{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--red);margin-bottom:.5rem;}
+.dup-item{border:1px solid rgba(139,32,32,.2);padding:.8rem;margin-bottom:.5rem;border-radius:2px;background:rgba(139,32,32,.03);}
+.dup-code{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--red);margin-bottom:.35rem;}
+.dup-sub{font-size:.72rem;padding:.25rem 0;border-bottom:1px solid rgba(0,0,0,.04);}
+.stat-num.danger{color:var(--red);}
 </style></head>
 <body>
 
@@ -176,6 +195,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <button class="view-btn active" onclick="setGuestView('table')" id="vbtn-table">&#9776; List</button>
         <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; By Code</button>
         <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">&#10003; RSVP Status</button>
+        <button class="view-btn" onclick="setGuestView('event')" id="vbtn-event">&#128197; By Event</button>
       </div>
       <button class="btn btn-primary btn-sm" onclick="openAddGuest()">+ Add Guest</button>
     </div>
@@ -349,9 +369,13 @@ var allEvents = [];
 var allGuests = [];
 var allRSVPs = [];
 var allDuplicates = [];
+var allStats = {};
+var allSubmittedCodes = new Set();
 var currentView = 'list';
 var editingGuestId = null;
 var parsedCSVRows = [];
+var _eventViewGuests = [];
+var _eventViewStats = {};
 
 // ── Helpers ────────────────────────────────
 function codeForIds(ids) {
@@ -370,7 +394,16 @@ function buildEventDots(g) {
 }
 
 function isSubmitted(g) {
-  return allRSVPs.some(r => r.invitation_code === g.invitation_code);
+  return allSubmittedCodes.has(g.invitation_code);
+}
+
+function getRSVPStatus(g) {
+  var submitted = allSubmittedCodes.has(g.invitation_code);
+  var isDup = allDuplicates.some(function(d) { return d.code === g.invitation_code; });
+  if (submitted) {
+    return { cls: 'rsvp-submitted', label: isDup ? 'Submitted \u26A0' : 'Submitted' };
+  }
+  return { cls: 'rsvp-pending', label: 'Pending' };
 }
 
 function showLoadError(containerId, msg, retryFn) {
@@ -450,14 +483,15 @@ function loadStats() {
   google.script.run
     .withSuccessHandler(function(data) {
       var s = data || {};
-      var dupStyle = s.duplicates > 0 ? 'color:var(--red);' : '';
+      allStats = s;
+      var dupCls = s.duplicates > 0 ? ' danger' : '';
       document.getElementById('guest-stats').innerHTML =
         '<div class="stat-card"><div class="stat-num">' + (s.totalGuests || 0) + '</div><div class="stat-lbl">Total Guests</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + (s.rsvpd || 0) + '</div><div class="stat-lbl">RSVPd</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + (s.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + (s.totalAdults || 0) + '</div><div class="stat-lbl">Adults</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + (s.totalChildren || 0) + '</div><div class="stat-lbl">Children</div></div>' +
-        '<div class="stat-card"><div class="stat-num" style="' + dupStyle + '">' + (s.duplicates || 0) + '</div><div class="stat-lbl">Duplicates</div></div>';
+        '<div class="stat-card"><div class="stat-num">' + (s.confirmedAdults || 0) + '</div><div class="stat-lbl">Adults Confirmed</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + (s.confirmedChildren || 0) + '</div><div class="stat-lbl">Children Confirmed</div></div>' +
+        '<div class="stat-card"><div class="stat-num' + dupCls + '">' + (s.duplicates || 0) + '</div><div class="stat-lbl">Duplicates</div></div>';
     })
     .withFailureHandler(function(err) {
       showLoadError('guest-stats', err.message || 'Failed to load stats', 'loadStats');
@@ -474,15 +508,24 @@ function loadGuests() {
         .withSuccessHandler(function(rsvpData) {
           allRSVPs = rsvpData || [];
           google.script.run
-            .withSuccessHandler(function(dups) {
-              allDuplicates = dups || [];
-              renderGuestView();
+            .withSuccessHandler(function(codes) {
+              allSubmittedCodes = new Set(codes || []);
+              google.script.run
+                .withSuccessHandler(function(dups) {
+                  allDuplicates = dups || [];
+                  renderGuestView();
+                })
+                .withFailureHandler(function() {
+                  allDuplicates = [];
+                  renderGuestView();
+                })
+                .getDuplicates();
             })
             .withFailureHandler(function() {
-              allDuplicates = [];
+              allSubmittedCodes = new Set();
               renderGuestView();
             })
-            .getDuplicates();
+            .getSubmittedCodes();
         })
         .withFailureHandler(function() {
           allRSVPs = [];
@@ -505,8 +548,8 @@ function getFilteredGuests() {
     var fullName = ((g.first_name || '') + ' ' + (g.last_name || '')).toLowerCase();
     if (search && fullName.indexOf(search) === -1) return false;
     if (rel && g.relationship !== rel) return false;
-    if (rsvpFilter === 'submitted' && !allRSVPs.some(r => r.invitation_code === g.invitation_code)) return false;
-    if (rsvpFilter === 'pending' && allRSVPs.some(r => r.invitation_code === g.invitation_code)) return false;
+    if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
+    if (rsvpFilter === 'pending' && allSubmittedCodes.has(g.invitation_code)) return false;
     return true;
   });
 }
@@ -522,10 +565,11 @@ function setGuestView(view) {
 function renderGuestView() {
   var container = document.getElementById('guest-view-container');
   var guests = getFilteredGuests();
+  if (currentView === 'event') { renderEventView(allGuests, allStats); return; }
+  if (currentView === 'rsvp-status') { renderRSVPStatusView(guests, container); return; }
   if (!guests.length) { container.innerHTML = '<div class="empty-state">No guests found.</div>'; return; }
   if (currentView === 'list') renderTableView(guests, container);
   else if (currentView === 'grouped') renderGroupedView(guests, container);
-  else if (currentView === 'rsvp-status') renderRSVPStatusView(guests, container);
 }
 
 // ── Table View ─────────────────────────────
@@ -606,52 +650,113 @@ function renderGroupedView(guests, container) {
 
 // ── RSVP Status View ───────────────────────
 function renderRSVPStatusView(guests, container) {
-  var submittedCodes = {};
-  allRSVPs.forEach(function(r) { submittedCodes[r.invitation_code] = true; });
+  var duplicateCodes = {};
+  allDuplicates.forEach(function(d) { duplicateCodes[d.code] = true; });
 
-  var submitted = guests.filter(function(g) { return !!submittedCodes[g.invitation_code]; });
-  var pending = guests.filter(function(g) { return !submittedCodes[g.invitation_code]; });
+  var submitted = guests.filter(function(g) { return allSubmittedCodes.has(g.invitation_code); });
+  var pending = guests.filter(function(g) { return !allSubmittedCodes.has(g.invitation_code); });
 
-  function guestCard(g) {
+  function guestRow(g) {
     var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
     var code = g.invitation_code || '';
-    var dots = buildEventDots(g);
-    var hasRSVP = !!submittedCodes[code];
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);gap:.5rem;">' +
-      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:.98rem;color:var(--wine);">' + fullName + '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);">' + (g.relationship || '') + (g.phone ? ' &middot; ' + g.phone : '') + '</div></div>' +
-      '<div style="display:flex;align-items:center;gap:.6rem;flex-shrink:0;">' +
-      '<span style="font-size:.82rem;">' + dots + '</span>' +
+    var isDup = !!duplicateCodes[code];
+    return '<div class="status-guest-row">' +
+      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' +
+      fullName +
+      (isDup ? '<span style="font-size:.6rem;color:var(--red);margin-left:.4rem;">\u26A0 duplicate</span>' : '') +
+      '</div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">' + sanitiseValue(g.relationship) + ' \u00B7 ' + code + '</div>' +
+      '</div>' +
       '<span class="code-pill">' + code + '</span>' +
-      (hasRSVP ? '<button class="btn btn-ghost btn-sm" onclick="openViewRSVP(\'' + code + '\')">View</button>' : '') +
-      '</div></div>';
+      '</div>';
   }
 
   var dupHtml = '';
   if (allDuplicates.length > 0) {
     var dupItems = allDuplicates.map(function(d) {
-      var subs = d.submissions.map(function(s) {
-        return '<div style="font-size:.72rem;padding:.25rem 0;border-bottom:1px solid rgba(0,0,0,.04);">' +
-          '<span style="color:var(--wine);">' + (s.name || 'Unknown') + '</span>' +
-          ' <span style="color:var(--muted);font-size:.65rem;">' + (s.timestamp || '') + '</span></div>';
+      var subs = d.submissions.map(function(s, i) {
+        var prefix = i === 0 ? '\u2605 Latest (counted): ' : '\u25CB Earlier: ';
+        var ts = s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
+        return '<div class="dup-sub">' + prefix + (s.name || 'Unknown') + ' \u00B7 ' + ts + '</div>';
       }).join('');
-      return '<div style="border:1px solid rgba(139,32,32,.2);padding:.8rem;margin-bottom:.5rem;border-radius:2px;background:rgba(139,32,32,.03);">' +
-        '<div style="display:flex;justify-content:space-between;margin-bottom:.4rem;">' +
-        '<span class="code-pill" style="background:rgba(139,32,32,.1);color:var(--red);">' + d.code + '</span>' +
-        '<span style="font-size:.68rem;color:var(--red);">' + d.count + ' submissions</span></div>' + subs + '</div>';
+      return '<div class="dup-item">' +
+        '<div class="dup-code">' + d.code + ' \u2014 ' + d.count + ' submissions</div>' +
+        subs + '</div>';
     }).join('');
-    dupHtml = '<div class="admin-card" style="margin-top:1.2rem;">' +
-      '<div class="admin-card-title" style="color:var(--red);">&#9888; Duplicate Submissions (' + allDuplicates.length + ')</div>' +
-      '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">These codes have multiple RSVP submissions. Review and resolve manually in the Google Sheet.</p>' +
+    dupHtml = '<div class="dup-section" style="margin-top:1.2rem;">' +
+      '<div class="dup-title">\u26A0 Duplicate Submissions \u2014 Resolve Manually</div>' +
+      '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">These codes have more than one submission. Only the most recent is counted in stats. Review and decide which response is correct.</p>' +
       dupItems + '</div>';
   }
 
   container.innerHTML =
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;">' +
-    '<div class="admin-card"><div class="admin-card-title" style="color:var(--green);">&#10003; Submitted (' + submitted.length + ')</div>' +
-    (submitted.length ? submitted.map(guestCard).join('') : '<div class="empty-state">None yet</div>') + '</div>' +
-    '<div class="admin-card"><div class="admin-card-title" style="color:var(--gold);">&#9203; Pending (' + pending.length + ')</div>' +
-    (pending.length ? pending.map(guestCard).join('') : '<div class="empty-state">All responded!</div>') + '</div></div>' + dupHtml;
+    '<div class="status-grid">' +
+    '<div class="admin-card"><div class="status-col-title" style="color:var(--green);">\u2713 Submitted <span style="opacity:.5;font-size:.8em;">(' + submitted.length + ')</span></div>' +
+    (submitted.length ? submitted.map(guestRow).join('') : '<div class="empty-state">None yet</div>') + '</div>' +
+    '<div class="admin-card"><div class="status-col-title" style="color:var(--gold);">\u23F3 Pending <span style="opacity:.5;font-size:.8em;">(' + pending.length + ')</span></div>' +
+    (pending.length ? pending.map(guestRow).join('') : '<div class="empty-state">All responded!</div>') + '</div></div>' + dupHtml;
+}
+
+// ── By Event View ─────────────────────────────
+function renderEventView(guests, stats) {
+  var container = document.getElementById('guest-view-container');
+  var perEvent = (stats && stats.perEvent) || [];
+  if (!perEvent.length) {
+    container.innerHTML = '<div class="empty-state">No event data available. Stats are still loading.</div>';
+    return;
+  }
+
+  var eventTabs = perEvent.map(function(ev) {
+    var evtConfig = allEvents.find(function(e) { return e.id === ev.id; }) || {};
+    return '<button class="event-filter-btn" id="efbtn-' + ev.id + '" onclick="selectEventFilter(\'' + ev.id + '\')">' +
+      (evtConfig.icon || '') + ' ' + (evtConfig.name || ev.id) + '</button>';
+  }).join('');
+
+  container.innerHTML = '<div class="event-filter-bar">' + eventTabs + '</div><div id="event-view-content"></div>';
+  _eventViewGuests = guests;
+  _eventViewStats = stats;
+  selectEventFilter(perEvent[0].id);
+}
+
+function selectEventFilter(eventId) {
+  document.querySelectorAll('.event-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  var activeBtn = document.getElementById('efbtn-' + eventId);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  var evtConfig = allEvents.find(function(e) { return e.id === eventId; }) || {};
+  var evtStats = (_eventViewStats.perEvent || []).find(function(e) { return e.id === eventId; }) || {};
+
+  var invitedGuests = _eventViewGuests.filter(function(g) {
+    return String(g.events || '').split(',').map(function(s) { return s.trim(); }).indexOf(eventId) > -1;
+  });
+
+  var guestRows = invitedGuests.map(function(g) {
+    var status = getRSVPStatus(g);
+    return '<tr>' +
+      '<td><div class="guest-name-cell">' + (g.first_name || '') + ' ' + (g.last_name || '') + '</div>' +
+      '<div class="guest-sub">' + sanitiseValue(g.phone) + '</div></td>' +
+      '<td>' + sanitiseValue(g.relationship) + '</td>' +
+      '<td style="text-align:center;">' + (Number(g[eventId + '_adults']) || 0) + '</td>' +
+      '<td style="text-align:center;">' + (Number(g[eventId + '_children']) || 0) + '</td>' +
+      '<td><span class="rsvp-pill ' + status.cls + '">' + status.label + '</span></td>' +
+      '</tr>';
+  }).join('');
+
+  var content = document.getElementById('event-view-content');
+  content.innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:1rem 0;">' +
+    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Families Invited</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedAdults || 0) + '</div><div class="stat-lbl">Adults Invited</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedChildren || 0) + '</div><div class="stat-lbl">Children Invited</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingAdults || 0) + '</div><div class="stat-lbl">Adults Confirmed</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingChildren || 0) + '</div><div class="stat-lbl">Children Confirmed</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:var(--gold);">' + (evtStats.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:var(--red);">' + (evtStats.declined || 0) + '</div><div class="stat-lbl">Declined</div></div>' +
+    '</div>' +
+    '<div class="admin-card"><div class="admin-card-title">' + (evtConfig.icon || '') + ' ' + (evtConfig.name || eventId) + ' — Guest List</div>' +
+    '<div class="guest-table-wrap"><table class="guest-table"><thead><tr>' +
+    '<th>Name</th><th>Relationship</th><th>Allocated Adults</th><th>Allocated Children</th><th>RSVP Status</th>' +
+    '</tr></thead><tbody>' + guestRows + '</tbody></table></div></div>';
 }
 
 // ══════════════════════════════════════════════
