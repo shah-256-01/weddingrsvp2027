@@ -83,7 +83,8 @@ function doPost(e) {
       'getDuplicates', 'getSubmittedCodes',
     ];
     if (ADMIN_ACTIONS.indexOf(action) > -1) {
-      if (String(pin) !== String(ADMIN_PIN)) {
+      if (!constantTimeEquals(String(pin || ''), String(ADMIN_PIN))) {
+        Utilities.sleep(200 + Math.floor(Math.random() * 300));
         return jsonResponse({ ok: false, error: 'Unauthorized.' });
       }
     }
@@ -100,7 +101,7 @@ function doPost(e) {
     else if (action === 'getStats')         result = getStats();
     else if (action === 'getDuplicates')    result = getDuplicates();
     else if (action === 'getSubmittedCodes') result = getSubmittedCodes();
-    else if (action === 'checkPin')         result = { ok: String(payload.pin) === String(ADMIN_PIN) };
+    else if (action === 'checkPin')         result = { ok: constantTimeEquals(String(payload.pin || ''), String(ADMIN_PIN)) };
     else throw new Error('Unknown action: ' + action);
     return jsonResponse({ ok: true, data: result });
   } catch (err) {
@@ -134,6 +135,21 @@ function sheetToObjects(sheet) {
 function escapeHtml(str) {
   return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function constantTimeEquals(a, b) {
+  if (a.length !== b.length) {
+    // Compare against b anyway to avoid length-based timing leak
+    b = a;
+    var match = false;
+  } else {
+    var match = true;
+  }
+  var result = 0;
+  for (var i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return match && result === 0;
 }
 
 function findRowById(sheet, id) {
@@ -317,15 +333,15 @@ function getExistingRSVP(code, familyName) {
     const eventSummary = [];
     const activeEvents = getEvents();
     activeEvents.forEach(function(evt) {
-      const attending = String(latest[evt.name + ' Attending'] || '').toLowerCase();
+      const attending = String(latest[evt.id + ' Attending'] || '').toLowerCase();
       if (attending === 'yes' || attending === 'no') {
         eventSummary.push({
           id:       evt.id,
           name:     evt.name,
           icon:     evt.icon,
           attending: attending === 'yes',
-          adults:   Number(latest[evt.name + ' Adults'])   || 0,
-          children: Number(latest[evt.name + ' Children']) || 0,
+          adults:   Number(latest[evt.id + ' Adults'])   || 0,
+          children: Number(latest[evt.id + ' Children']) || 0,
         });
       }
     });
@@ -593,8 +609,8 @@ function submitRSVP(payload) {
       headers = ['timestamp','submission_name','invitation_code','status'];
       events.forEach(ev => {
         headers.push(
-          ev.name + ' Attending', ev.name + ' Adults',
-          ev.name + ' Children',  ev.name + ' Notes'
+          ev.id + ' Attending', ev.id + ' Adults',
+          ev.id + ' Children',  ev.id + ' Notes'
         );
       });
       byFamilySheet.appendRow(headers);
@@ -611,7 +627,7 @@ function submitRSVP(payload) {
       const newCols = [];
       events.forEach(ev => {
         [' Attending',' Adults',' Children',' Notes'].forEach(suffix => {
-          const col = ev.name + suffix;
+          const col = ev.id + suffix;
           if (!headers.includes(col) && newCols.indexOf(col) === -1) {
             newCols.push(col);
           }
@@ -629,10 +645,10 @@ function submitRSVP(payload) {
     row[headers.indexOf('submission_name')] = submissionName;
     row[headers.indexOf('invitation_code')] = invitationCode;
     events.forEach(ev => {
-      const a  = headers.indexOf(ev.name + ' Attending');
-      const ad = headers.indexOf(ev.name + ' Adults');
-      const c  = headers.indexOf(ev.name + ' Children');
-      const n  = headers.indexOf(ev.name + ' Notes');
+      const a  = headers.indexOf(ev.id + ' Attending');
+      const ad = headers.indexOf(ev.id + ' Adults');
+      const c  = headers.indexOf(ev.id + ' Children');
+      const n  = headers.indexOf(ev.id + ' Notes');
       if (a  > -1) row[a]  = ev.attending ? 'Yes' : 'No';
       if (ad > -1) row[ad] = ev.attending ? (ev.adults   || 0) : 0;
       if (c  > -1) row[c]  = ev.attending ? (ev.children || 0) : 0;
@@ -930,9 +946,9 @@ function getStats() {
   dedupedSubmissions.forEach(row => {
     let maxA = 0, maxC = 0;
     allEventsData.forEach(evt => {
-      const a = Number(row[evt.name + ' Adults'])   || 0;
-      const c = Number(row[evt.name + ' Children']) || 0;
-      if (String(row[evt.name + ' Attending']).toLowerCase() === 'yes') {
+      const a = Number(row[evt.id + ' Adults'])   || 0;
+      const c = Number(row[evt.id + ' Children']) || 0;
+      if (String(row[evt.id + ' Attending']).toLowerCase() === 'yes') {
         if (a > maxA) maxA = a;
         if (c > maxC) maxC = c;
       }
@@ -1015,19 +1031,23 @@ function checkPin(pin) {
 function setupSheet() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
 
-  // Events
+  // Events — only seed if empty (never overwrite existing event data)
   let evSheet = ss.getSheetByName(TABS.events);
   if (!evSheet) evSheet = ss.insertSheet(TABS.events);
-  evSheet.clearContents();
-  evSheet.appendRow(['id','name','date','time','venue','icon','active']);
-  [
-    ['A','Mandvo',           'TBC','TBC','TBC','🎶','TRUE'],
-    ['B','Black Tie',        'TBC','TBC','TBC','🎩','TRUE'],
-    ['G','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE'],
-    ['L','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE'],
-    ['S','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE'],
-    ['W','Wedding',          'TBC','TBC','TBC','💍','TRUE'],
-  ].forEach(row => evSheet.appendRow(row));
+  if (evSheet.getLastRow() > 1) {
+    Logger.log('Events sheet already has data (' + (evSheet.getLastRow() - 1) + ' rows). Skipping seed to avoid data loss.');
+  } else {
+    evSheet.clearContents();
+    evSheet.appendRow(['id','name','date','time','venue','icon','active']);
+    [
+      ['A','Mandvo',           'TBC','TBC','TBC','🎶','TRUE'],
+      ['B','Black Tie',        'TBC','TBC','TBC','🎩','TRUE'],
+      ['G','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE'],
+      ['L','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE'],
+      ['S','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE'],
+      ['W','Wedding',          'TBC','TBC','TBC','💍','TRUE'],
+    ].forEach(row => evSheet.appendRow(row));
+  }
 
   // Guests
   let gSheet = ss.getSheetByName(TABS.guests);

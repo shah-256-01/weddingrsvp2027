@@ -638,6 +638,11 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
+function escapeAttr(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/'/g, '&#39;')
+    .replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /* ══════════════════════════════════════════════
    BACKEND COMMUNICATION
 ══════════════════════════════════════════════ */
@@ -894,7 +899,10 @@ function hideRSVPFlow() {
   });
 }
 
+var _contactSaving = false;
 async function submitContactDetails() {
+  if (_contactSaving) return;
+
   var email    = document.getElementById('contact-email').value.trim();
   var whatsapp = document.getElementById('contact-whatsapp').value.trim();
   var errEl    = document.getElementById('contact-error');
@@ -919,6 +927,7 @@ async function submitContactDetails() {
     return;
   }
 
+  _contactSaving  = true;
   btn.textContent = 'Saving\u2026';
   btn.disabled    = true;
 
@@ -933,6 +942,8 @@ async function submitContactDetails() {
     errEl.classList.remove('hidden');
     btn.textContent = 'Continue to RSVP \u2726';
     btn.disabled    = false;
+  } finally {
+    _contactSaving = false;
   }
 }
 
@@ -996,47 +1007,50 @@ function renderEventCards() {
     if (!evt) return;
     const bg = (evt.color || 'var(--wine)') + '18';
     const color = evt.color || 'var(--wine)';
+    const safeId = escapeAttr(id);
     const el = document.createElement('div');
     el.className = 'event-card' + (idx === 0 ? ' expanded' : '');
     el.id = 'ecard-' + id;
     el.innerHTML =
-      '<div class="event-card-header" onclick="toggleCard(\'' + id + '\')">' +
+      '<div class="event-card-header" onclick="toggleCard(\'' + safeId + '\')">' +
         '<div class="event-icon" style="background:' + bg + ';color:' + color + ';">' + escapeHtml(evt.icon) + '</div>' +
         '<div class="event-card-meta">' +
           '<div class="event-name">' + escapeHtml(evt.name) + '</div>' +
           '<div class="event-datetime">' + escapeHtml(evt.date) + ' &nbsp;·&nbsp; ' + escapeHtml(evt.time) + '</div>' +
           '<div class="event-venue-tag">' + escapeHtml(evt.venue) + '</div>' +
-          '<div class="event-card-hint" id="hint-' + id + '">Tap to open and respond</div>' +
+          '<div class="event-card-hint" id="hint-' + safeId + '">Tap to open and respond</div>' +
         '</div>' +
-        '<span class="event-status-badge badge-pending" id="badge-' + id + '">Pending</span>' +
-        '<span class="card-chevron" id="chevron-' + id + '">&#9662;</span>' +
+        '<span class="event-status-badge badge-pending" id="badge-' + safeId + '">Pending</span>' +
+        '<span class="card-chevron" id="chevron-' + safeId + '">&#9662;</span>' +
       '</div>' +
       '<div class="event-card-body"><div class="event-card-inner">' +
         '<div class="attend-toggle">' +
-          '<button class="attend-btn yes" id="yes-' + id + '" onclick="setAttending(\'' + id + '\',true)">\u2713 &nbsp;Attending</button>' +
-          '<button class="attend-btn no" id="no-' + id + '" onclick="setAttending(\'' + id + '\',false)">\u2715 &nbsp;Decline</button>' +
+          '<button class="attend-btn yes" id="yes-' + safeId + '" onclick="setAttending(\'' + safeId + '\',true)">\u2713 &nbsp;Attending</button>' +
+          '<button class="attend-btn no" id="no-' + safeId + '" onclick="setAttending(\'' + safeId + '\',false)">\u2715 &nbsp;Decline</button>' +
         '</div>' +
-        '<div id="details-' + id + '" class="hidden">' +
+        '<div id="details-' + safeId + '" class="hidden">' +
           '<span class="field-label">Number of Guests Attending</span>' +
-          '<div style="font-size:var(--text-ui-sm);color:var(--muted);margin-top:-.4rem;' +
-            'margin-bottom:1.2rem;line-height:1.6;">' +
-            'Your invitation includes up to <strong style="color:var(--wine);">' +
-            eventRSVPs[id].maxAdults + ' adult' + (eventRSVPs[id].maxAdults !== 1 ? 's' : '') +
-            (eventRSVPs[id].maxChildren > 0
-              ? ' and ' + eventRSVPs[id].maxChildren + ' child' + (eventRSVPs[id].maxChildren !== 1 ? 'ren' : '')
-              : '') +
-            '</strong> for this event.' +
-          '</div>' +
+          (!eventRSVPs[id].isUnallocated
+            ? '<div style="font-size:var(--text-ui-sm);color:var(--muted);margin-top:-.4rem;' +
+              'margin-bottom:1.2rem;line-height:1.6;">' +
+              'Your invitation includes up to <strong style="color:var(--wine);">' +
+              eventRSVPs[id].maxAdults + ' adult' + (eventRSVPs[id].maxAdults !== 1 ? 's' : '') +
+              (eventRSVPs[id].maxChildren > 0
+                ? ' and ' + eventRSVPs[id].maxChildren + ' child' + (eventRSVPs[id].maxChildren !== 1 ? 'ren' : '')
+                : '') +
+              '</strong> for this event.' +
+            '</div>'
+            : '') +
           '<div class="guest-count-row">' +
             '<div class="guest-count-item"><label>Adults</label><div class="counter-row">' +
-              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',-1)">\u2212</button>' +
-              '<span class="counter-val" id="adults-' + id + '">' + eventRSVPs[id].adults + '</span>' +
-              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'adults\',1)">+</button>' +
+              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'adults\',-1)">\u2212</button>' +
+              '<span class="counter-val" id="adults-' + safeId + '">' + eventRSVPs[id].adults + '</span>' +
+              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'adults\',1)">+</button>' +
             '</div></div>' +
             '<div class="guest-count-item"><label>Children <span style="font-size:var(--text-ui-xs);color:var(--muted)">(under 12)</span></label><div class="counter-row">' +
-              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',-1)">\u2212</button>' +
-              '<span class="counter-val" id="children-' + id + '">' + eventRSVPs[id].children + '</span>' +
-              '<button class="counter-btn" onclick="adjCount(\'' + id + '\',\'children\',1)">+</button>' +
+              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'children\',-1)">\u2212</button>' +
+              '<span class="counter-val" id="children-' + safeId + '">' + eventRSVPs[id].children + '</span>' +
+              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'children\',1)">+</button>' +
             '</div></div>' +
           '</div>' +
           (eventRSVPs[id].isUnallocated
@@ -1048,7 +1062,7 @@ function renderEventCards() {
             : '') +
           '<div class="field-section">' +
             '<span class="field-label">Notes for this event</span>' +
-            '<textarea class="notes-field" placeholder="Any additional notes\u2026" oninput="eventRSVPs[\'' + id + '\'].notes=this.value"></textarea>' +
+            '<textarea class="notes-field" placeholder="Any additional notes\u2026" oninput="eventRSVPs[\'' + safeId + '\'].notes=this.value"></textarea>' +
           '</div>' +
         '</div>' +
       '</div></div>';

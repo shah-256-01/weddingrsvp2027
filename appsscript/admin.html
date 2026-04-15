@@ -1224,7 +1224,7 @@ function saveGuest() {
   });
 
   // Zero out allocations for non-selected events
-  var allIds = ['L','S','A','G','W','B'];
+  var allIds = allEvents.map(function(e) { return e.id; });
   allIds.forEach(function(id) {
     if (eventIds.indexOf(id) === -1) {
       payload[id + '_adults'] = 0;
