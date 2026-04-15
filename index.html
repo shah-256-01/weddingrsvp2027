@@ -632,6 +632,12 @@ let EVENTS = [];
 let CODES_MAP = {};
 let currentGuest = null;
 
+function escapeHtml(str) {
+  var d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
 /* ══════════════════════════════════════════════
    BACKEND COMMUNICATION
 ══════════════════════════════════════════════ */
@@ -955,8 +961,8 @@ function showAlreadySubmittedScreen(existingRSVP) {
       : 'Declined';
     var statusClass = ev.attending ? 'status-attending' : 'status-declined';
     return '<div class="summary-row">' +
-      '<span>' + (ev.icon || '') + ' ' + ev.name + '</span>' +
-      '<span class="summary-status ' + statusClass + '">' + detail + '</span>' +
+      '<span>' + escapeHtml(ev.icon) + ' ' + escapeHtml(ev.name) + '</span>' +
+      '<span class="summary-status ' + statusClass + '">' + escapeHtml(detail) + '</span>' +
     '</div>';
   }).join('');
 
@@ -965,7 +971,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
     '<div class="success-icon">\u2709\uFE0F</div>' +
     '<h2 class="success-title">We have your RSVP</h2>' +
     '<p class="success-sub" style="margin-bottom:1.5rem;">' +
-      'We received a response for <strong>' + (existingRSVP.submissionName || 'your family') + '</strong> ' +
+      'We received a response for <strong>' + escapeHtml(existingRSVP.submissionName || 'your family') + '</strong> ' +
       'on ' + submittedDate + '.' +
     '</p>' +
     (eventRows
@@ -995,11 +1001,11 @@ function renderEventCards() {
     el.id = 'ecard-' + id;
     el.innerHTML =
       '<div class="event-card-header" onclick="toggleCard(\'' + id + '\')">' +
-        '<div class="event-icon" style="background:' + bg + ';color:' + color + ';">' + evt.icon + '</div>' +
+        '<div class="event-icon" style="background:' + bg + ';color:' + color + ';">' + escapeHtml(evt.icon) + '</div>' +
         '<div class="event-card-meta">' +
-          '<div class="event-name">' + evt.name + '</div>' +
-          '<div class="event-datetime">' + evt.date + ' &nbsp;·&nbsp; ' + evt.time + '</div>' +
-          '<div class="event-venue-tag">' + evt.venue + '</div>' +
+          '<div class="event-name">' + escapeHtml(evt.name) + '</div>' +
+          '<div class="event-datetime">' + escapeHtml(evt.date) + ' &nbsp;·&nbsp; ' + escapeHtml(evt.time) + '</div>' +
+          '<div class="event-venue-tag">' + escapeHtml(evt.venue) + '</div>' +
           '<div class="event-card-hint" id="hint-' + id + '">Tap to open and respond</div>' +
         '</div>' +
         '<span class="event-status-badge badge-pending" id="badge-' + id + '">Pending</span>' +
@@ -1199,10 +1205,10 @@ function showCalendarButtons() {
     var googleUrl = makeGoogleCalUrl(evt);
     return '<div class="cal-event-row">' +
       '<div class="cal-event-info">' +
-        '<span class="cal-event-icon">' + (evt.icon || '') + '</span>' +
+        '<span class="cal-event-icon">' + escapeHtml(evt.icon) + '</span>' +
         '<div>' +
-          '<div class="cal-event-name">' + evt.name + '</div>' +
-          '<div class="cal-event-date">' + (evt.date || '') + '</div>' +
+          '<div class="cal-event-name">' + escapeHtml(evt.name) + '</div>' +
+          '<div class="cal-event-date">' + escapeHtml(evt.date) + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="cal-options">' +
@@ -1229,7 +1235,7 @@ function renderSummary() {
     if (r.attending === null) badge = '<span class="summary-status status-pending">Pending</span>';
     else if (r.attending) { badge = '<span class="summary-status status-attending">Attending</span>'; detail = ' · ' + r.adults + 'A ' + r.children + 'C'; }
     else badge = '<span class="summary-status status-declined">Declined</span>';
-    row.innerHTML = '<span>' + evt.icon + ' ' + evt.name + '<span style="color:var(--muted);font-size:var(--text-ui-xs);">' + detail + '</span></span>' + badge;
+    row.innerHTML = '<span>' + escapeHtml(evt.icon) + ' ' + escapeHtml(evt.name) + '<span style="color:var(--muted);font-size:var(--text-ui-xs);">' + detail + '</span></span>' + badge;
     rows.appendChild(row);
   });
 }
@@ -1298,10 +1304,9 @@ async function submitRSVP() {
     console.warn('Could not save RSVP backup to localStorage:', e);
   }
 
-  // Submit to Apps Script (fire and forget — no-cors)
+  // Submit to Apps Script (no-cors — opaque response)
   postRSVP(payload).catch(function(err) {
     console.warn('RSVP post failed:', err);
-    // Guest already sees success screen — backup is in localStorage
   });
 
   // Show success
@@ -1313,6 +1318,44 @@ async function submitRSVP() {
   showCalendarButtons();
   if (currentGuest && currentGuest.isOverseas) {
     document.getElementById('overseas-success-link').classList.remove('hidden');
+  }
+
+  // Verify the RSVP was recorded (no-cors gives opaque response, so verify via GET)
+  setTimeout(function() {
+    verifyRSVPSubmission(currentCode, currentGuest.firstName, currentGuest.lastName);
+  }, 3000);
+}
+
+// Verify RSVP was recorded via a readable GET request
+async function verifyRSVPSubmission(code, firstName, lastName) {
+  try {
+    var params = new URLSearchParams({
+      action: 'validate', code: code,
+      firstName: firstName, lastName: lastName,
+    });
+    var res = await fetch(SCRIPT_URL + '?' + params);
+    var json = await res.json();
+    if (json.ok && json.data && json.data.existingRSVP) {
+      // Mark localStorage backup as synced
+      try {
+        var backups = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
+        if (backups.length > 0) {
+          backups[backups.length - 1]._syncStatus = 'confirmed';
+          localStorage.setItem('rsvp_backups', JSON.stringify(backups));
+        }
+      } catch (e) {}
+    } else {
+      // RSVP not found on server — show warning on success screen
+      var successSub = document.querySelector('#success-screen .success-sub');
+      if (successSub) {
+        successSub.innerHTML += '<br><br><strong style="color:var(--red);">Note:</strong> ' +
+          'We could not confirm your RSVP was received. ' +
+          'Your response has been saved locally. Please refresh and try again, or contact us directly.';
+      }
+    }
+  } catch (e) {
+    // Network error — can't verify, but backup exists
+    console.warn('RSVP verification failed:', e);
   }
 }
 

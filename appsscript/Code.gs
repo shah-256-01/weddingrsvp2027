@@ -74,7 +74,20 @@ function doGet(e) {
 function doPost(e) {
   try {
     const body    = JSON.parse(e.postData.contents);
-    const { action, payload = {} } = body;
+    const { action, payload = {}, pin } = body;
+
+    // Actions that require admin PIN authorization
+    const ADMIN_ACTIONS = [
+      'addGuest', 'updateGuest', 'deleteGuest', 'restoreGuest',
+      'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
+      'getDuplicates', 'getSubmittedCodes',
+    ];
+    if (ADMIN_ACTIONS.indexOf(action) > -1) {
+      if (String(pin) !== String(ADMIN_PIN)) {
+        return jsonResponse({ ok: false, error: 'Unauthorized.' });
+      }
+    }
+
     let result;
     if      (action === 'submitRSVP')       result = submitRSVP(payload);
     else if (action === 'addGuest')         result = addGuest(payload);
@@ -116,6 +129,11 @@ function sheetToObjects(sheet) {
   return data.slice(1).map(row =>
     Object.fromEntries(headers.map((h, i) => [h, row[i]]))
   );
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function findRowById(sheet, id) {
@@ -409,22 +427,28 @@ function deleteGuest(payload) {
 
 function markRSVPRowsDeleted(invitationCode) {
   const normCode = String(invitationCode).toUpperCase().trim();
-  [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
-    try {
-      const sheet = getSheet(tabName);
-      if (sheet.getLastRow() < 2) return;
-      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      const statusIdx = headers.indexOf('status');
-      const codeIdx   = headers.indexOf('invitation_code');
-      if (statusIdx === -1 || codeIdx === -1) return;
-      const data = sheet.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][codeIdx]).toUpperCase().trim() === normCode) {
-          sheet.getRange(i + 1, statusIdx + 1).setValue('DELETED');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
+      try {
+        const sheet = getSheet(tabName);
+        if (sheet.getLastRow() < 2) return;
+        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        const statusIdx = headers.indexOf('status');
+        const codeIdx   = headers.indexOf('invitation_code');
+        if (statusIdx === -1 || codeIdx === -1) return;
+        const data = sheet.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][codeIdx]).toUpperCase().trim() === normCode) {
+            sheet.getRange(i + 1, statusIdx + 1).setValue('DELETED');
+          }
         }
-      }
-    } catch (e) { /* tab may not exist yet */ }
-  });
+      } catch (e) { /* tab may not exist yet */ }
+    });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── restoreGuest ─────────────────────────────────────────
@@ -446,22 +470,28 @@ function restoreGuest(payload) {
 
 function restoreRSVPRows(invitationCode) {
   const normCode = String(invitationCode).toUpperCase().trim();
-  [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
-    try {
-      const sheet = getSheet(tabName);
-      if (sheet.getLastRow() < 2) return;
-      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      const statusIdx = headers.indexOf('status');
-      const codeIdx   = headers.indexOf('invitation_code');
-      if (statusIdx === -1 || codeIdx === -1) return;
-      const data = sheet.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][codeIdx]).toUpperCase().trim() === normCode) {
-          sheet.getRange(i + 1, statusIdx + 1).setValue('');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
+      try {
+        const sheet = getSheet(tabName);
+        if (sheet.getLastRow() < 2) return;
+        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        const statusIdx = headers.indexOf('status');
+        const codeIdx   = headers.indexOf('invitation_code');
+        if (statusIdx === -1 || codeIdx === -1) return;
+        const data = sheet.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][codeIdx]).toUpperCase().trim() === normCode) {
+            sheet.getRange(i + 1, statusIdx + 1).setValue('');
+          }
         }
-      }
-    } catch (e) { /* tab may not exist yet */ }
-  });
+      } catch (e) { /* tab may not exist yet */ }
+    });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── bulkAddGuests ─────────────────────────────────────────
@@ -532,73 +562,86 @@ function submitRSVP(payload) {
   const invitationCode = normCode;
   const ts = submittedAt || new Date().toISOString();
 
-  // RSVPs_by_event (tall)
-  const byEventSheet = getSheet(TABS.rsvpByEvent);
-  if (byEventSheet.getLastRow() < 1) {
-    byEventSheet.appendRow([
-      'timestamp','submission_name','invitation_code',
-      'event_id','event_name','attending','adults','children','notes','status'
-    ]);
-  }
-  events.forEach(ev => {
-    byEventSheet.appendRow([
-      ts, submissionName, invitationCode,
-      ev.id, ev.name,
-      ev.attending ? 'Yes' : 'No',
-      ev.attending ? (ev.adults   || 0) : 0,
-      ev.attending ? (ev.children || 0) : 0,
-      ev.notes || '',
-      '',
-    ]);
-  });
-
-  // RSVPs_by_family (wide)
-  const byFamilySheet = getSheet(TABS.rsvpByFamily);
-  let headers;
-  if (byFamilySheet.getLastRow() < 1) {
-    headers = ['timestamp','submission_name','invitation_code','status'];
-    events.forEach(ev => {
-      headers.push(
-        ev.name + ' Attending', ev.name + ' Adults',
-        ev.name + ' Children',  ev.name + ' Notes'
-      );
-    });
-    byFamilySheet.appendRow(headers);
-  } else {
-    headers = byFamilySheet
-      .getRange(1, 1, 1, byFamilySheet.getLastColumn())
-      .getValues()[0];
-    // Ensure status column exists
-    if (!headers.includes('status')) {
-      byFamilySheet.getRange(1, headers.length + 1).setValue('status');
-      headers.push('status');
+  // Use script lock to prevent concurrent column insertion races
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    // RSVPs_by_event (tall)
+    const byEventSheet = getSheet(TABS.rsvpByEvent);
+    if (byEventSheet.getLastRow() < 1) {
+      byEventSheet.appendRow([
+        'timestamp','submission_name','invitation_code',
+        'event_id','event_name','attending','adults','children','notes','status'
+      ]);
     }
     events.forEach(ev => {
-      [' Attending',' Adults',' Children',' Notes'].forEach(suffix => {
-        const col = ev.name + suffix;
-        if (!headers.includes(col)) {
-          byFamilySheet.getRange(1, headers.length + 1).setValue(col);
-          headers.push(col);
-        }
-      });
+      byEventSheet.appendRow([
+        ts, submissionName, invitationCode,
+        ev.id, ev.name,
+        ev.attending ? 'Yes' : 'No',
+        ev.attending ? (ev.adults   || 0) : 0,
+        ev.attending ? (ev.children || 0) : 0,
+        ev.notes || '',
+        '',
+      ]);
     });
-  }
 
-  const row = new Array(headers.length).fill('');
-  row[headers.indexOf('timestamp')]       = ts;
-  row[headers.indexOf('submission_name')] = submissionName;
-  row[headers.indexOf('invitation_code')] = invitationCode;
-  events.forEach(ev => {
-    const a  = headers.indexOf(ev.name + ' Attending');
-    const ad = headers.indexOf(ev.name + ' Adults');
-    const c  = headers.indexOf(ev.name + ' Children');
-    const n  = headers.indexOf(ev.name + ' Notes');
-    if (a  > -1) row[a]  = ev.attending ? 'Yes' : 'No';
-    if (ad > -1) row[ad] = ev.attending ? (ev.adults   || 0) : 0;
-    if (c  > -1) row[c]  = ev.attending ? (ev.children || 0) : 0;
-    if (n  > -1) row[n]  = ev.notes || '';
-  });
-  byFamilySheet.appendRow(row);
+    // RSVPs_by_family (wide)
+    const byFamilySheet = getSheet(TABS.rsvpByFamily);
+    let headers;
+    if (byFamilySheet.getLastRow() < 1) {
+      headers = ['timestamp','submission_name','invitation_code','status'];
+      events.forEach(ev => {
+        headers.push(
+          ev.name + ' Attending', ev.name + ' Adults',
+          ev.name + ' Children',  ev.name + ' Notes'
+        );
+      });
+      byFamilySheet.appendRow(headers);
+    } else {
+      headers = byFamilySheet
+        .getRange(1, 1, 1, byFamilySheet.getLastColumn())
+        .getValues()[0];
+      // Ensure status column exists
+      if (!headers.includes('status')) {
+        byFamilySheet.getRange(1, headers.length + 1).setValue('status');
+        headers.push('status');
+      }
+      // Batch-collect new columns, then write them all at once
+      const newCols = [];
+      events.forEach(ev => {
+        [' Attending',' Adults',' Children',' Notes'].forEach(suffix => {
+          const col = ev.name + suffix;
+          if (!headers.includes(col) && newCols.indexOf(col) === -1) {
+            newCols.push(col);
+          }
+        });
+      });
+      if (newCols.length > 0) {
+        byFamilySheet.getRange(1, headers.length + 1, 1, newCols.length)
+          .setValues([newCols]);
+        headers = headers.concat(newCols);
+      }
+    }
+
+    const row = new Array(headers.length).fill('');
+    row[headers.indexOf('timestamp')]       = ts;
+    row[headers.indexOf('submission_name')] = submissionName;
+    row[headers.indexOf('invitation_code')] = invitationCode;
+    events.forEach(ev => {
+      const a  = headers.indexOf(ev.name + ' Attending');
+      const ad = headers.indexOf(ev.name + ' Adults');
+      const c  = headers.indexOf(ev.name + ' Children');
+      const n  = headers.indexOf(ev.name + ' Notes');
+      if (a  > -1) row[a]  = ev.attending ? 'Yes' : 'No';
+      if (ad > -1) row[ad] = ev.attending ? (ev.adults   || 0) : 0;
+      if (c  > -1) row[c]  = ev.attending ? (ev.children || 0) : 0;
+      if (n  > -1) row[n]  = ev.notes || '';
+    });
+    byFamilySheet.appendRow(row);
+  } finally {
+    lock.releaseLock();
+  }
 
   // Email notifications — best effort, don't block RSVP
   try { sendRSVPNotification(payload); }
@@ -660,7 +703,7 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
       var bgColor   = attending ? '#f0f7f4' : '#fdf0f0';
       return '<tr>' +
         '<td style="padding:10px 16px;border-bottom:1px solid #f5e6da;">' +
-          '<span style="font-size:1rem;margin-right:8px;">' + (ev.name || '') + '</span>' +
+          '<span style="font-size:1rem;margin-right:8px;">' + escapeHtml(ev.name) + '</span>' +
         '</td>' +
         '<td style="padding:10px 16px;border-bottom:1px solid #f5e6da;text-align:right;">' +
           '<span style="display:inline-block;padding:3px 10px;border-radius:12px;' +
@@ -693,7 +736,7 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
             'letter-spacing:.25em;color:#b8924a;text-transform:uppercase;">RSVP Confirmed</p>' +
           '<h2 style="margin:0 0 20px;font-family:Georgia,serif;font-style:italic;' +
             'font-weight:300;font-size:1.6rem;color:#6b2737;">' +
-            'Thank you, ' + payload.submissionName + '</h2>' +
+            'Thank you, ' + escapeHtml(payload.submissionName) + '</h2>' +
           '<p style="margin:0 0 20px;font-size:.95rem;color:#5a4a40;line-height:1.7;">' +
             'We\'ve received your RSVP and are delighted to confirm your responses below. ' +
             'We look forward to celebrating with you!' +
@@ -718,7 +761,7 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
             'margin-bottom:20px;border-radius:2px;">' +
             '<p style="margin:0 0 4px;font-size:.78rem;color:#8a7060;">' +
               'Invitation code: <strong style="color:#6b2737;letter-spacing:.1em;">' +
-              payload.invitationCode + '</strong></p>' +
+              escapeHtml(payload.invitationCode) + '</strong></p>' +
             '<p style="margin:0;font-size:.78rem;color:#8a7060;">' +
               'Submitted: ' + submittedAt + '</p>' +
           '</div>' +

@@ -505,6 +505,12 @@ var parsedCSVRows = [];
 var _eventViewGuests = [];
 var _eventViewStats = {};
 
+// ── HTML escaping for safe interpolation ──
+function escapeAttr(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/'/g, '&#39;')
+    .replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ── Pagination ─────────────────────────────
 const PAGE_SIZE     = 50;
 let   currentPage   = 1;
@@ -734,15 +740,15 @@ function renderTableView(guests, container) {
   var pageGuests = getPageGuests();
 
   var rows = pageGuests.map(function(g) {
-    var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
-    var code = g.invitation_code || '';
+    var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
+    var code = escapeAttr(g.invitation_code || '');
     var submitted = isSubmitted(g);
     var rsvpCls = submitted ? 'rsvp-pill rsvp-submitted' : 'rsvp-pill rsvp-pending';
     var rsvpLabel = submitted ? 'Submitted' : 'Pending';
     var dots = buildEventDots(g);
     var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
     var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757; Overseas</span>' : '';
-    var contactParts = [g.relationship, g.phone, g.email].filter(Boolean).join(' &middot; ');
+    var contactParts = escapeAttr([g.relationship, g.phone, g.email].filter(Boolean).join(' · '));
 
     return '<tr>' +
       '<td><div class="guest-name">' + fullName + overseasBadge + '</div>' +
@@ -751,9 +757,9 @@ function renderTableView(guests, container) {
       '<td><span class="code-pill">' + code + '</span></td>' +
       '<td><span class="' + rsvpCls + '">' + rsvpLabel + '</span></td>' +
       '<td><div class="row-actions">' +
-        '<button class="btn btn-icon btn-ghost" title="View" onclick="openViewGuest(\'' + g.id + '\')">&#128065;</button>' +
-        '<button class="btn btn-icon btn-ghost" title="Edit" onclick="openEditGuest(\'' + g.id + '\')">&#9998;</button>' +
-        '<button class="btn btn-icon btn-ghost" title="Delete" onclick="removeGuest(\'' + g.id + '\')" style="color:var(--red);">&#10005;</button>' +
+        '<button class="btn btn-icon btn-ghost" title="View" onclick="openViewGuest(\'' + escapeAttr(g.id) + '\')">&#128065;</button>' +
+        '<button class="btn btn-icon btn-ghost" title="Edit" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">&#9998;</button>' +
+        '<button class="btn btn-icon btn-ghost" title="Delete" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')" style="color:var(--red);">&#10005;</button>' +
       '</div></td></tr>';
   }).join('');
 
@@ -832,7 +838,7 @@ function renderGroupedView(guests, container) {
     }).join(' ');
 
     var guestRows = group.guests.map(function(g) {
-      var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
+      var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
       var submitted = isSubmitted(g);
       var rsvpCls = submitted ? 'rsvp-pill rsvp-submitted' : 'rsvp-pill rsvp-pending';
       var rsvpLabel = submitted ? 'Submitted' : 'Pending';
@@ -840,11 +846,11 @@ function renderGroupedView(guests, container) {
       var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757;</span>' : '';
       return '<div class="group-guest-row">' +
         '<div><span style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' + fullName + '</span>' + overseasBadge +
-        (g.relationship ? '<span style="font-size:.68rem;color:var(--muted);margin-left:.4rem;">' + g.relationship + '</span>' : '') +
+        (g.relationship ? '<span style="font-size:.68rem;color:var(--muted);margin-left:.4rem;">' + escapeAttr(g.relationship) + '</span>' : '') +
         '</div><div style="display:flex;gap:.5rem;align-items:center;">' +
         '<span class="' + rsvpCls + '">' + rsvpLabel + '</span>' +
-        '<button class="btn btn-icon btn-ghost" onclick="openEditGuest(\'' + g.id + '\')">&#9998;</button>' +
-        '<button class="btn btn-icon btn-ghost" style="color:var(--red)" onclick="removeGuest(\'' + g.id + '\')">&#10005;</button>' +
+        '<button class="btn btn-icon btn-ghost" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">&#9998;</button>' +
+        '<button class="btn btn-icon btn-ghost" style="color:var(--red)" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')">&#10005;</button>' +
         '</div></div>';
     }).join('');
 
@@ -868,15 +874,15 @@ function renderRSVPStatusView(guests, container) {
   var pending = guests.filter(function(g) { return !allSubmittedCodes.has(g.invitation_code); });
 
   function guestRow(g) {
-    var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
-    var code = g.invitation_code || '';
-    var isDup = !!duplicateCodes[code];
+    var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
+    var code = escapeAttr(g.invitation_code || '');
+    var isDup = !!duplicateCodes[g.invitation_code || ''];
     return '<div class="status-guest-row">' +
       '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' +
       fullName +
       (isDup ? '<span style="font-size:.6rem;color:var(--red);margin-left:.4rem;">\u26A0 duplicate</span>' : '') +
       '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);">' + sanitiseValue(g.relationship) + ' \u00B7 ' + code + '</div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(sanitiseValue(g.relationship)) + ' \u00B7 ' + code + '</div>' +
       '</div>' +
       '<span class="code-pill">' + code + '</span>' +
       '</div>';
@@ -919,8 +925,8 @@ function renderEventView(guests, stats) {
 
   var eventTabs = perEvent.map(function(ev) {
     var evtConfig = allEvents.find(function(e) { return e.id === ev.id; }) || {};
-    return '<button class="event-filter-btn" id="efbtn-' + ev.id + '" onclick="selectEventFilter(\'' + ev.id + '\')">' +
-      (evtConfig.icon || '') + ' ' + (evtConfig.name || ev.id) + '</button>';
+    return '<button class="event-filter-btn" id="efbtn-' + escapeAttr(ev.id) + '" onclick="selectEventFilter(\'' + escapeAttr(ev.id) + '\')">' +
+      escapeAttr(evtConfig.icon || '') + ' ' + escapeAttr(evtConfig.name || ev.id) + '</button>';
   }).join('');
 
   container.innerHTML = '<div class="event-filter-bar">' + eventTabs + '</div><div id="event-view-content"></div>';
@@ -946,9 +952,9 @@ function selectEventFilter(eventId) {
     var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
     var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757;</span>' : '';
     return '<tr>' +
-      '<td><div class="guest-name-cell">' + (g.first_name || '') + ' ' + (g.last_name || '') + overseasBadge + '</div>' +
-      '<div class="guest-sub">' + sanitiseValue(g.phone) + '</div></td>' +
-      '<td>' + sanitiseValue(g.relationship) + '</td>' +
+      '<td><div class="guest-name-cell">' + escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')) + overseasBadge + '</div>' +
+      '<div class="guest-sub">' + escapeAttr(sanitiseValue(g.phone)) + '</div></td>' +
+      '<td>' + escapeAttr(sanitiseValue(g.relationship)) + '</td>' +
       '<td style="text-align:center;">' + (Number(g[eventId + '_adults']) || 0) + '</td>' +
       '<td style="text-align:center;">' + (Number(g[eventId + '_children']) || 0) + '</td>' +
       '<td><span class="rsvp-pill ' + status.cls + '">' + status.label + '</span></td>' +
@@ -1869,7 +1875,7 @@ function renderChaseUpList() {
       '</div>' +
       '<div style="display:flex;align-items:center;gap:.5rem;">' +
         '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
-        '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + flashId + '\',\'' + g.id + '\',\'chase\')">Copy</button>' +
+        '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'chase\')">Copy</button>' +
       '</div></div>';
   }).join('');
 
@@ -1899,7 +1905,7 @@ function renderInviteList() {
       '</div>' +
       '<div style="display:flex;align-items:center;gap:.5rem;">' +
         '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
-        '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + flashId + '\',\'' + g.id + '\',\'invite\')">Copy</button>' +
+        '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'invite\')">Copy</button>' +
       '</div></div>';
   }).join('');
 
