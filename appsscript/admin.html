@@ -593,6 +593,7 @@ function switchTab(name, btn) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
+  if (name === 'guests') { currentPage = 1; renderGuestView(); }
   if (name === 'csv') renderCSVTab();
   if (name === 'rsvps') loadRSVPsTab();
   if (name === 'settings') renderSettingsTab();
@@ -667,25 +668,25 @@ function loadGuests() {
                       renderGuestView();
                     })
                     .withFailureHandler(function() {
-                      allDeletedGuests = [];
+                      // Keep previous allDeletedGuests on failure
                       renderGuestView();
                     })
                     .getDeletedGuests();
                 })
                 .withFailureHandler(function() {
-                  allDuplicates = [];
+                  // Keep previous allDuplicates on failure
                   renderGuestView();
                 })
                 .getDuplicates();
             })
             .withFailureHandler(function() {
-              allSubmittedCodes = new Set();
+              // Keep previous allSubmittedCodes on failure
               renderGuestView();
             })
             .getSubmittedCodes();
         })
         .withFailureHandler(function() {
-          allRSVPs = [];
+          // Keep previous allRSVPs on failure
           renderGuestView();
         })
         .getRSVPsByFamily();
@@ -699,6 +700,7 @@ function loadGuests() {
 // ── View Switching + Rendering ─────────────
 function setGuestView(view) {
   currentView = view;
+  currentPage = 1;
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('.view-btn[onclick*="' + view + '"]').classList.add('active');
   renderGuestView();
@@ -1658,11 +1660,11 @@ function loadRSVPsTab() {
     return;
   }
 
-  // Compute per-event stats from allRSVPs (wide format: eventName + ' Attending', ' Adults', ' Children')
+  // Compute per-event stats from allRSVPs (wide format: eventId + ' Attending', ' Adults', ' Children')
   var eventCards = allEvents.map(function(ev) {
-    var attKey = ev.name + ' Attending';
-    var adKey = ev.name + ' Adults';
-    var chKey = ev.name + ' Children';
+    var attKey = ev.id + ' Attending';
+    var adKey = ev.id + ' Adults';
+    var chKey = ev.id + ' Children';
     var yes = 0, no = 0, totalAd = 0, totalCh = 0;
     allRSVPs.forEach(function(r) {
       if (r[attKey] === 'Yes') {
@@ -1689,11 +1691,11 @@ function loadRSVPsTab() {
   var listEl = document.getElementById('rsvp-responses-list');
   var html = allRSVPs.map(function(r) {
     var evDetails = allEvents.map(function(ev) {
-      var att = r[ev.name + ' Attending'];
+      var att = r[ev.id + ' Attending'];
       if (!att) return '';
       var cls = att === 'Yes' ? 'color:var(--green);' : 'color:var(--red);';
       return '<span style="font-size:.74rem;' + cls + 'margin-right:.7rem;">' + ev.icon + ' ' + att +
-        (att === 'Yes' ? ' (' + (r[ev.name + ' Adults'] || 0) + 'A, ' + (r[ev.name + ' Children'] || 0) + 'C)' : '') + '</span>';
+        (att === 'Yes' ? ' (' + (r[ev.id + ' Adults'] || 0) + 'A, ' + (r[ev.id + ' Children'] || 0) + 'C)' : '') + '</span>';
     }).join('');
 
     return '<div style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">' +

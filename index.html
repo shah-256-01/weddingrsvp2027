@@ -696,6 +696,7 @@ function buildCodesMap(events) {
   const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
   const map = {};
   const n   = sorted.length;
+  if (n > 12) return map; // cap at 2^12 = 4096 combinations
   for (let i = 1; i < (1 << n); i++) {
     const ids = sorted.filter((_, j) => i & (1 << j)).map(e => e.id);
     map[ids.join('') + '2027'] = ids;
@@ -771,8 +772,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function formatDeadlineDate(dateStr) {
-  var d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  // Parse as UTC to avoid timezone shift showing wrong date
+  var parts = dateStr.split('-');
+  var d = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
 async function submitEntry() {
@@ -856,6 +859,19 @@ function showRSVPFlow() {
 
   // Filter out event IDs that don't exist in EVENTS array
   currentEventIds = currentEventIds.filter(id => EVENTS.find(e => e.id === id));
+
+  // Edge case: guest has no valid events to RSVP for
+  if (currentEventIds.length === 0) {
+    var evList = document.getElementById('events-list');
+    if (evList) evList.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);">' +
+      'No events are currently available for your invitation.<br>Please contact us if you believe this is an error.</div>';
+    ['rsvp-summary', 'submit-section'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.classList.add('hidden');
+    });
+    var evSec = document.getElementById('events-section');
+    if (evSec) evSec.classList.remove('hidden');
+    return;
+  }
 
   eventRSVPs = {};
   currentEventIds.forEach(function(id) {
@@ -1106,7 +1122,7 @@ function updateProgress() {
   var pctEl   = document.getElementById('progress-pct');
   var fillEl  = document.getElementById('progress-fill');
   var wrapEl  = document.getElementById('progress-wrap');
-  if (!labelEl) return;
+  if (!labelEl || !pctEl || !fillEl || !wrapEl) return;
 
   if (complete) {
     labelEl.textContent = '\u2713 All events responded \u2014 ready to submit';
@@ -1309,13 +1325,16 @@ async function submitRSVP() {
   };
 
   // Save to localStorage BEFORE submitting — backup in case network fails
+  var _backupSaved = false;
   try {
     var backupKey  = 'rsvp_backup_' + currentCode + '_' + Date.now();
     var allBackups = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
     allBackups.push({ key: backupKey, payload: payload, savedAt: new Date().toISOString() });
     localStorage.setItem('rsvp_backups', JSON.stringify(allBackups));
+    _backupSaved = true;
   } catch (e) {
     console.warn('Could not save RSVP backup to localStorage:', e);
+    // Not critical — submission still goes through, but no local backup exists
   }
 
   // Submit to Apps Script (no-cors — opaque response)
@@ -1400,18 +1419,22 @@ function toggleFAQ(item) {
 /* ══════════════════════════════════════════════
    COUNTDOWN
 ══════════════════════════════════════════════ */
+var _countdownInterval = null;
 function startCountdown(){
+  if (_countdownInterval) clearInterval(_countdownInterval);
   function tick(){
     const diff=new Date(WEDDING_DATETIME)-new Date();
-    if(diff<=0)return;
+    if(diff<=0){ clearInterval(_countdownInterval); _countdownInterval=null; return; }
     const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),
           m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
-    document.getElementById('cd-d').textContent=String(d).padStart(3,'0');
-    document.getElementById('cd-h').textContent=String(h).padStart(2,'0');
-    document.getElementById('cd-m').textContent=String(m).padStart(2,'0');
-    document.getElementById('cd-s').textContent=String(s).padStart(2,'0');
+    var cdD=document.getElementById('cd-d'), cdH=document.getElementById('cd-h'),
+        cdM=document.getElementById('cd-m'), cdS=document.getElementById('cd-s');
+    if(cdD) cdD.textContent=String(d).padStart(3,'0');
+    if(cdH) cdH.textContent=String(h).padStart(2,'0');
+    if(cdM) cdM.textContent=String(m).padStart(2,'0');
+    if(cdS) cdS.textContent=String(s).padStart(2,'0');
   }
-  tick(); setInterval(tick,1000);
+  tick(); _countdownInterval=setInterval(tick,1000);
 }
 
 

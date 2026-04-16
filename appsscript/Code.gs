@@ -15,10 +15,10 @@ const GUEST_EMAIL_FROM_NAME = 'The Wedding Team';   // ← update with couple na
 const GUEST_EMAIL_REPLY_TO  = 'YOUR_EMAIL@gmail.com'; // ← update with contact email
 const WEDDING_SITE_URL      = 'YOUR_GITHUB_PAGES_URL'; // ← update after deployment
 
-// RSVP deadline — submissions after this date are rejected
-// Format: 'YYYY-MM-DD' — set to day AFTER the deadline
-// e.g. if deadline is 30 Nov 2027, set to '2027-12-01'
-const RSVP_DEADLINE = '2027-12-01';
+// RSVP deadline — submissions after this date/time are rejected
+// Uses explicit midnight IST (UTC+05:30) so deadline is timezone-consistent
+// If deadline is 30 Nov 2027, this is midnight starting 1 Dec IST
+const RSVP_DEADLINE = '2027-12-01T00:00:00+05:30';
 
 const TABS = {
   events:       'Events',
@@ -273,7 +273,7 @@ function validateGuest(code, firstName, lastName) {
   // Build allocations object per event
   const eventIds = String(match.events || '').split(',')
     .map(function(s) { return s.trim(); })
-    .filter(Boolean)
+    .filter(function(id) { return id && EVENT_IDS.includes(id); })
     .sort(function(a, b) { return a.localeCompare(b); });
 
   const allocations = {};
@@ -363,7 +363,7 @@ function getGuests(includeDeleted) {
   if (sheet.getLastRow() < 1) return [];
   const all = sheetToObjects(sheet);
   if (includeDeleted) return all;
-  return all.filter(g => String(g.status).toUpperCase() !== 'DELETED');
+  return all.filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
 }
 
 // ── getDeletedGuests ─────────────────────────────────────
@@ -663,8 +663,9 @@ function submitRSVP(payload) {
   try { sendRSVPNotification(payload); }
   catch (emailErr) { Logger.log('Admin notification failed: ' + emailErr.message); }
 
-  if (payload.guestEmail) {
-    sendGuestConfirmationEmail(payload, payload.guestEmail);
+  if (payload.guestEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.guestEmail)) {
+    try { sendGuestConfirmationEmail(payload, payload.guestEmail); }
+    catch (confErr) { Logger.log('Guest confirmation email failed: ' + confErr.message); }
   }
 
   return { submitted: true };
@@ -869,7 +870,9 @@ function getStats() {
   const dedupedSubmissions = Object.values(latestByCode);
   const submittedCodes     = new Set(Object.keys(latestByCode));
 
-  // ── Overall guest counts ─────────────────────────────
+  // ── Overall guest counts (unique headcount, not per-event sum) ──
+  // Uses max allocation across events to avoid double-counting families
+  // invited to multiple events. Per-event totals are in perEvent below.
   let totalInvitedAdults = 0, totalInvitedChildren = 0;
   guests.forEach(g => {
     let maxAdults = 0, maxChildren = 0;
@@ -940,7 +943,8 @@ function getStats() {
     perEvent[id].pending = Math.max(0, pending);
   });
 
-  // Confirmed adults/children — avoid double counting across events
+  // Confirmed adults/children — uses same max-across-events approach
+  // as invited counts above for consistent unique headcount semantics
   const allEventsData = getEvents();
   let finalConfirmedAdults = 0, finalConfirmedChildren = 0;
   dedupedSubmissions.forEach(row => {
