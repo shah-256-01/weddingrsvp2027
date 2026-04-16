@@ -184,7 +184,8 @@ function findRowById(sheet, id) {
 
 function sanitiseSheetValue(val) {
   var s = String(val || '').trim();
-  return s.charAt(0) === '#' ? '' : s;
+  if (/^#(REF|N\/A|VALUE|ERROR|NAME|NULL|DIV\/0)!?$/.test(s)) return '';
+  return s;
 }
 
 function guestHeaders() {
@@ -576,7 +577,7 @@ function bulkAddGuests(payload) {
         results.errors.push('Row ' + (idx + 2) + ': missing first_name or last_name');
         return;
       }
-      const id  = 'g-' + Date.now() + '-' + idx;
+      const id  = 'g-' + Utilities.getUuid();
       // Generate invitation_code from sorted event IDs
       const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
         .map(s => s.trim()).filter(Boolean)
@@ -616,8 +617,19 @@ function submitRSVP(payload) {
   const { submissionName, submittedAt } = payload;
   const events = (payload.events || []).filter(ev => ev && EVENT_IDS.includes(ev.id));
   if (events.length === 0) throw new Error('No valid events in submission.');
+  if (!submissionName) throw new Error('Submission name is required.');
   const invitationCode = normCode;
   const ts = submittedAt || new Date().toISOString();
+
+  // Validate submissionName matches a real guest for this invitation code
+  const guestsForValidation = getGuests();
+  const nameMatchesCode = guestsForValidation.some(g =>
+    String(g.invitation_code || '').toUpperCase().trim() === invitationCode &&
+    normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName)
+  );
+  if (!nameMatchesCode) {
+    throw new Error('Submission name does not match any guest with this invitation code.');
+  }
 
   // Use script lock for atomicity — duplicate check + write must be inside lock
   const lock = LockService.getScriptLock();

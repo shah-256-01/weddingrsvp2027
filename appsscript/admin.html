@@ -1057,7 +1057,7 @@ function stopActivityListeners() {
 function sanitiseValue(val) {
   if (val === undefined || val === null) return '';
   var s = String(val);
-  if (s.charAt(0) === '#') return '';
+  if (/^#(REF|N\/A|VALUE|ERROR|NAME|NULL|DIV\/0)!?$/.test(s)) return '';
   return s;
 }
 
@@ -1166,7 +1166,9 @@ function closeGuestModal() {
   editingGuestId = null;
 }
 
+var _guestSaving = false;
 function saveGuest() {
+  if (_guestSaving) return;
   var firstName = document.getElementById('m-first-name').value.trim();
   var lastName = document.getElementById('m-last-name').value.trim();
   if (!firstName || !lastName) { alert('First and last name are required.'); return; }
@@ -1205,6 +1207,7 @@ function saveGuest() {
     }
   });
 
+  _guestSaving = true;
   var btn = document.getElementById('save-guest-btn');
   btn.textContent = 'Saving...'; btn.disabled = true;
 
@@ -1213,12 +1216,14 @@ function saveGuest() {
     payload.id = guestId;
     google.script.run
       .withSuccessHandler(function() {
+        _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
         closeGuestModal();
         loadGuests();
         loadStats();
       })
       .withFailureHandler(function(err) {
+        _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
         alert('Error: ' + (err.message || 'Failed to update guest'));
       })
@@ -1226,12 +1231,14 @@ function saveGuest() {
   } else {
     google.script.run
       .withSuccessHandler(function() {
+        _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
         closeGuestModal();
         loadGuests();
         loadStats();
       })
       .withFailureHandler(function(err) {
+        _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
         alert('Error: ' + (err.message || 'Failed to add guest'));
       })
@@ -1803,7 +1810,7 @@ function getUniqueRelationships() {
 function populateRelationshipFilters() {
   var rels = getUniqueRelationships();
   var options = '<option value="">All Relationships</option>' +
-    rels.map(function(r) { return '<option value="' + r + '">' + r + '</option>'; }).join('');
+    rels.map(function(r) { return '<option value="' + escapeAttr(r) + '">' + escapeAttr(r) + '</option>'; }).join('');
   document.getElementById('chase-filter-rel').innerHTML = options;
   document.getElementById('invite-filter-rel').innerHTML = options;
 }
