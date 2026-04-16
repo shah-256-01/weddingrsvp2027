@@ -83,7 +83,7 @@ function doPost(e) {
     const ADMIN_ACTIONS = [
       'addGuest', 'updateGuest', 'deleteGuest', 'restoreGuest',
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
-      'getDuplicates', 'getSubmittedCodes',
+      'getDuplicates', 'getSubmittedCodes', 'updateSeating',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -113,6 +113,7 @@ function doPost(e) {
     else if (action === 'getStats')         result = getStats();
     else if (action === 'getDuplicates')    result = getDuplicates();
     else if (action === 'getSubmittedCodes') result = getSubmittedCodes();
+    else if (action === 'updateSeating')    result = updateSeating(payload);
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'updateContact') {
       const rateKey = 'contact_' + String(payload.guestId || '').trim();
@@ -199,7 +200,7 @@ function sanitiseSheetValue(val) {
 
 function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
-  const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children']);
+  const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children', id + '_table']);
   return [...fixed, ...alloc];
 }
 
@@ -394,12 +395,14 @@ function getExistingRSVP(code, familyName) {
       const attending = String(latest[evt.id + ' Attending'] || '').toLowerCase();
       if (attending === 'yes' || attending === 'no') {
         eventSummary.push({
-          id:       evt.id,
-          name:     evt.name,
-          icon:     evt.icon,
-          attending: attending === 'yes',
-          adults:   Number(latest[evt.id + ' Adults'])   || 0,
-          children: Number(latest[evt.id + ' Children']) || 0,
+          id:         evt.id,
+          name:       evt.name,
+          icon:       evt.icon,
+          attending:  attending === 'yes',
+          adults:     Number(latest[evt.id + ' Adults'])   || 0,
+          children:   Number(latest[evt.id + ' Children']) || 0,
+          adultNames: String(latest[evt.id + ' Adult Names'] || '').split('|').filter(Boolean),
+          childNames: String(latest[evt.id + ' Child Names'] || '').split('|').filter(Boolean),
         });
       }
     });
@@ -480,6 +483,27 @@ function updateGuest(payload) {
     }
   });
   return { ...payload };
+}
+
+// ── updateSeating ────────────────────────────────────────
+function updateSeating(payload) {
+  const { guestId, eventId, table } = payload || {};
+  if (!guestId || !eventId) throw new Error('Guest ID and event ID required.');
+  if (!EVENT_IDS.includes(eventId)) throw new Error('Invalid event ID.');
+
+  const sheet  = getSheet(TABS.guests);
+  const rowNum = findRowById(sheet, guestId);
+  if (rowNum === -1) throw new Error('Guest not found.');
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colName = eventId + '_table';
+  let colIdx = headers.indexOf(colName);
+  if (colIdx === -1) {
+    sheet.getRange(1, headers.length + 1).setValue(colName);
+    colIdx = headers.length;
+  }
+  sheet.getRange(rowNum, colIdx + 1).setValue(sanitizeForSheet(String(table || '').trim()));
+  return { updated: true, guestId, eventId, table };
 }
 
 // ── deleteGuest (soft delete) ─────────────────────────────
@@ -668,34 +692,54 @@ function submitRSVP(payload) {
     );
     if (guestRecord) {
       events.forEach(ev => {
-        if (!ev.attending) return;
+        if (!ev.attending) {
+          ev.adultNames = []; ev.childNames = [];
+          return;
+        }
         const maxAdults   = Number(guestRecord[ev.id + '_adults'])   || 0;
         const maxChildren = Number(guestRecord[ev.id + '_children']) || 0;
-        // Allow at least 1 adult even if unallocated (matches frontend fallback)
         const effectiveMaxAdults = maxAdults === 0 ? 1 : maxAdults;
         ev.adults   = Math.min(Math.max(0, Number(ev.adults)   || 0), effectiveMaxAdults);
         ev.children = Math.min(Math.max(0, Number(ev.children) || 0), maxChildren);
+        ev.adultNames = (Array.isArray(ev.adultNames) ? ev.adultNames : [])
+          .slice(0, ev.adults)
+          .map(n => String(n || '').replace(/\|/g, '').trim().slice(0, 100));
+        ev.childNames = (Array.isArray(ev.childNames) ? ev.childNames : [])
+          .slice(0, ev.children)
+          .map(n => String(n || '').replace(/\|/g, '').trim().slice(0, 100));
       });
     }
 
     // RSVPs_by_event (tall)
     const byEventSheet = getSheet(TABS.rsvpByEvent);
+    const byEventExpectedHeaders = [
+      'timestamp','submission_name','invitation_code',
+      'event_id','event_name','attending','adults','children','notes','adult_names','child_names','status'
+    ];
     if (byEventSheet.getLastRow() < 1) {
-      byEventSheet.appendRow([
-        'timestamp','submission_name','invitation_code',
-        'event_id','event_name','attending','adults','children','notes','status'
-      ]);
+      byEventSheet.appendRow(byEventExpectedHeaders);
+    } else {
+      const existingHeaders = byEventSheet.getRange(1, 1, 1, byEventSheet.getLastColumn()).getValues()[0];
+      const missingCols = byEventExpectedHeaders.filter(h => !existingHeaders.includes(h));
+      if (missingCols.length > 0) {
+        byEventSheet.getRange(1, existingHeaders.length + 1, 1, missingCols.length).setValues([missingCols]);
+      }
     }
+    const byEventHeaders = byEventSheet.getRange(1, 1, 1, byEventSheet.getLastColumn()).getValues()[0];
     events.forEach(ev => {
-      byEventSheet.appendRow([
-        ts, sanitizeForSheet(submissionName), invitationCode,
-        ev.id, ev.name,
-        ev.attending ? 'Yes' : 'No',
-        ev.attending ? (ev.adults   || 0) : 0,
-        ev.attending ? (ev.children || 0) : 0,
-        sanitizeForSheet(String(ev.notes || '').slice(0, 500)),
-        '',
-      ]);
+      const row = new Array(byEventHeaders.length).fill('');
+      row[byEventHeaders.indexOf('timestamp')]       = ts;
+      row[byEventHeaders.indexOf('submission_name')] = sanitizeForSheet(submissionName);
+      row[byEventHeaders.indexOf('invitation_code')] = invitationCode;
+      row[byEventHeaders.indexOf('event_id')]         = ev.id;
+      row[byEventHeaders.indexOf('event_name')]       = ev.name;
+      row[byEventHeaders.indexOf('attending')]         = ev.attending ? 'Yes' : 'No';
+      row[byEventHeaders.indexOf('adults')]            = ev.attending ? (ev.adults   || 0) : 0;
+      row[byEventHeaders.indexOf('children')]          = ev.attending ? (ev.children || 0) : 0;
+      row[byEventHeaders.indexOf('notes')]             = sanitizeForSheet(String(ev.notes || '').slice(0, 500));
+      row[byEventHeaders.indexOf('adult_names')]       = sanitizeForSheet((ev.adultNames || []).join('|'));
+      row[byEventHeaders.indexOf('child_names')]       = sanitizeForSheet((ev.childNames || []).join('|'));
+      byEventSheet.appendRow(row);
     });
 
     // RSVPs_by_family (wide)
@@ -706,7 +750,8 @@ function submitRSVP(payload) {
       events.forEach(ev => {
         headers.push(
           ev.id + ' Attending', ev.id + ' Adults',
-          ev.id + ' Children',  ev.id + ' Notes'
+          ev.id + ' Children',  ev.id + ' Notes',
+          ev.id + ' Adult Names', ev.id + ' Child Names'
         );
       });
       byFamilySheet.appendRow(headers);
@@ -722,7 +767,7 @@ function submitRSVP(payload) {
       // Batch-collect new columns, then write them all at once
       const newCols = [];
       events.forEach(ev => {
-        [' Attending',' Adults',' Children',' Notes'].forEach(suffix => {
+        [' Attending',' Adults',' Children',' Notes',' Adult Names',' Child Names'].forEach(suffix => {
           const col = ev.id + suffix;
           if (!headers.includes(col) && newCols.indexOf(col) === -1) {
             newCols.push(col);
@@ -745,10 +790,14 @@ function submitRSVP(payload) {
       const ad = headers.indexOf(ev.id + ' Adults');
       const c  = headers.indexOf(ev.id + ' Children');
       const n  = headers.indexOf(ev.id + ' Notes');
+      const an = headers.indexOf(ev.id + ' Adult Names');
+      const cn = headers.indexOf(ev.id + ' Child Names');
       if (a  > -1) row[a]  = ev.attending ? 'Yes' : 'No';
       if (ad > -1) row[ad] = ev.attending ? (ev.adults   || 0) : 0;
       if (c  > -1) row[c]  = ev.attending ? (ev.children || 0) : 0;
       if (n  > -1) row[n]  = sanitizeForSheet(String(ev.notes || '').slice(0, 500));
+      if (an > -1) row[an] = sanitizeForSheet((ev.adultNames || []).join('|'));
+      if (cn > -1) row[cn] = sanitizeForSheet((ev.childNames || []).join('|'));
     });
     byFamilySheet.appendRow(row);
   } finally {
@@ -782,7 +831,10 @@ function sendRSVPNotification(payload) {
 
   const eventLines = (payload.events || []).map(ev => {
     if (ev.attending) {
-      return '  ' + ev.name + ': YES — ' + (ev.adults || 0) + ' adult(s), ' + (ev.children || 0) + ' child(ren)';
+      let line = '  ' + ev.name + ': YES — ' + (ev.adults || 0) + ' adult(s), ' + (ev.children || 0) + ' child(ren)';
+      const allNames = (ev.adultNames || []).concat(ev.childNames || []).filter(Boolean);
+      if (allNames.length) line += '\n    Names: ' + allNames.join(', ');
+      return line;
     }
     return '  ' + ev.name + ': No';
   }).join('\n');
@@ -816,6 +868,8 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
         ? (ev.adults + ' adult' + (ev.adults !== 1 ? 's' : '') +
            (ev.children > 0 ? ', ' + ev.children + ' child' + (ev.children !== 1 ? 'ren' : '') : ''))
         : 'Declined';
+      var allNames = attending ? (ev.adultNames || []).concat(ev.childNames || []).filter(Boolean) : [];
+      var namesLine = allNames.length ? '<br><span style="font-size:.78rem;color:#6b5e53;">' + allNames.map(function(n) { return escapeHtml(n); }).join(', ') + '</span>' : '';
       var iconColor = attending ? '#2d4a3e' : '#8b2020';
       var icon      = attending ? '✓' : '✕';
       var bgColor   = attending ? '#f0f7f4' : '#fdf0f0';
@@ -828,7 +882,7 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
             'background:' + bgColor + ';color:' + iconColor + ';' +
             'font-family:Georgia,serif;font-size:.85rem;">' +
             icon + ' ' + detail +
-          '</span>' +
+          '</span>' + namesLine +
         '</td>' +
       '</tr>';
     }).join('');
@@ -1152,14 +1206,14 @@ function setupSheet() {
     Logger.log('Events sheet already has data (' + (evSheet.getLastRow() - 1) + ' rows). Skipping seed to avoid data loss.');
   } else {
     evSheet.clearContents();
-    evSheet.appendRow(['id','name','date','time','venue','icon','active']);
+    evSheet.appendRow(['id','name','date','time','venue','icon','active','seating']);
     [
-      ['A','Mandvo',           'TBC','TBC','TBC','🎶','TRUE'],
-      ['B','Black Tie',        'TBC','TBC','TBC','🎩','TRUE'],
-      ['G','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE'],
-      ['L','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE'],
-      ['S','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE'],
-      ['W','Wedding',          'TBC','TBC','TBC','💍','TRUE'],
+      ['A','Mandvo',           'TBC','TBC','TBC','🎶','TRUE','FALSE'],
+      ['B','Black Tie',        'TBC','TBC','TBC','🎩','TRUE','FALSE'],
+      ['G','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE','FALSE'],
+      ['L','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE','FALSE'],
+      ['S','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE','FALSE'],
+      ['W','Wedding',          'TBC','TBC','TBC','💍','TRUE','FALSE'],
     ].forEach(row => evSheet.appendRow(row));
   }
 
@@ -1177,7 +1231,7 @@ function setupSheet() {
     evRSVP = ss.insertSheet(TABS.rsvpByEvent);
     evRSVP.appendRow([
       'timestamp','submission_name','invitation_code',
-      'event_id','event_name','attending','adults','children','notes','status'
+      'event_id','event_name','attending','adults','children','notes','adult_names','child_names','status'
     ]);
   }
 

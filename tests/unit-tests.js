@@ -103,7 +103,7 @@ const EVENT_IDS = ['L','S','A','G','W','B'];
 
 function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
-  const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children']);
+  const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children', id + '_table']);
   return [...fixed, ...alloc];
 }
 
@@ -278,7 +278,10 @@ assert('has L_adults', headers.includes('L_adults'), true);
 assert('has L_children', headers.includes('L_children'), true);
 assert('has B_adults', headers.includes('B_adults'), true);
 assert('has B_children', headers.includes('B_children'), true);
-assert('total count', headers.length, 11 + EVENT_IDS.length * 2);
+assert('has L_table', headers.includes('L_table'), true);
+assert('has W_table', headers.includes('W_table'), true);
+assert('has B_table', headers.includes('B_table'), true);
+assert('total count', headers.length, 11 + EVENT_IDS.length * 3);
 assert('no duplicates', headers.length, new Set(headers).size);
 
 console.log('\n=== buildCodesMap ===');
@@ -357,6 +360,48 @@ assert('cte null byte diff', constantTimeEquals('ab\0cd', 'ab\0ce'), false);
 // ═══════════════════════════════════════════════
 //   RESULTS
 // ═══════════════════════════════════════════════
+
+// ── normalizePhoneForWhatsApp (standalone version without DOM) ──
+console.log('\n=== normalizePhoneForWhatsApp ===');
+
+function normalizePhoneForWhatsApp(phone, defaultCodeDigits) {
+  if (!phone) return '';
+  var digits = String(phone).replace(/[^\d]/g, '');
+  if (digits.length < 10) return '';
+  if (defaultCodeDigits && digits.length === 10) digits = defaultCodeDigits + digits;
+  return digits;
+}
+
+assert('full international +91', normalizePhoneForWhatsApp('+91 98765 43210'), '919876543210');
+assert('with parens and dashes', normalizePhoneForWhatsApp('(+91) 98765-43210'), '919876543210');
+assert('US number', normalizePhoneForWhatsApp('+1 (555) 123-4567'), '15551234567');
+assert('too short', normalizePhoneForWhatsApp('98765'), '');
+assert('empty string', normalizePhoneForWhatsApp(''), '');
+assert('null', normalizePhoneForWhatsApp(null), '');
+assert('undefined', normalizePhoneForWhatsApp(undefined), '');
+assert('10 digits with default code', normalizePhoneForWhatsApp('9876543210', '91'), '919876543210');
+assert('10 digits no default code', normalizePhoneForWhatsApp('9876543210', ''), '9876543210');
+assert('11+ digits ignores default code', normalizePhoneForWhatsApp('919876543210', '91'), '919876543210');
+assert('spaces only', normalizePhoneForWhatsApp('   '), '');
+assert('letters mixed in', normalizePhoneForWhatsApp('+91 abc 98765 43210'), '919876543210');
+
+// ── buildWhatsAppUrl ──
+console.log('\n=== buildWhatsAppUrl ===');
+
+function buildWhatsAppUrl(phone, message, defaultCodeDigits) {
+  var normalized = normalizePhoneForWhatsApp(phone, defaultCodeDigits);
+  if (!normalized) return '';
+  var url = 'https://wa.me/' + normalized;
+  if (message) url += '?text=' + encodeURIComponent(message);
+  return url;
+}
+
+assert('valid phone no message', buildWhatsAppUrl('+91 98765 43210'), 'https://wa.me/919876543210');
+assert('valid phone with message', buildWhatsAppUrl('+91 98765 43210', 'Hello!'), 'https://wa.me/919876543210?text=Hello!');
+assert('message with spaces', buildWhatsAppUrl('+91 98765 43210', 'Hi there'), 'https://wa.me/919876543210?text=Hi%20there');
+assert('message with special chars', buildWhatsAppUrl('+91 98765 43210', 'Hello & welcome!'), 'https://wa.me/919876543210?text=Hello%20%26%20welcome!');
+assert('invalid phone returns empty', buildWhatsAppUrl('123'), '');
+assert('null phone returns empty', buildWhatsAppUrl(null, 'Hi'), '');
 
 console.log('\n═══════════════════════════════════════');
 console.log(`  PASSED: ${passed}`);

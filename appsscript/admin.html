@@ -359,6 +359,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <label>Invite Deadline</label>
           <input type="text" id="msg-invite-deadline" placeholder="e.g. 30 November 2027" oninput="saveMessageConfig()"/>
         </div>
+        <div class="form-row">
+          <label>Default Country Code</label>
+          <input type="text" id="msg-default-country-code" placeholder="+91" oninput="saveMessageConfig()" style="max-width:100px;"/>
+        </div>
       </div>
     </div>
 
@@ -509,6 +513,34 @@ var _eventViewStats = {};
 function escapeAttr(str) {
   return String(str || '').replace(/&/g, '&amp;').replace(/'/g, '&#39;')
     .replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function normalizePhoneForWhatsApp(phone) {
+  if (!phone) return '';
+  var digits = String(phone).replace(/[^\d]/g, '');
+  if (digits.length < 10) return '';
+  var defaultCode = (document.getElementById('msg-default-country-code') || {}).value || '';
+  var codeDigits = defaultCode.replace(/[^\d]/g, '');
+  if (codeDigits && digits.length === 10) digits = codeDigits + digits;
+  return digits;
+}
+
+function buildWhatsAppUrl(phone, message) {
+  var normalized = normalizePhoneForWhatsApp(phone);
+  if (!normalized) return '';
+  var url = 'https://wa.me/' + normalized;
+  if (message) url += '?text=' + encodeURIComponent(message);
+  return url;
+}
+
+function phoneWhatsAppHtml(phone) {
+  var safe = sanitiseValue(phone);
+  if (!safe) return '';
+  var normalized = normalizePhoneForWhatsApp(safe);
+  if (normalized) {
+    return '<a href="https://wa.me/' + normalized + '" target="_blank" rel="noopener" style="color:var(--wine);text-decoration:none;">' + escapeAttr(safe) + '</a>';
+  }
+  return escapeAttr(safe);
 }
 
 // ── Pagination ─────────────────────────────
@@ -730,7 +762,7 @@ function renderTableView(guests, container) {
     var dots = buildEventDots(g);
     var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
     var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757; Overseas</span>' : '';
-    var contactParts = escapeAttr([g.relationship, g.phone, g.email].filter(Boolean).join(' · '));
+    var contactParts = [escapeAttr(g.relationship || ''), phoneWhatsAppHtml(g.phone), escapeAttr(g.email || '')].filter(Boolean).join(' &middot; ');
 
     return '<tr>' +
       '<td><div class="guest-name">' + fullName + overseasBadge + '</div>' +
@@ -924,6 +956,7 @@ function selectEventFilter(eventId) {
 
   var evtConfig = allEvents.find(function(e) { return e.id === eventId; }) || {};
   var evtStats = (_eventViewStats.perEvent || []).find(function(e) { return e.id === eventId; }) || {};
+  var seatingEnabled = String(evtConfig.seating || '').toUpperCase() === 'TRUE';
 
   var invitedGuests = _eventViewGuests.filter(function(g) {
     return String(g.events || '').split(',').map(function(s) { return s.trim(); }).indexOf(eventId) > -1;
@@ -933,15 +966,45 @@ function selectEventFilter(eventId) {
     var status = getRSVPStatus(g);
     var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
     var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757;</span>' : '';
+    var tableCol = '';
+    if (seatingEnabled) {
+      var isAttending = status.label === 'Submitted';
+      var currentTable = sanitiseValue(g[eventId + '_table']) || '';
+      if (isAttending) {
+        tableCol = '<td><input type="text" class="seating-input" value="' + escapeAttr(currentTable) + '" ' +
+          'data-guest-id="' + escapeAttr(g.id) + '" data-event-id="' + escapeAttr(eventId) + '" ' +
+          'onblur="saveTableAssignment(this)" onkeydown="if(event.key===\'Enter\')this.blur()" ' +
+          'placeholder="\u2014" style="width:55px;text-align:center;padding:.2rem .4rem;font-size:.78rem;border:1px solid #e0d6cc;border-radius:3px;"/></td>';
+      } else {
+        tableCol = '<td style="text-align:center;color:var(--muted);">&mdash;</td>';
+      }
+    }
     return '<tr>' +
       '<td><div class="guest-name-cell">' + escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')) + overseasBadge + '</div>' +
-      '<div class="guest-sub">' + escapeAttr(sanitiseValue(g.phone)) + '</div></td>' +
+      '<div class="guest-sub">' + phoneWhatsAppHtml(g.phone) + '</div></td>' +
       '<td>' + escapeAttr(sanitiseValue(g.relationship)) + '</td>' +
       '<td style="text-align:center;">' + (Number(g[eventId + '_adults']) || 0) + '</td>' +
       '<td style="text-align:center;">' + (Number(g[eventId + '_children']) || 0) + '</td>' +
       '<td><span class="rsvp-pill ' + status.cls + '">' + status.label + '</span></td>' +
+      tableCol +
       '</tr>';
   }).join('');
+
+  var seatingStatsHtml = '';
+  if (seatingEnabled) {
+    var attendingGuests = invitedGuests.filter(function(g) { return getRSVPStatus(g).label === 'Submitted'; });
+    var assigned = attendingGuests.filter(function(g) { return sanitiseValue(g[eventId + '_table']); });
+    var unassigned = attendingGuests.length - assigned.length;
+    var tableSet = {};
+    assigned.forEach(function(g) { tableSet[g[eventId + '_table']] = true; });
+    var tableCount = Object.keys(tableSet).length;
+    seatingStatsHtml =
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:0 0 1rem;">' +
+      '<div class="stat-card"><div class="stat-num">' + tableCount + '</div><div class="stat-lbl">Tables Used</div></div>' +
+      '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + assigned.length + '</div><div class="stat-lbl">Guests Seated</div></div>' +
+      '<div class="stat-card"><div class="stat-num" style="color:' + (unassigned > 0 ? 'var(--gold)' : 'var(--green)') + ';">' + unassigned + '</div><div class="stat-lbl">Unassigned</div></div>' +
+      '</div>';
+  }
 
   var content = document.getElementById('event-view-content');
   content.innerHTML =
@@ -953,17 +1016,80 @@ function selectEventFilter(eventId) {
     '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingChildren || 0) + '</div><div class="stat-lbl">Children Confirmed</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--gold);">' + (evtStats.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--red);">' + (evtStats.declined || 0) + '</div><div class="stat-lbl">Declined</div></div>' +
-    '</div>' +
+    '</div>' + seatingStatsHtml +
     '<div class="admin-card"><div class="admin-card-title">' + escapeAttr(evtConfig.icon || '') + ' ' + escapeAttr(evtConfig.name || eventId) + ' — Guest List</div>' +
     '<div class="guest-table-wrap"><table class="guest-table"><thead><tr>' +
     '<th>Name</th><th>Relationship</th><th>Allocated Adults</th><th>Allocated Children</th><th>RSVP Status</th>' +
-    '</tr></thead><tbody>' + guestRows + '</tbody></table></div></div>';
+    (seatingEnabled ? '<th>Table</th>' : '') +
+    '</tr></thead><tbody>' + guestRows + '</tbody></table></div>' +
+    (seatingEnabled ? '<div style="text-align:right;margin-top:.5rem;"><button class="btn btn-secondary btn-sm" onclick="exportSeatingCSV(\'' + escapeAttr(eventId) + '\')">Export Seating CSV</button></div>' : '') +
+    '</div>';
 }
 
 // ══════════════════════════════════════════════
 //   WEDDING ADMIN — JavaScript Part B
 //   Missing glue functions, Modal, CSV, RSVPs, Settings
 // ══════════════════════════════════════════════
+
+// ── Seating Management ───────────────────────
+function saveTableAssignment(input) {
+  var guestId = input.dataset.guestId;
+  var eventId = input.dataset.eventId;
+  var table = input.value.trim();
+  input.style.borderColor = '#b8924a';
+  google.script.run
+    .withSuccessHandler(function() {
+      input.style.borderColor = '#2d4a3e';
+      setTimeout(function() { input.style.borderColor = '#e0d6cc'; }, 1500);
+      var g = allGuests.find(function(x) { return x.id === guestId; });
+      if (g) g[eventId + '_table'] = table;
+    })
+    .withFailureHandler(function(err) {
+      input.style.borderColor = '#8b2020';
+      console.error('Failed to save table:', err);
+    })
+    .updateSeating({ guestId: guestId, eventId: eventId, table: table });
+}
+
+function exportSeatingCSV(eventId) {
+  var evtConfig = allEvents.find(function(e) { return e.id === eventId; }) || {};
+  var invitedGuests = allGuests.filter(function(g) {
+    return String(g.events || '').split(',').map(function(s) { return s.trim(); }).indexOf(eventId) > -1 &&
+      getRSVPStatus(g).label === 'Submitted';
+  });
+
+  invitedGuests.sort(function(a, b) {
+    var ta = sanitiseValue(a[eventId + '_table']) || 'ZZZ';
+    var tb = sanitiseValue(b[eventId + '_table']) || 'ZZZ';
+    return ta.localeCompare(tb);
+  });
+
+  var csvEsc = function(v) {
+    var s = String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+
+  var headers = ['Table','Name','Adults','Children'];
+  var rows = invitedGuests.map(function(g) {
+    return [
+      sanitiseValue(g[eventId + '_table']) || 'Unassigned',
+      ((g.first_name || '') + ' ' + (g.last_name || '')).trim(),
+      Number(g[eventId + '_adults']) || 0,
+      Number(g[eventId + '_children']) || 0,
+    ].map(csvEsc).join(',');
+  });
+
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'seating-' + (evtConfig.name || eventId).replace(/\s+/g, '-').toLowerCase() + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ── Alias: submitPin (HTML calls this) ────────
 function submitPin() { checkLogin(); }
@@ -1341,7 +1467,7 @@ function openViewGuest(id) {
     '<div style="font-family:\'Cormorant Garamond\',serif;font-size:1.4rem;color:var(--wine);">' + fullName + overseasTag + '</div>' +
     '<span class="code-pill" style="margin-top:.4rem;display:inline-block;">' + escapeAttr(g.invitation_code || '') + '</span></div>' +
     '<div style="display:grid;grid-template-columns:auto 1fr;gap:.4rem .8rem;font-size:.8rem;margin-bottom:1rem;">' +
-    (g.phone ? '<span style="color:var(--muted);">Phone</span><span>' + escapeAttr(g.phone) + '</span>' : '') +
+    (g.phone ? '<span style="color:var(--muted);">Phone</span><span>' + phoneWhatsAppHtml(g.phone) + (normalizePhoneForWhatsApp(g.phone) ? ' &#128172;' : '') + '</span>' : '') +
     (g.email ? '<span style="color:var(--muted);">Email</span><span>' + escapeAttr(g.email) + '</span>' : '') +
     (g.relationship ? '<span style="color:var(--muted);">Relationship</span><span>' + escapeAttr(g.relationship) + '</span>' : '') +
     (g.notes ? '<span style="color:var(--muted);">Notes</span><span>' + escapeAttr(g.notes) + '</span>' : '') +
@@ -1408,16 +1534,15 @@ function exportGuestListCSV() {
   google.script.run
     .withSuccessHandler(function(guests) {
       if (!guests || !guests.length) { alert('No guests to export.'); return; }
-      var headers = [
+      var fixedHeaders = [
         'first_name','last_name','phone','email','relationship',
-        'notes','is_overseas','events','invitation_code','status',
-        'L_adults','L_children',
-        'S_adults','S_children',
-        'A_adults','A_children',
-        'G_adults','G_children',
-        'W_adults','W_children',
-        'B_adults','B_children'
+        'notes','is_overseas','events','invitation_code','status'
       ];
+      var eventHeaders = [];
+      allEvents.forEach(function(ev) {
+        eventHeaders.push(ev.id + '_adults', ev.id + '_children', ev.id + '_table');
+      });
+      var headers = fixedHeaders.concat(eventHeaders);
       var rows = guests.map(function(g) {
         return headers.map(function(h) {
           var val = String(g[h] || '');
@@ -1728,8 +1853,9 @@ function renderSettingsTab() {
     return;
   }
   var html = '<table class="guest-table" style="font-size:.78rem;">' +
-    '<thead><tr><th>ID</th><th>Name</th><th>Icon</th><th>Date</th><th>Venue</th><th>Active</th></tr></thead><tbody>';
+    '<thead><tr><th>ID</th><th>Name</th><th>Icon</th><th>Date</th><th>Venue</th><th>Active</th><th>Seating</th></tr></thead><tbody>';
   allEvents.forEach(function(ev) {
+    var seatingEnabled = String(ev.seating || '').toUpperCase() === 'TRUE';
     html += '<tr>' +
       '<td style="font-weight:600;">' + escapeAttr(ev.id) + '</td>' +
       '<td>' + escapeAttr(ev.name) + '</td>' +
@@ -1737,6 +1863,7 @@ function renderSettingsTab() {
       '<td>' + escapeAttr(ev.date || 'TBC') + (ev.time ? ' ' + escapeAttr(ev.time) : '') + '</td>' +
       '<td>' + escapeAttr(ev.venue || 'TBC') + '</td>' +
       '<td>' + (String(ev.active).toUpperCase() === 'TRUE' ? '<span style="color:var(--green);">Active</span>' : '<span style="color:var(--red);">Inactive</span>') + '</td>' +
+      '<td>' + (seatingEnabled ? '<span style="color:var(--green);">Enabled</span>' : '<span style="color:var(--muted);">&mdash;</span>') + '</td>' +
       '</tr>';
   });
   html += '</tbody></table>';
@@ -1769,6 +1896,7 @@ function loadMessageConfig() {
     document.getElementById('msg-rsvp-url').value = cfg.rsvpUrl || '';
     document.getElementById('msg-chase-deadline').value = cfg.chaseDeadline || '';
     document.getElementById('msg-invite-deadline').value = cfg.inviteDeadline || '';
+    document.getElementById('msg-default-country-code').value = cfg.defaultCountryCode || '';
   } catch (e) {}
 }
 
@@ -1777,7 +1905,8 @@ function saveMessageConfig() {
     localStorage.setItem(MSG_CONFIG_KEY, JSON.stringify({
       rsvpUrl: document.getElementById('msg-rsvp-url').value,
       chaseDeadline: document.getElementById('msg-chase-deadline').value,
-      inviteDeadline: document.getElementById('msg-invite-deadline').value
+      inviteDeadline: document.getElementById('msg-invite-deadline').value,
+      defaultCountryCode: document.getElementById('msg-default-country-code').value
     }));
   } catch (e) {}
 }
@@ -1826,6 +1955,22 @@ function buildMessage(template, guest, deadline) {
     .replace(/\{\{code\}\}/g, code)
     .replace(/\{\{url\}\}/g, url)
     .replace(/\{\{deadline\}\}/g, deadline || '');
+}
+
+function openWhatsApp(guestId, section) {
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  if (!g || !g.phone) return;
+  var template, deadline;
+  if (section === 'chase') {
+    template = document.getElementById('msg-chase-template').value;
+    deadline = document.getElementById('msg-chase-deadline').value;
+  } else {
+    template = document.getElementById('msg-invite-template').value;
+    deadline = document.getElementById('msg-invite-deadline').value;
+  }
+  var msg = buildMessage(template, g, deadline);
+  var url = buildWhatsAppUrl(g.phone, msg);
+  if (url) window.open(url, '_blank');
 }
 
 function copyMessage(flashId, guestId, section) {
@@ -1891,11 +2036,12 @@ function renderChaseUpList() {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
       '<div>' +
         '<div class="guest-name-cell">' + fullName + '</div>' +
-        '<div class="guest-sub">' + escapeAttr(sanitiseValue(g.phone)) + ' &middot; <span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span> &middot; ' + escapeAttr(sanitiseValue(g.relationship)) + '</div>' +
+        '<div class="guest-sub">' + phoneWhatsAppHtml(g.phone) + ' &middot; <span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span> &middot; ' + escapeAttr(sanitiseValue(g.relationship)) + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:.5rem;">' +
         '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
         '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'chase\')">Copy</button>' +
+        (normalizePhoneForWhatsApp(g.phone) ? '<button class="btn btn-secondary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'chase\')" title="Send via WhatsApp">&#128172;</button>' : '') +
       '</div></div>';
   }).join('');
 
@@ -1926,6 +2072,7 @@ function renderInviteList() {
       '<div style="display:flex;align-items:center;gap:.5rem;">' +
         '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
         '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'invite\')">Copy</button>' +
+        (normalizePhoneForWhatsApp(g.phone) ? '<button class="btn btn-secondary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'invite\')" title="Send via WhatsApp">&#128172;</button>' : '') +
       '</div></div>';
   }).join('');
 

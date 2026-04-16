@@ -176,6 +176,10 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .counter-val{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--wine);min-width:36px;text-align:center;}
 .notes-field{width:100%;border:1px solid var(--border);background:transparent;padding:0.85rem 1rem;font-family:'Jost',sans-serif;font-size:var(--text-body-md);color:var(--ink);outline:none;transition:border-color .2s;resize:vertical;min-height:80px;}
 .notes-field:focus{border-color:var(--gold);}
+.name-inputs-container{margin-top:.8rem;}
+.name-inputs-group{margin-bottom:.6rem;}
+.name-input{width:100%;border:1px solid var(--border);background:transparent;padding:.6rem .8rem;font-family:'Jost',sans-serif;font-size:var(--text-body-sm);color:var(--ink);outline:none;transition:border-color .2s;margin-bottom:.4rem;box-sizing:border-box;}
+.name-input:focus{border-color:var(--gold);}
 .field-section{margin-bottom:1.5rem;}
 .family-name-section{max-width:900px;margin:0 auto;padding:0 1.5rem 1.4rem;}
 .family-name-label{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.2em;color:var(--wine);text-transform:uppercase;display:block;margin-bottom:.45rem;}
@@ -932,6 +936,8 @@ function showRSVPFlow() {
       maxChildren:   maxChildren,
       notes:         '',
       isUnallocated: isUnallocated,
+      adultNames:    Array(maxAdults).fill(''),
+      childNames:    Array(maxChildren).fill(''),
     };
   });
 
@@ -1023,7 +1029,11 @@ function showAlreadySubmittedScreen(existingRSVP) {
       ? (ev.adults + ' adult' + (ev.adults !== 1 ? 's' : '') +
         (ev.children > 0
           ? ', ' + ev.children + ' child' + (ev.children !== 1 ? 'ren' : '')
-          : ''))
+          : '') +
+        (function() {
+          var names = (ev.adultNames || []).concat(ev.childNames || []).filter(Boolean);
+          return names.length ? ' (' + names.map(function(n) { return escapeHtml(n); }).join(', ') + ')' : '';
+        })())
       : 'Declined';
     var statusClass = ev.attending ? 'status-attending' : 'status-declined';
     return '<div class="summary-row">' +
@@ -1111,6 +1121,7 @@ function renderEventCards() {
               '<button class="counter-btn" aria-label="Increase children" onclick="adjCount(\'' + safeId + '\',\'children\',1)">+</button>' +
             '</div></div>' +
           '</div>' +
+          '<div id="names-' + safeId + '" class="name-inputs-container"></div>' +
           (eventRSVPs[id].isUnallocated
             ? '<div style="font-size:var(--text-ui-sm);color:var(--red);margin-top:.4rem;padding:.5rem .7rem;' +
               'background:rgba(139,32,32,.06);border-radius:2px;">' +
@@ -1140,6 +1151,7 @@ function setAttending(id, val) {
   const details = document.getElementById('details-' + id);
   if (val) { badge.className = 'event-status-badge badge-attending'; badge.textContent = 'Attending'; details.classList.remove('hidden'); }
   else { badge.className = 'event-status-badge badge-declined'; badge.textContent = 'Declined'; details.classList.add('hidden'); }
+  renderNameInputs(id);
   renderSummary();
   updateProgress();
 }
@@ -1150,6 +1162,39 @@ function adjCount(id, field, delta) {
   if (max === 0 && field === 'adults') max = 1; // safety fallback
   r[field] = Math.min(max, Math.max(field === 'adults' ? 1 : 0, r[field] + delta));
   document.getElementById(field + '-' + id).textContent = r[field];
+  var nameArr = field === 'adults' ? r.adultNames : r.childNames;
+  while (nameArr.length < r[field]) nameArr.push('');
+  if (nameArr.length > r[field]) nameArr.length = r[field];
+  renderNameInputs(id);
+}
+
+function renderNameInputs(id) {
+  var container = document.getElementById('names-' + id);
+  if (!container) return;
+  var r = eventRSVPs[id];
+  if (!r.attending) { container.innerHTML = ''; return; }
+  var html = '';
+  if (r.adults > 0) {
+    html += '<div class="name-inputs-group"><span class="field-label" style="margin-bottom:.3rem;">Guest Names</span>';
+    for (var i = 0; i < r.adults; i++) {
+      var safeId = escapeAttr(id);
+      html += '<input type="text" class="name-input" maxlength="100" placeholder="Adult ' + (i + 1) + ' name" ' +
+        'value="' + escapeAttr(r.adultNames[i] || '') + '" ' +
+        'oninput="eventRSVPs[\'' + safeId + '\'].adultNames[' + i + ']=this.value.replace(/\\|/g,\'\')" />';
+    }
+    html += '</div>';
+  }
+  if (r.children > 0) {
+    html += '<div class="name-inputs-group"><span class="field-label" style="margin-bottom:.3rem;">Children Names</span>';
+    for (var j = 0; j < r.children; j++) {
+      var safeId2 = escapeAttr(id);
+      html += '<input type="text" class="name-input" maxlength="100" placeholder="Child ' + (j + 1) + ' name" ' +
+        'value="' + escapeAttr(r.childNames[j] || '') + '" ' +
+        'oninput="eventRSVPs[\'' + safeId2 + '\'].childNames[' + j + ']=this.value.replace(/\\|/g,\'\')" />';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
 }
 
 function updateProgress() {
@@ -1320,7 +1365,12 @@ function renderSummary() {
     const row = document.createElement('div'); row.className = 'summary-row';
     let badge = '', detail = '';
     if (r.attending === null) badge = '<span class="summary-status status-pending">Pending</span>';
-    else if (r.attending) { badge = '<span class="summary-status status-attending">Attending</span>'; detail = ' · ' + r.adults + (r.adults === 1 ? ' adult' : ' adults') + ', ' + r.children + (r.children === 1 ? ' child' : ' children'); }
+    else if (r.attending) {
+      badge = '<span class="summary-status status-attending">Attending</span>';
+      detail = ' · ' + r.adults + (r.adults === 1 ? ' adult' : ' adults') + ', ' + r.children + (r.children === 1 ? ' child' : ' children');
+      var allNames = (r.adultNames || []).concat(r.childNames || []).filter(Boolean);
+      if (allNames.length) detail += ' (' + allNames.map(function(n) { return escapeHtml(n); }).join(', ') + ')';
+    }
     else badge = '<span class="summary-status status-declined">Declined</span>';
     row.innerHTML = '<span>' + escapeHtml(evt.icon) + ' ' + escapeHtml(evt.name) + '<span style="color:var(--muted);font-size:var(--text-ui-xs);">' + detail + '</span></span>' + badge;
     rows.appendChild(row);
@@ -1373,9 +1423,11 @@ async function submitRSVP() {
       var evt = EVENTS.find(function(e) { return e.id === id; });
       return {
         id: id, name: evt.name, attending: r.attending,
-        adults:   r.attending ? r.adults   : 0,
-        children: r.attending ? r.children : 0,
-        notes:    r.notes || '',
+        adults:     r.attending ? r.adults   : 0,
+        children:   r.attending ? r.children : 0,
+        notes:      r.notes || '',
+        adultNames: r.attending ? (r.adultNames || []).slice(0, r.adults) : [],
+        childNames: r.attending ? (r.childNames || []).slice(0, r.children) : [],
       };
     }),
     _syncStatus: 'pending',
