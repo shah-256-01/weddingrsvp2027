@@ -876,10 +876,10 @@ function renderRSVPStatusView(guests, container) {
       var subs = d.submissions.map(function(s, i) {
         var prefix = i === 0 ? '\u2605 Latest (counted): ' : '\u25CB Earlier: ';
         var ts = s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
-        return '<div class="dup-sub">' + prefix + (s.name || 'Unknown') + ' \u00B7 ' + ts + '</div>';
+        return '<div class="dup-sub">' + prefix + escapeAttr(s.name || 'Unknown') + ' \u00B7 ' + escapeAttr(ts) + '</div>';
       }).join('');
       return '<div class="dup-item">' +
-        '<div class="dup-code">' + d.code + ' \u2014 ' + d.count + ' submissions</div>' +
+        '<div class="dup-code">' + escapeAttr(d.code) + ' \u2014 ' + escapeAttr(String(d.count)) + ' submissions</div>' +
         subs + '</div>';
     }).join('');
     dupHtml = '<div class="dup-section" style="margin-top:1.2rem;">' +
@@ -954,7 +954,7 @@ function selectEventFilter(eventId) {
     '<div class="stat-card"><div class="stat-num" style="color:var(--gold);">' + (evtStats.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--red);">' + (evtStats.declined || 0) + '</div><div class="stat-lbl">Declined</div></div>' +
     '</div>' +
-    '<div class="admin-card"><div class="admin-card-title">' + (evtConfig.icon || '') + ' ' + (evtConfig.name || eventId) + ' — Guest List</div>' +
+    '<div class="admin-card"><div class="admin-card-title">' + escapeAttr(evtConfig.icon || '') + ' ' + escapeAttr(evtConfig.name || eventId) + ' — Guest List</div>' +
     '<div class="guest-table-wrap"><table class="guest-table"><thead><tr>' +
     '<th>Name</th><th>Relationship</th><th>Allocated Adults</th><th>Allocated Children</th><th>RSVP Status</th>' +
     '</tr></thead><tbody>' + guestRows + '</tbody></table></div></div>';
@@ -1145,7 +1145,7 @@ function updateModalAllocations(existingGuest) {
 
   ids.forEach(function(id) {
     var ev = allEvents.find(function(e) { return e.id === id; });
-    var evLabel = ev ? ev.icon + ' ' + ev.name : id;
+    var evLabel = ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(id);
     var adVal = 2, chVal = 0;
     if (existingGuest) {
       var rawAd = sanitiseValue(existingGuest[id + '_adults']);
@@ -1420,6 +1420,7 @@ function exportGuestListCSV() {
       var rows = guests.map(function(g) {
         return headers.map(function(h) {
           var val = String(g[h] || '');
+          if (/^[=+\-@\t\r]/.test(val)) val = "'" + val;
           if (val.indexOf('"') > -1 || val.indexOf(',') > -1 || val.indexOf('\n') > -1) {
             return '"' + val.replace(/"/g, '""') + '"';
           }

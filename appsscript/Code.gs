@@ -85,8 +85,17 @@ function doPost(e) {
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes',
     ];
-    if (ADMIN_ACTIONS.indexOf(action) > -1) {
-      if (!constantTimeEquals(String(pin || ''), String(ADMIN_PIN))) {
+    const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
+    if (pinActions.indexOf(action) > -1) {
+      const pinRateKey = 'admin_pin_attempts';
+      const pinCache = CacheService.getScriptCache();
+      const pinAttempts = parseInt(pinCache.get(pinRateKey) || '0', 10);
+      if (pinAttempts >= 10) {
+        return jsonResponse({ ok: false, error: 'Too many attempts. Please wait a minute and try again.' });
+      }
+      const pinToCheck = action === 'checkPin' ? String((payload || {}).pin || '') : String(pin || '');
+      if (!constantTimeEquals(pinToCheck, String(ADMIN_PIN))) {
+        pinCache.put(pinRateKey, String(pinAttempts + 1), 60);
         Utilities.sleep(200 + Math.floor(Math.random() * 300));
         return jsonResponse({ ok: false, error: 'Unauthorized.' });
       }
@@ -104,7 +113,7 @@ function doPost(e) {
     else if (action === 'getStats')         result = getStats();
     else if (action === 'getDuplicates')    result = getDuplicates();
     else if (action === 'getSubmittedCodes') result = getSubmittedCodes();
-    else if (action === 'checkPin')         result = { ok: constantTimeEquals(String(payload.pin || ''), String(ADMIN_PIN)) };
+    else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'updateContact') {
       const rateKey = 'contact_' + String(payload.guestId || '').trim();
       const cache = CacheService.getScriptCache();
@@ -438,7 +447,7 @@ function addGuest(payload) {
     .sort((a, b) => a.localeCompare(b));
   payload.invitation_code = sortedIds.join('') + '2027';
 
-  const id  = 'g-' + Date.now() + '-' + (sheet.getLastRow() + 1);
+  const id  = 'g-' + Utilities.getUuid();
   const row = headers.map(h => {
     if (h === 'id') return id;
     if (h === 'events') return sortedIds.join(',');

@@ -490,7 +490,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
   <div class="submit-section" id="submit-section">
     <p class="submit-note">Please confirm by 30th November 2027</p>
     <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">Submit RSVP ✦</button>
-    <span class="family-name-error hidden" id="submit-error" style="display:block;margin-top:.6rem;text-align:center;"></span>
+    <span class="family-name-error hidden" id="submit-error" style="margin-top:.6rem;text-align:center;"></span>
   </div>
   <div class="success-screen hidden" id="success-screen">
     <div class="success-icon">&#127800;</div>
@@ -628,7 +628,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_meK_ZwbNIdeqY1pHGLbJn27wIslfRnj1TdQ1AjwC5miCnmh0C5jnvMU2oJA_jYR6A/exec';
 const WEDDING_DATETIME = '2027-12-25T19:30:00+05:30';
 const RSVP_DEADLINE_DATE = '2027-11-30';  // Display deadline (inclusive)
-const RSVP_DEADLINE_BLOCK = '2027-12-01'; // Block submissions from this date
+const RSVP_DEADLINE_BLOCK = '2027-12-01T00:00:00+05:30'; // Block submissions from this date
 const CONTACT_INFO = 'couple@example.com'; // ← update with your contact email or phone
 const WEDDING_VENUE = 'Park Avenue Grand · Kochi'; // ← update with your venue
 
@@ -1061,7 +1061,7 @@ function renderEventCards() {
     const evt = EVENTS.find(e => e.id === id);
     if (!evt) return;
     const rawColor = evt.color || 'var(--wine)';
-    const safeColor = /^(#[0-9a-fA-F]{3,8}|var\(--[a-zA-Z0-9-]+\)|[a-zA-Z]+)$/.test(rawColor) ? rawColor : 'var(--wine)';
+    const safeColor = /^(#[0-9a-fA-F]{3,6}|var\(--[a-zA-Z0-9-]+\)|[a-zA-Z]+)$/.test(rawColor) ? rawColor : 'var(--wine)';
     const bg = safeColor.startsWith('#') ? safeColor + '18' : safeColor;
     const bgOpacity = safeColor.startsWith('#') ? '' : 'opacity:0.1;';
     const color = safeColor;
@@ -1223,6 +1223,10 @@ function makeGoogleCalUrl(evt) {
     );
 }
 
+function escapeICSText(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
 function makeICSBlob(evt) {
   var dt = formatCalDateTime(evt.date, evt.time);
   if (!dt.valid) return null;
@@ -1236,9 +1240,9 @@ function makeICSBlob(evt) {
     'DTSTAMP:' + dt.start,
     'DTSTART:' + dt.start,
     'DTEND:' + dt.end,
-    'SUMMARY:Wedding: ' + evt.name,
-    'LOCATION:' + (evt.venue || ''),
-    'DESCRIPTION:You are attending ' + evt.name + ' as part of the wedding celebrations.',
+    'SUMMARY:' + escapeICSText('Wedding: ' + evt.name),
+    'LOCATION:' + escapeICSText(evt.venue || ''),
+    'DESCRIPTION:' + escapeICSText('You are attending ' + evt.name + ' as part of the wedding celebrations.'),
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n');
@@ -1295,7 +1299,7 @@ function showCalendarButtons() {
       '</div>' +
       '<div class="cal-options">' +
         (googleUrl
-          ? '<a class="cal-option" href="' + googleUrl + '" target="_blank" rel="noopener">Google</a>'
+          ? '<a class="cal-option" href="' + escapeAttr(googleUrl) + '" target="_blank" rel="noopener">Google</a>'
           : '') +
         '<button class="cal-option" onclick="downloadICS(\'' + escapeAttr(evt.id) + '\')">iCal</button>' +
       '</div>' +
