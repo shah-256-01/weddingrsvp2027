@@ -3,8 +3,10 @@
 // Deploy as Web App: Execute as Me, Access: Anyone
 // ═══════════════════════════════════════════════════════
 
-const SHEET_ID  = '1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc';
-const ADMIN_PIN = '2027'; // ← change before going live
+const SHEET_ID  = PropertiesService.getScriptProperties().getProperty('SHEET_ID')
+                  || '1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc'; // fallback for initial setup
+const ADMIN_PIN = PropertiesService.getScriptProperties().getProperty('ADMIN_PIN')
+                  || '2027'; // fallback — run setupProperties() to configure
 
 // Email address to receive RSVP notifications
 const NOTIFICATION_EMAIL = 'couple@example.com';
@@ -137,6 +139,14 @@ function sheetToObjects(sheet) {
   );
 }
 
+// Prevent Google Sheets formula injection — prefix dangerous leading chars
+function sanitizeForSheet(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val);
+  if (/^[=+\-@\t\r]/.test(s)) return "'" + s;
+  return s;
+}
+
 function escapeHtml(str) {
   return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -194,8 +204,8 @@ function updateGuestContact(guestId, email, whatsapp) {
   const emailCol = headers.indexOf('email');
   const phoneCol = headers.indexOf('phone');
 
-  if (emailCol > -1) sheet.getRange(rowNum, emailCol + 1).setValue(email.trim());
-  if (phoneCol > -1) sheet.getRange(rowNum, phoneCol + 1).setValue(whatsapp.trim());
+  if (emailCol > -1) sheet.getRange(rowNum, emailCol + 1).setValue(sanitizeForSheet(email.trim()));
+  if (phoneCol > -1) sheet.getRange(rowNum, phoneCol + 1).setValue(sanitizeForSheet(whatsapp.trim()));
 
   Logger.log('Updated contact for guest ' + guestId + ': ' + email);
   return { updated: true, guestId };
@@ -398,7 +408,7 @@ function addGuest(payload) {
   const row = headers.map(h => {
     if (h === 'id') return id;
     if (h === 'events') return sortedIds.join(',');
-    return payload[h] !== undefined ? payload[h] : '';
+    return sanitizeForSheet(payload[h] !== undefined ? payload[h] : '');
   });
   sheet.appendRow(row);
   return { ...payload, id };
@@ -423,7 +433,7 @@ function updateGuest(payload) {
   headers.forEach((h, i) => {
     if (h === 'id') return;
     if (payload[h] !== undefined) {
-      sheet.getRange(rowNum, i + 1).setValue(payload[h]);
+      sheet.getRange(rowNum, i + 1).setValue(sanitizeForSheet(payload[h]));
     }
   });
   return { ...payload };
@@ -542,7 +552,7 @@ function bulkAddGuests(payload) {
       const row = headers.map(h => {
         if (h === 'id') return id;
         if (h === 'events') return sortedEvIds.join(',');
-        return g[h] !== undefined ? g[h] : '';
+        return sanitizeForSheet(g[h] !== undefined ? g[h] : '');
       });
       sheet.appendRow(row);
       results.added++;
@@ -569,26 +579,44 @@ function submitRSVP(payload) {
     }
   }
 
-  // ── Duplicate check — name + code ───────────────────
   const normCode = String(payload.invitationCode || '').toUpperCase().trim();
-  const existing = getExistingRSVP(normCode, payload.submissionName);
-  if (existing) {
-    throw new Error(
-      'An RSVP has already been received for this name and invitation code. ' +
-      'Please contact the wedding team if you need to make any changes.'
-    );
-  }
-
   const { submissionName, submittedAt } = payload;
   const events = (payload.events || []).filter(ev => ev && EVENT_IDS.includes(ev.id));
   if (events.length === 0) throw new Error('No valid events in submission.');
   const invitationCode = normCode;
   const ts = submittedAt || new Date().toISOString();
 
-  // Use script lock to prevent concurrent column insertion races
+  // Use script lock for atomicity — duplicate check + write must be inside lock
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    // ── Duplicate check — name + code (inside lock to prevent race) ──
+    const existing = getExistingRSVP(normCode, payload.submissionName);
+    if (existing) {
+      throw new Error(
+        'An RSVP has already been received for this name and invitation code. ' +
+        'Please contact the wedding team if you need to make any changes.'
+      );
+    }
+
+    // ── Server-side allocation validation ─────────────────
+    const guestSheet  = getSheet(TABS.guests);
+    const allGuests   = sheetToObjects(guestSheet);
+    const guestRecord = allGuests.find(g =>
+      String(g.invitation_code || '').toUpperCase().trim() === invitationCode
+    );
+    if (guestRecord) {
+      events.forEach(ev => {
+        if (!ev.attending) return;
+        const maxAdults   = Number(guestRecord[ev.id + '_adults'])   || 0;
+        const maxChildren = Number(guestRecord[ev.id + '_children']) || 0;
+        // Allow at least 1 adult even if unallocated (matches frontend fallback)
+        const effectiveMaxAdults = maxAdults === 0 ? 1 : maxAdults;
+        ev.adults   = Math.min(Math.max(0, Number(ev.adults)   || 0), effectiveMaxAdults);
+        ev.children = Math.min(Math.max(0, Number(ev.children) || 0), maxChildren);
+      });
+    }
+
     // RSVPs_by_event (tall)
     const byEventSheet = getSheet(TABS.rsvpByEvent);
     if (byEventSheet.getLastRow() < 1) {
@@ -599,12 +627,12 @@ function submitRSVP(payload) {
     }
     events.forEach(ev => {
       byEventSheet.appendRow([
-        ts, submissionName, invitationCode,
+        ts, sanitizeForSheet(submissionName), invitationCode,
         ev.id, ev.name,
         ev.attending ? 'Yes' : 'No',
         ev.attending ? (ev.adults   || 0) : 0,
         ev.attending ? (ev.children || 0) : 0,
-        ev.notes || '',
+        sanitizeForSheet(ev.notes || ''),
         '',
       ]);
     });
@@ -649,7 +677,7 @@ function submitRSVP(payload) {
 
     const row = new Array(headers.length).fill('');
     row[headers.indexOf('timestamp')]       = ts;
-    row[headers.indexOf('submission_name')] = submissionName;
+    row[headers.indexOf('submission_name')] = sanitizeForSheet(submissionName);
     row[headers.indexOf('invitation_code')] = invitationCode;
     events.forEach(ev => {
       const a  = headers.indexOf(ev.id + ' Attending');
@@ -659,7 +687,7 @@ function submitRSVP(payload) {
       if (a  > -1) row[a]  = ev.attending ? 'Yes' : 'No';
       if (ad > -1) row[ad] = ev.attending ? (ev.adults   || 0) : 0;
       if (c  > -1) row[c]  = ev.attending ? (ev.children || 0) : 0;
-      if (n  > -1) row[n]  = ev.notes || '';
+      if (n  > -1) row[n]  = sanitizeForSheet(ev.notes || '');
     });
     byFamilySheet.appendRow(row);
   } finally {
@@ -1151,4 +1179,16 @@ function sendDailyDigest() {
   } catch (err) {
     Logger.log('Daily digest failed: ' + err.message);
   }
+}
+
+// ── setupProperties ─────────────────────────────────────
+// Run once from Apps Script editor to store secrets securely.
+// After running, remove the hardcoded fallback values from the top of this file.
+function setupProperties() {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperties({
+    SHEET_ID:  '1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc', // ← your sheet ID
+    ADMIN_PIN: '2027', // ← change to a strong PIN
+  });
+  Logger.log('Properties saved. You can now remove the fallback values from the top of Code.gs.');
 }

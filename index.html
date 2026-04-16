@@ -1029,8 +1029,10 @@ function renderEventCards() {
   currentEventIds.forEach((id, idx) => {
     const evt = EVENTS.find(e => e.id === id);
     if (!evt) return;
-    const bg = (evt.color || 'var(--wine)') + '18';
-    const color = evt.color || 'var(--wine)';
+    const rawColor = evt.color || 'var(--wine)';
+    const safeColor = /^(#[0-9a-fA-F]{3,8}|var\(--[a-zA-Z0-9-]+\)|[a-zA-Z]+)$/.test(rawColor) ? rawColor : 'var(--wine)';
+    const bg = safeColor + '18';
+    const color = safeColor;
     const safeId = escapeAttr(id);
     const el = document.createElement('div');
     el.className = 'event-card' + (idx === 0 ? ' expanded' : '');
