@@ -648,53 +648,31 @@ function loadStats() {
     .getStats();
 }
 
+function gasAsync(fnName) {
+  return new Promise(function(resolve, reject) {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(reject)
+      [fnName]();
+  });
+}
+
 function loadGuests() {
   document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
-  google.script.run
-    .withSuccessHandler(function(data) {
-      allGuests = data || [];
-      google.script.run
-        .withSuccessHandler(function(rsvpData) {
-          allRSVPs = rsvpData || [];
-          google.script.run
-            .withSuccessHandler(function(codes) {
-              allSubmittedCodes = new Set(codes || []);
-              google.script.run
-                .withSuccessHandler(function(dups) {
-                  allDuplicates = dups || [];
-                  google.script.run
-                    .withSuccessHandler(function(del) {
-                      allDeletedGuests = del || [];
-                      renderGuestView();
-                    })
-                    .withFailureHandler(function() {
-                      // Keep previous allDeletedGuests on failure
-                      renderGuestView();
-                    })
-                    .getDeletedGuests();
-                })
-                .withFailureHandler(function() {
-                  // Keep previous allDuplicates on failure
-                  renderGuestView();
-                })
-                .getDuplicates();
-            })
-            .withFailureHandler(function() {
-              // Keep previous allSubmittedCodes on failure
-              renderGuestView();
-            })
-            .getSubmittedCodes();
-        })
-        .withFailureHandler(function() {
-          // Keep previous allRSVPs on failure
-          renderGuestView();
-        })
-        .getRSVPsByFamily();
-    })
-    .withFailureHandler(function(err) {
-      showLoadError('guest-view-container', err.message || 'Failed to load guests', 'loadGuests');
-    })
-    .getGuests();
+  // Fetch guests first (required), then remaining data in parallel
+  gasAsync('getGuests').then(function(data) {
+    allGuests = data || [];
+    return Promise.all([
+      gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
+      gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {}),
+      gasAsync('getDuplicates').then(function(d) { allDuplicates = d || []; }).catch(function() {}),
+      gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
+    ]);
+  }).then(function() {
+    renderGuestView();
+  }).catch(function(err) {
+    showLoadError('guest-view-container', err.message || 'Failed to load guests', 'loadGuests');
+  });
 }
 
 // ── View Switching + Rendering ─────────────
@@ -730,7 +708,7 @@ function renderGuestView() {
 
 function renderCurrentView() {
   var container = document.getElementById('guest-view-container');
-  if (currentView === 'event') { renderEventView(allGuests, allStats); return; }
+  if (currentView === 'event') { renderEventView(filteredGuests, allStats); return; }
   if (currentView === 'rsvp-status') { renderRSVPStatusView(filteredGuests, container); return; }
   if (!filteredGuests.length) { container.innerHTML = '<div class="empty-state">No guests found.</div>'; return; }
   if (currentView === 'list') renderTableView(filteredGuests, container);

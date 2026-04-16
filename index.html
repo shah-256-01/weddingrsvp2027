@@ -627,6 +627,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_meK_ZwbNIdeqY1pH
 const WEDDING_DATETIME = '2027-12-25T19:30:00+05:30';
 const RSVP_DEADLINE_DATE = '2027-11-30';  // Display deadline (inclusive)
 const RSVP_DEADLINE_BLOCK = '2027-12-01'; // Block submissions from this date
+const CONTACT_INFO = 'couple@example.com'; // ← update with your contact email or phone
 
 let EVENTS = [];
 let CODES_MAP = {};
@@ -1017,7 +1018,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
       : '') +
     '<p style="font-size:var(--text-body-sm);color:var(--muted);line-height:1.9;max-width:420px;margin:0 auto;">' +
       'If you need to make any changes please get in touch:<br>' +
-      '<strong style="color:var(--wine);">[CONTACT EMAIL OR PHONE \u2014 edit in index.html]</strong>' +
+      '<strong style="color:var(--wine);">' + escapeHtml(CONTACT_INFO) + '</strong>' +
     '</p>';
 
   screen.classList.remove('hidden');

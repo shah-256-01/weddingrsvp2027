@@ -42,6 +42,15 @@ function doGet(e) {
   // Validate guest — ?action=validate&code=LW2027&firstName=John&lastName=Smith
   if (e && e.parameter && e.parameter.action === 'validate') {
     try {
+      // Rate limit: max 10 attempts per code per 60 seconds
+      const rateKey = 'validate_' + String(e.parameter.code || '').toUpperCase().trim();
+      const cache = CacheService.getScriptCache();
+      const attempts = parseInt(cache.get(rateKey) || '0', 10);
+      if (attempts >= 10) {
+        return jsonResponse({ ok: false, error: 'Too many attempts. Please wait a minute and try again.' });
+      }
+      cache.put(rateKey, String(attempts + 1), 60);
+
       const result = validateGuest(
         e.parameter.code        || '',
         e.parameter.firstName   || '',
@@ -240,6 +249,15 @@ function normaliseName(str) {
 function validateGuest(code, firstName, lastName) {
   if (!code || !firstName || !lastName) {
     throw new Error('Code, first name and last name are required.');
+  }
+
+  // Block validation after RSVP deadline to prevent data enumeration
+  if (RSVP_DEADLINE) {
+    const now      = new Date();
+    const deadline = new Date(RSVP_DEADLINE);
+    if (now >= deadline) {
+      throw new Error('The RSVP deadline has passed. Please contact us directly.');
+    }
   }
 
   const guests    = getGuests(); // already filters out DELETED by default
