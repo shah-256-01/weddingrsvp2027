@@ -673,11 +673,13 @@ async function validateGuest(firstName, lastName, code) {
 
 async function saveContactDetails(email, whatsapp) {
   var params = new URLSearchParams({
-    action:   'updateContact',
-    guestId:  currentGuest.id,
-    email:    email.trim(),
-    whatsapp: whatsapp.trim(),
-    code:     currentCode,
+    action:    'updateContact',
+    guestId:   currentGuest.id,
+    email:     email.trim(),
+    whatsapp:  whatsapp.trim(),
+    code:      currentCode,
+    firstName: currentGuest.firstName,
+    lastName:  currentGuest.lastName,
   });
   var res  = await fetch(SCRIPT_URL + '?' + params);
   var json = await res.json();

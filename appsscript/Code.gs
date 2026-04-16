@@ -61,7 +61,7 @@ function doGet(e) {
       return jsonResponse({ ok: false, error: err.message });
     }
   }
-  // Update guest contact details — ?action=updateContact&guestId=...&email=...&whatsapp=...&code=...
+  // Update guest contact details
   if (e && e.parameter && e.parameter.action === 'updateContact') {
     try {
       const rateKey = 'contact_' + String(e.parameter.guestId || '').trim();
@@ -73,10 +73,12 @@ function doGet(e) {
       cache.put(rateKey, String(attempts + 1), 60);
 
       const result = updateGuestContact(
-        e.parameter.guestId  || '',
-        e.parameter.email    || '',
-        e.parameter.whatsapp || '',
-        e.parameter.code     || ''
+        e.parameter.guestId   || '',
+        e.parameter.email     || '',
+        e.parameter.whatsapp  || '',
+        e.parameter.code      || '',
+        e.parameter.firstName || '',
+        e.parameter.lastName  || ''
       );
       return jsonResponse({ ok: true, data: result });
     } catch (err) {
@@ -205,11 +207,12 @@ function guestHeaders() {
 }
 
 // ── updateGuestContact ───────────────────────────────────
-function updateGuestContact(guestId, email, whatsapp, invitationCode) {
+function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName, lastName) {
   if (!guestId) throw new Error('Guest ID required.');
   if (!email)   throw new Error('Email address required.');
   if (!whatsapp) throw new Error('WhatsApp number required.');
   if (!invitationCode) throw new Error('Invitation code required.');
+  if (!firstName || !lastName) throw new Error('Guest name required.');
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error('Please enter a valid email address.');
@@ -220,11 +223,19 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode) {
   if (rowNum === -1) throw new Error('Guest record not found.');
 
   const headers  = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const row      = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
   const codeCol  = headers.indexOf('invitation_code');
-  if (codeCol === -1) throw new Error('Invalid sheet configuration.');
-  const storedCode = String(sheet.getRange(rowNum, codeCol + 1).getValue() || '').toUpperCase().trim();
+  const fnCol    = headers.indexOf('first_name');
+  const lnCol    = headers.indexOf('last_name');
+  if (codeCol === -1 || fnCol === -1 || lnCol === -1) throw new Error('Invalid sheet configuration.');
+
+  const storedCode = String(row[codeCol] || '').toUpperCase().trim();
   if (storedCode !== String(invitationCode).toUpperCase().trim()) {
-    throw new Error('Invitation code does not match guest record.');
+    throw new Error('Identity verification failed.');
+  }
+  if (normaliseName(row[fnCol]) !== normaliseName(firstName) ||
+      normaliseName(row[lnCol]) !== normaliseName(lastName)) {
+    throw new Error('Identity verification failed.');
   }
 
   const emailCol = headers.indexOf('email');
