@@ -836,7 +836,7 @@ function renderGroupedView(guests, container) {
     var eventDots = group.events.map(function(id) {
       var ev = allEvents.find(function(e) { return e.id === id; });
       if (!ev) return '';
-      return '<span class="event-dot" style="background:rgba(107,39,55,.08);color:var(--wine);padding:0 .4rem;border-radius:10px;font-size:.75rem;">' + ev.icon + ' <span style="font-size:.6rem;">' + ev.name + '</span></span>';
+      return '<span class="event-dot" style="background:rgba(107,39,55,.08);color:var(--wine);padding:0 .4rem;border-radius:10px;font-size:.75rem;">' + escapeAttr(ev.icon) + ' <span style="font-size:.6rem;">' + escapeAttr(ev.name) + '</span></span>';
     }).join(' ');
 
     var guestRows = group.guests.map(function(g) {
@@ -858,7 +858,7 @@ function renderGroupedView(guests, container) {
 
     return '<div class="group-card">' +
       '<div class="group-card-header"><div>' +
-      '<div class="group-code">' + code + '</div>' +
+      '<div class="group-code">' + escapeAttr(code) + '</div>' +
       '<div class="group-events" style="margin-top:.3rem;">' + eventDots + '</div>' +
       '</div></div>' +
       '<div class="group-card-body">' + guestRows + '</div></div>';
@@ -1303,12 +1303,12 @@ function doRestoreGuest(id) {
 function renderDeletedSection() {
   if (!allDeletedGuests.length) return '';
   var rows = allDeletedGuests.map(function(g) {
-    var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
-    var code = g.invitation_code || '';
+    var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
+    var code = escapeAttr(g.invitation_code || '');
     return '<div class="deleted-guest-row">' +
       '<div><span style="font-family:\'Cormorant Garamond\',serif;font-size:.92rem;color:var(--muted);">' + fullName + '</span>' +
       '<span style="font-size:.68rem;color:var(--muted);margin-left:.5rem;">' + code + '</span></div>' +
-      '<button class="btn btn-ghost btn-sm" onclick="doRestoreGuest(\'' + g.id + '\')" style="color:var(--green);">&#8634; Restore</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="doRestoreGuest(\'' + escapeAttr(g.id) + '\')" style="color:var(--green);">&#8634; Restore</button>' +
       '</div>';
   }).join('');
   return '<div class="deleted-section">' +
@@ -1332,16 +1332,16 @@ function toggleDeletedSection(btn) {
 function openViewGuest(id) {
   var g = allGuests.find(function(x) { return x.id === id; });
   if (!g) return;
-  var fullName = (g.first_name || '') + ' ' + (g.last_name || '');
+  var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
   var evIds = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   var eventNames = evIds.map(function(eid) {
     var ev = allEvents.find(function(e) { return e.id === eid; });
-    return ev ? ev.icon + ' ' + ev.name : eid;
+    return ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(eid);
   }).join(', ');
 
   var allocHtml = evIds.map(function(eid) {
     var ev = allEvents.find(function(e) { return e.id === eid; });
-    var evName = ev ? ev.icon + ' ' + ev.name : eid;
+    var evName = ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(eid);
     return '<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:.78rem;">' +
       '<span>' + evName + '</span>' +
       '<span>' + (Number(g[eid + '_adults']) || 0) + ' adults, ' + (Number(g[eid + '_children']) || 0) + ' children</span></div>';
@@ -1352,12 +1352,12 @@ function openViewGuest(id) {
   var html =
     '<div style="text-align:center;margin-bottom:1rem;">' +
     '<div style="font-family:\'Cormorant Garamond\',serif;font-size:1.4rem;color:var(--wine);">' + fullName + overseasTag + '</div>' +
-    '<span class="code-pill" style="margin-top:.4rem;display:inline-block;">' + (g.invitation_code || '') + '</span></div>' +
+    '<span class="code-pill" style="margin-top:.4rem;display:inline-block;">' + escapeAttr(g.invitation_code || '') + '</span></div>' +
     '<div style="display:grid;grid-template-columns:auto 1fr;gap:.4rem .8rem;font-size:.8rem;margin-bottom:1rem;">' +
-    (g.phone ? '<span style="color:var(--muted);">Phone</span><span>' + g.phone + '</span>' : '') +
-    (g.email ? '<span style="color:var(--muted);">Email</span><span>' + g.email + '</span>' : '') +
-    (g.relationship ? '<span style="color:var(--muted);">Relationship</span><span>' + g.relationship + '</span>' : '') +
-    (g.notes ? '<span style="color:var(--muted);">Notes</span><span>' + g.notes + '</span>' : '') +
+    (g.phone ? '<span style="color:var(--muted);">Phone</span><span>' + escapeAttr(g.phone) + '</span>' : '') +
+    (g.email ? '<span style="color:var(--muted);">Email</span><span>' + escapeAttr(g.email) + '</span>' : '') +
+    (g.relationship ? '<span style="color:var(--muted);">Relationship</span><span>' + escapeAttr(g.relationship) + '</span>' : '') +
+    (g.notes ? '<span style="color:var(--muted);">Notes</span><span>' + escapeAttr(g.notes) + '</span>' : '') +
     '</div>' +
     '<div style="font-size:.78rem;margin-bottom:.5rem;"><strong>Events:</strong> ' + eventNames + '</div>' +
     '<div style="font-family:\'Cinzel\',serif;font-size:.54rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-bottom:.3rem;">Allocations</div>' +
@@ -1368,7 +1368,7 @@ function openViewGuest(id) {
   if (rsvp) {
     html += '<div style="margin-top:1rem;padding:.8rem;background:rgba(45,74,62,.06);border-radius:2px;">' +
       '<div style="font-family:\'Cinzel\',serif;font-size:.54rem;letter-spacing:.14em;color:var(--green);text-transform:uppercase;margin-bottom:.3rem;">RSVP Submitted</div>' +
-      '<div style="font-size:.72rem;color:var(--muted);">Submitted by: ' + (rsvp.submission_name || '') + ' on ' + (rsvp.timestamp || '') + '</div></div>';
+      '<div style="font-size:.72rem;color:var(--muted);">Submitted by: ' + escapeAttr(rsvp.submission_name || '') + ' on ' + escapeAttr(rsvp.timestamp || '') + '</div></div>';
   } else {
     html += '<div style="margin-top:1rem;padding:.8rem;background:rgba(184,146,74,.08);border-radius:2px;font-size:.78rem;color:var(--gold);">RSVP Pending</div>';
   }
@@ -1387,10 +1387,10 @@ function openViewRSVP(code) {
     Object.keys(r).forEach(function(key) {
       if (['timestamp','submission_name','invitation_code'].indexOf(key) > -1) return;
       details += '<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:.76rem;">' +
-        '<span style="color:var(--muted);">' + key + '</span><span>' + (r[key] || '') + '</span></div>';
+        '<span style="color:var(--muted);">' + escapeAttr(key) + '</span><span>' + escapeAttr(r[key] || '') + '</span></div>';
     });
     return '<div style="margin-bottom:1rem;">' +
-      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem;">Submitted: ' + (r.timestamp || '') + ' by ' + (r.submission_name || '') + '</div>' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem;">Submitted: ' + escapeAttr(r.timestamp || '') + ' by ' + escapeAttr(r.submission_name || '') + '</div>' +
       details + '</div>';
   }).join('<hr style="border:none;border-top:1px solid rgba(0,0,0,.07);margin:.8rem 0;">');
 
@@ -1434,7 +1434,10 @@ function exportGuestListCSV() {
       var rows = guests.map(function(g) {
         return headers.map(function(h) {
           var val = String(g[h] || '');
-          return val.indexOf(',') > -1 ? '"' + val + '"' : val;
+          if (val.indexOf('"') > -1 || val.indexOf(',') > -1 || val.indexOf('\n') > -1) {
+            return '"' + val.replace(/"/g, '""') + '"';
+          }
+          return val;
         }).join(',');
       });
       var csv  = [headers.join(',')].concat(rows).join('\n');
@@ -1694,8 +1697,8 @@ function loadRSVPsTab() {
       }
     });
     return '<div class="event-rsvp-card">' +
-      '<div class="event-rsvp-header"><span style="font-size:1.2rem;">' + ev.icon + '</span>' +
-      '<span class="event-rsvp-title">' + ev.name + '</span></div>' +
+      '<div class="event-rsvp-header"><span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
+      '<span class="event-rsvp-title">' + escapeAttr(ev.name) + '</span></div>' +
       '<div class="event-rsvp-stats">' +
       '<div class="ersvp-stat"><div class="ersvp-num">' + yes + '</div><div class="ersvp-lbl">Yes</div></div>' +
       '<div class="ersvp-stat"><div class="ersvp-num">' + no + '</div><div class="ersvp-lbl">No</div></div>' +
@@ -1712,13 +1715,13 @@ function loadRSVPsTab() {
       var att = r[ev.id + ' Attending'];
       if (!att) return '';
       var cls = att === 'Yes' ? 'color:var(--green);' : 'color:var(--red);';
-      return '<span style="font-size:.74rem;' + cls + 'margin-right:.7rem;">' + ev.icon + ' ' + att +
+      return '<span style="font-size:.74rem;' + cls + 'margin-right:.7rem;">' + escapeAttr(ev.icon) + ' ' + escapeAttr(att) +
         (att === 'Yes' ? ' (' + (r[ev.id + ' Adults'] || 0) + 'A, ' + (r[ev.id + ' Children'] || 0) + 'C)' : '') + '</span>';
     }).join('');
 
     return '<div style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">' +
-      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:1rem;color:var(--wine);">' + (r.submission_name || '') + '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);">' + (r.timestamp || '') + ' &middot; <span class="code-pill">' + (r.invitation_code || '') + '</span></div></div>' +
+      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:1rem;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(r.timestamp || '') + ' &middot; <span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div></div>' +
       '<div>' + evDetails + '</div></div>';
   }).join('');
   listEl.innerHTML = html || '<div class="empty-state">No responses yet.</div>';
@@ -1893,12 +1896,12 @@ function renderChaseUpList() {
   }
 
   var rows = pending.map(function(g) {
-    var fullName = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+    var fullName = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
     var flashId = 'flash-cu-' + g.id;
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
       '<div>' +
         '<div class="guest-name-cell">' + fullName + '</div>' +
-        '<div class="guest-sub">' + sanitiseValue(g.phone) + ' &middot; <span class="code-pill">' + (g.invitation_code || '') + '</span> &middot; ' + sanitiseValue(g.relationship) + '</div>' +
+        '<div class="guest-sub">' + escapeAttr(sanitiseValue(g.phone)) + ' &middot; <span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span> &middot; ' + escapeAttr(sanitiseValue(g.relationship)) + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:.5rem;">' +
         '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
@@ -1923,12 +1926,12 @@ function renderInviteList() {
   }
 
   var rows = guests.map(function(g) {
-    var fullName = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+    var fullName = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
     var flashId = 'flash-inv-' + g.id;
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
       '<div>' +
         '<div class="guest-name-cell">' + fullName + '</div>' +
-        '<div class="guest-sub"><span class="code-pill">' + (g.invitation_code || '') + '</span> &middot; ' + sanitiseValue(g.relationship) + '</div>' +
+        '<div class="guest-sub"><span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span> &middot; ' + escapeAttr(sanitiseValue(g.relationship)) + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:.5rem;">' +
         '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +

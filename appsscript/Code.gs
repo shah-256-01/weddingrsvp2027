@@ -375,7 +375,7 @@ function getGuests(includeDeleted) {
 function getDeletedGuests() {
   const sheet = getSheet(TABS.guests);
   if (sheet.getLastRow() < 1) return [];
-  return sheetToObjects(sheet).filter(g => String(g.status).toUpperCase() === 'DELETED');
+  return sheetToObjects(sheet).filter(g => String(g.status || '').toUpperCase() === 'DELETED');
 }
 
 // ── addGuest ──────────────────────────────────────────────
@@ -394,7 +394,7 @@ function addGuest(payload) {
     .sort((a, b) => a.localeCompare(b));
   payload.invitation_code = sortedIds.join('') + '2027';
 
-  const id  = 'g-' + Date.now();
+  const id  = 'g-' + Date.now() + '-' + (sheet.getLastRow() + 1);
   const row = headers.map(h => {
     if (h === 'id') return id;
     if (h === 'events') return sortedIds.join(',');
@@ -579,7 +579,9 @@ function submitRSVP(payload) {
     );
   }
 
-  const { submissionName, events, submittedAt } = payload;
+  const { submissionName, submittedAt } = payload;
+  const events = (payload.events || []).filter(ev => ev && EVENT_IDS.includes(ev.id));
+  if (events.length === 0) throw new Error('No valid events in submission.');
   const invitationCode = normCode;
   const ts = submittedAt || new Date().toISOString();
 
@@ -856,8 +858,8 @@ function getStats() {
   const byFamilyAll = sheetToObjects(getSheet(TABS.rsvpByFamily));
 
   // Filter out DELETED RSVP rows
-  const byEvent  = byEventAll.filter(r => String(r.status).toUpperCase() !== 'DELETED');
-  const byFamily = byFamilyAll.filter(r => String(r.status).toUpperCase() !== 'DELETED');
+  const byEvent  = byEventAll.filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
+  const byFamily = byFamilyAll.filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
 
   // ── Deduplicate submissions ──────────────────────────
   const latestByCode = {};
@@ -918,13 +920,11 @@ function getStats() {
   });
 
   // Deduplicate byEvent rows — keep only rows whose code is in dedupedSubmissions
-  const dedupedEventCodes = new Set(Object.keys(latestByCode));
-
   byEvent.forEach(row => {
     const id   = row.event_id;
     const code = String(row.invitation_code || '').toUpperCase().trim();
     if (!perEvent[id]) return;
-    if (!dedupedEventCodes.has(code)) return;
+    if (!submittedCodes.has(code)) return;
 
     if (String(row.attending).toLowerCase() === 'yes') {
       perEvent[id].attending++;

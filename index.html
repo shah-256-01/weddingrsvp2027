@@ -390,7 +390,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
           </div>
         </div>
       </div>
-      <p class="welcome-deadline">
+      <p class="welcome-deadline" id="welcome-deadline">
         &#128197; Please respond by <strong>30th November 2027</strong>
       </p>
     </div>
@@ -768,10 +768,14 @@ document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById(id);
     if (el) el.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitEntry(); });
   });
-  // Update submit note with deadline from constant
+  // Update deadline text from constant
   var noteEl = document.querySelector('.submit-note');
   if (noteEl) {
     noteEl.textContent = 'Please confirm by ' + formatDeadlineDate(RSVP_DEADLINE_DATE);
+  }
+  var welcomeDeadline = document.getElementById('welcome-deadline');
+  if (welcomeDeadline) {
+    welcomeDeadline.innerHTML = '&#128197; Please respond by <strong>' + escapeHtml(formatDeadlineDate(RSVP_DEADLINE_DATE)) + '</strong>';
   }
 });
 
@@ -1260,7 +1264,7 @@ function showCalendarButtons() {
         (googleUrl
           ? '<a class="cal-option" href="' + googleUrl + '" target="_blank" rel="noopener">Google</a>'
           : '') +
-        '<button class="cal-option" onclick="downloadICS(\'' + evt.id + '\')">iCal</button>' +
+        '<button class="cal-option" onclick="downloadICS(\'' + escapeAttr(evt.id) + '\')">iCal</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -1270,6 +1274,7 @@ function showCalendarButtons() {
 
 function renderSummary() {
   const rows = document.getElementById('summary-rows');
+  if (!rows) return;
   rows.innerHTML = '';
   currentEventIds.forEach(id => {
     const evt = EVENTS.find(e => e.id === id);
