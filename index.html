@@ -54,6 +54,8 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .btn-secondary:hover{background:var(--blush);}
 .btn-ghost{background:transparent;color:var(--muted);padding:.45rem .9rem;font-size:var(--text-ui-sm);}
 .btn-ghost:hover{color:var(--wine);}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+.attend-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 .btn-sm{padding:.52rem 1.1rem;font-size:var(--text-ui-sm);}
 .btn-danger{background:var(--red);color:#fde;}
 .btn-danger:hover{background:#6b1515;}
@@ -309,8 +311,8 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
       <div class="ornament-diamond"></div>
       <div class="ornament-line" style="width:55px"></div>
     </div>
-    <p class="landing-date">25<sup>th</sup> December, 2027</p>
-    <p class="landing-venue">Park Avenue Grand · Kochi</p>
+    <p class="landing-date" id="landing-date">25<sup>th</sup> December, 2027</p>
+    <p class="landing-venue" id="landing-venue">Park Avenue Grand · Kochi</p>
     <div id="landing-loader" class="hidden" style="padding:1rem 0;">
       <div class="loading-spinner"></div>
       <p style="font-size:var(--text-ui-xs);color:var(--muted);margin-top:.5rem;">Loading events…</p>
@@ -628,6 +630,7 @@ const WEDDING_DATETIME = '2027-12-25T19:30:00+05:30';
 const RSVP_DEADLINE_DATE = '2027-11-30';  // Display deadline (inclusive)
 const RSVP_DEADLINE_BLOCK = '2027-12-01'; // Block submissions from this date
 const CONTACT_INFO = 'couple@example.com'; // ← update with your contact email or phone
+const WEDDING_VENUE = 'Park Avenue Grand · Kochi'; // ← update with your venue
 
 let EVENTS = [];
 let CODES_MAP = {};
@@ -778,13 +781,27 @@ document.addEventListener('DOMContentLoaded', function() {
   if (welcomeDeadline) {
     welcomeDeadline.innerHTML = '&#128197; Please respond by <strong>' + escapeHtml(formatDeadlineDate(RSVP_DEADLINE_DATE)) + '</strong>';
   }
+  // Populate landing page from constants
+  var venueEl = document.getElementById('landing-venue');
+  if (venueEl) venueEl.textContent = WEDDING_VENUE;
+  var dateEl = document.getElementById('landing-date');
+  if (dateEl) dateEl.innerHTML = formatWeddingDate(WEDDING_DATETIME);
 });
 
 function formatDeadlineDate(dateStr) {
-  // Parse as UTC to avoid timezone shift showing wrong date
   var parts = dateStr.split('-');
   var d = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+function formatWeddingDate(isoStr) {
+  var d = new Date(isoStr);
+  var day = d.getDate();
+  var suffix = (day === 1 || day === 21 || day === 31) ? 'st'
+    : (day === 2 || day === 22) ? 'nd'
+    : (day === 3 || day === 23) ? 'rd' : 'th';
+  var month = d.toLocaleString('en-GB', { month: 'long' });
+  return day + '<sup>' + suffix + '</sup> ' + month + ', ' + d.getFullYear();
 }
 
 async function submitEntry() {
@@ -799,6 +816,9 @@ async function submitEntry() {
     return;
   }
   btn.textContent = 'Checking…'; btn.disabled = true;
+  var timeoutId = setTimeout(function() {
+    errEl.textContent = 'This is taking longer than usual. Please check your connection.';
+  }, 12000);
   try {
     currentGuest    = await validateGuest(firstName, lastName, code);
     currentCode     = currentGuest.invitationCode;
@@ -808,6 +828,8 @@ async function submitEntry() {
     errEl.textContent = err.message || 'Invalid details. Please check and try again.';
     btn.textContent   = 'View My Invitation ✦';
     btn.disabled      = false;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -1286,7 +1308,7 @@ function renderSummary() {
     const row = document.createElement('div'); row.className = 'summary-row';
     let badge = '', detail = '';
     if (r.attending === null) badge = '<span class="summary-status status-pending">Pending</span>';
-    else if (r.attending) { badge = '<span class="summary-status status-attending">Attending</span>'; detail = ' · ' + r.adults + 'A ' + r.children + 'C'; }
+    else if (r.attending) { badge = '<span class="summary-status status-attending">Attending</span>'; detail = ' · ' + r.adults + (r.adults === 1 ? ' adult' : ' adults') + ', ' + r.children + (r.children === 1 ? ' child' : ' children'); }
     else badge = '<span class="summary-status status-declined">Declined</span>';
     row.innerHTML = '<span>' + escapeHtml(evt.icon) + ' ' + escapeHtml(evt.name) + '<span style="color:var(--muted);font-size:var(--text-ui-xs);">' + detail + '</span></span>' + badge;
     rows.appendChild(row);
@@ -1466,7 +1488,7 @@ function startCountdown(){
    PETALS
 ══════════════════════════════════════════════ */
 ['#c97b84','#e8c87a','#b8924a','#f5e6da','#4a7c74'].forEach(c=>{
-  for(let i=0;i<4;i++){
+  for(let i=0;i<2;i++){
     const p=document.createElement('div'); p.className='petal';
     const sz=Math.random()*7+5;
     p.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz*1.4}px;background:${c};animation-duration:${7+Math.random()*8}s;animation-delay:${Math.random()*12}s;`;

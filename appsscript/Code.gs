@@ -238,7 +238,7 @@ function normaliseName(str) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ')
-    .replace(/['\u2018\u2019]/g, '')
+    .replace(/[\u2018\u2019]/g, "'")
     .replace(/[-]/g, ' ')
     .trim();
 }
@@ -739,7 +739,7 @@ function sendRSVPNotification(payload) {
     return '  ' + ev.name + ': No';
   }).join('\n');
 
-  const subject = 'New RSVP: ' + name + ' (' + code + ')';
+  const subject = 'New RSVP: ' + name.replace(/[\r\n]/g, '') + ' (' + code.replace(/[\r\n]/g, '') + ')';
   const body = 'A new RSVP has been submitted.\n\n' +
     'Name: ' + name + '\n' +
     'Invitation Code: ' + code + '\n' +
@@ -1083,7 +1083,7 @@ function getSubmittedCodes() {
 
 // ── checkPin ──────────────────────────────────────────────
 function checkPin(pin) {
-  return String(pin) === String(ADMIN_PIN);
+  return constantTimeEquals(String(pin || ''), String(ADMIN_PIN));
 }
 
 // ── setupSheet ────────────────────────────────────────────

@@ -684,16 +684,15 @@ function setGuestView(view) {
   renderGuestView();
 }
 
-function renderGuestView() {
-  // Rebuild filteredGuests from current filters
+function rebuildFilteredGuests() {
   var q = (document.getElementById('guest-search').value || '').toLowerCase();
   var relFilter = document.getElementById('filter-relationship').value;
   var rsvpFilter = document.getElementById('filter-rsvp').value;
   var overseasFilter = document.getElementById('filter-overseas').value;
 
-  filteredGuests = allGuests.filter(function(g) {
+  return allGuests.filter(function(g) {
     if (q && !([g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
-      .join(' ').toLowerCase().includes(q))) return false;
+      .filter(Boolean).join(' ').toLowerCase().includes(q))) return false;
     if (relFilter && g.relationship !== relFilter) return false;
     if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
     if (rsvpFilter === 'pending'   &&  allSubmittedCodes.has(g.invitation_code)) return false;
@@ -702,7 +701,10 @@ function renderGuestView() {
     if (overseasFilter === 'local'    &&  isOverseas) return false;
     return true;
   });
+}
 
+function renderGuestView() {
+  filteredGuests = rebuildFilteredGuests();
   renderCurrentView();
 }
 
@@ -968,23 +970,7 @@ function submitPin() { checkLogin(); }
 
 // ── applyFilters (HTML calls this) ────────────
 function applyFilters() {
-  var q = (document.getElementById('guest-search').value || '').toLowerCase();
-  var relFilter = document.getElementById('filter-relationship').value;
-  var rsvpFilter = document.getElementById('filter-rsvp').value;
-  var overseasFilter = document.getElementById('filter-overseas').value;
-
-  filteredGuests = allGuests.filter(function(g) {
-    if (q && !([g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
-      .join(' ').toLowerCase().includes(q))) return false;
-    if (relFilter && g.relationship !== relFilter) return false;
-    if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
-    if (rsvpFilter === 'pending'   &&  allSubmittedCodes.has(g.invitation_code)) return false;
-    var isOverseas = String(g.is_overseas || '').toUpperCase() === 'TRUE';
-    if (overseasFilter === 'overseas' && !isOverseas) return false;
-    if (overseasFilter === 'local'    &&  isOverseas) return false;
-    return true;
-  });
-
+  filteredGuests = rebuildFilteredGuests();
   currentPage = 1;
   renderCurrentView();
 }
@@ -1067,6 +1053,7 @@ function stopActivityListeners() {
 //   GUEST MODAL — ADD / EDIT
 // ══════════════════════════════════════════════
 
+// Strips Google Sheets internal refs (e.g. '#REF!', '#N/A') that leak through getValues()
 function sanitiseValue(val) {
   if (val === undefined || val === null) return '';
   var s = String(val);
@@ -1278,9 +1265,15 @@ function doRestoreGuest(id) {
     .restoreGuest({ id: id });
 }
 
+var DELETED_PAGE_SIZE = 20;
+var deletedPage = 1;
+
 function renderDeletedSection() {
   if (!allDeletedGuests.length) return '';
-  var rows = allDeletedGuests.map(function(g) {
+  var start = 0;
+  var end = Math.min(deletedPage * DELETED_PAGE_SIZE, allDeletedGuests.length);
+  var visible = allDeletedGuests.slice(start, end);
+  var rows = visible.map(function(g) {
     var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
     var code = escapeAttr(g.invitation_code || '');
     return '<div class="deleted-guest-row">' +
@@ -1289,12 +1282,20 @@ function renderDeletedSection() {
       '<button class="btn btn-ghost btn-sm" onclick="doRestoreGuest(\'' + escapeAttr(g.id) + '\')" style="color:var(--green);">&#8634; Restore</button>' +
       '</div>';
   }).join('');
+  var moreBtn = end < allDeletedGuests.length
+    ? '<button class="btn btn-ghost btn-sm" onclick="showMoreDeleted()" style="width:100%;margin-top:.5rem;">Show more (' + (allDeletedGuests.length - end) + ' remaining)</button>'
+    : '';
   return '<div class="deleted-section">' +
     '<button class="deleted-toggle" onclick="toggleDeletedSection(this)">' +
     '<span class="arrow">&#9654;</span> Deleted Guests (' + allDeletedGuests.length + ')</button>' +
     '<div class="deleted-list" id="deleted-list">' +
-    '<div class="admin-card" style="opacity:.7;">' + rows + '</div>' +
+    '<div class="admin-card" style="opacity:.7;">' + rows + moreBtn + '</div>' +
     '</div></div>';
+}
+
+function showMoreDeleted() {
+  deletedPage++;
+  renderGuestView();
 }
 
 function toggleDeletedSection(btn) {
@@ -1553,9 +1554,11 @@ function parseCSV(text) {
     var rawOverseas = String(obj.is_overseas || 'FALSE').trim().toUpperCase();
     obj.is_overseas = (rawOverseas === 'TRUE' || rawOverseas === 'YES' || rawOverseas === '1')
       ? 'TRUE' : 'FALSE';
-    // Auto-generate invitation_code from events
+    // Auto-generate invitation_code from validated events
     if (obj.events) {
-      var evIds = obj.events.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      var validIds = new Set(allEvents.map(function(e) { return e.id; }));
+      var evIds = obj.events.split(',').map(function(s) { return s.trim(); })
+        .filter(function(id) { return id && validIds.has(id); });
       evIds.sort(function(a, b) { return a.localeCompare(b); });
       obj.invitation_code = evIds.join('') + '2027';
       obj.events = evIds.join(',');
