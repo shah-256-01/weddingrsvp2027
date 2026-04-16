@@ -524,19 +524,19 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 
       <div class="faq-category">
         <div class="faq-category-title">Events</div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>What is the dress code?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe dress code for each event, e.g. traditional attire for the wedding ceremony, smart casual for Meet &amp; Greet, formal for Black Tie, etc.]</div></div>
         </div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>What time should I arrive?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide suggested arrival times for each event. The exact times are shown on each RSVP card.]</div></div>
         </div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>Are children welcome?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe your children policy, e.g. children are welcome at all events, or specify age limits.]</div></div>
         </div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>Can I bring a plus-one?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — explain your plus-one policy, e.g. guest allocations are set per invitation.]</div></div>
         </div>
@@ -544,15 +544,15 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 
       <div class="faq-category">
         <div class="faq-category-title">Getting There</div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>Where is the venue?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide venue address, Google Maps link, and any landmarks to look for.]</div></div>
         </div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>Is parking available?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe parking options, valet services, or alternative transport.]</div></div>
         </div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>Is there accommodation nearby?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — list nearby hotels, group rates if available, or accommodation blocks you have reserved.]</div></div>
         </div>
@@ -560,15 +560,15 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 
       <div class="faq-category">
         <div class="faq-category-title">General</div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>When is the RSVP deadline?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — e.g. Please respond by 30th November 2027 so we can finalise arrangements.]</div></div>
         </div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>What if I need to change my RSVP?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — explain how guests can update their RSVP, e.g. contact the couple directly.]</div></div>
         </div>
-        <div class="faq-item" onclick="toggleFAQ(this)">
+        <div class="faq-item" role="button" tabindex="0" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>Who should I contact with questions?</span><span class="faq-arrow">&#9654;</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide a contact name, phone number, or email for wedding queries.]</div></div>
         </div>
@@ -753,7 +753,11 @@ document.addEventListener('DOMContentLoaded', init);
 ══════════════════════════════════════════════ */
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
+  var page = document.getElementById('page-' + name);
+  page.classList.add('active');
+  // Move focus to first heading or interactive element for accessibility
+  var target = page.querySelector('h1, h2, h3, input, button, [tabindex]');
+  if (target) { target.setAttribute('tabindex', '-1'); target.focus({ preventScroll: true }); }
 }
 
 /* ══════════════════════════════════════════════
@@ -1028,7 +1032,7 @@ function renderEventCards() {
     el.className = 'event-card' + (idx === 0 ? ' expanded' : '');
     el.id = 'ecard-' + id;
     el.innerHTML =
-      '<div class="event-card-header" onclick="toggleCard(\'' + safeId + '\')">' +
+      '<div class="event-card-header" role="button" tabindex="0" onclick="toggleCard(\'' + safeId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleCard(\'' + safeId + '\');}">' +
         '<div class="event-icon" style="background:' + bg + ';color:' + color + ';">' + escapeHtml(evt.icon) + '</div>' +
         '<div class="event-card-meta">' +
           '<div class="event-name">' + escapeHtml(evt.name) + '</div>' +
@@ -1059,14 +1063,14 @@ function renderEventCards() {
             : '') +
           '<div class="guest-count-row">' +
             '<div class="guest-count-item"><label>Adults</label><div class="counter-row">' +
-              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'adults\',-1)">\u2212</button>' +
-              '<span class="counter-val" id="adults-' + safeId + '">' + eventRSVPs[id].adults + '</span>' +
-              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'adults\',1)">+</button>' +
+              '<button class="counter-btn" aria-label="Decrease adults" onclick="adjCount(\'' + safeId + '\',\'adults\',-1)">\u2212</button>' +
+              '<span class="counter-val" id="adults-' + safeId + '" aria-live="polite">' + eventRSVPs[id].adults + '</span>' +
+              '<button class="counter-btn" aria-label="Increase adults" onclick="adjCount(\'' + safeId + '\',\'adults\',1)">+</button>' +
             '</div></div>' +
             '<div class="guest-count-item"><label>Children <span style="font-size:var(--text-ui-xs);color:var(--muted)">(under 12)</span></label><div class="counter-row">' +
-              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'children\',-1)">\u2212</button>' +
-              '<span class="counter-val" id="children-' + safeId + '">' + eventRSVPs[id].children + '</span>' +
-              '<button class="counter-btn" onclick="adjCount(\'' + safeId + '\',\'children\',1)">+</button>' +
+              '<button class="counter-btn" aria-label="Decrease children" onclick="adjCount(\'' + safeId + '\',\'children\',-1)">\u2212</button>' +
+              '<span class="counter-val" id="children-' + safeId + '" aria-live="polite">' + eventRSVPs[id].children + '</span>' +
+              '<button class="counter-btn" aria-label="Increase children" onclick="adjCount(\'' + safeId + '\',\'children\',1)">+</button>' +
             '</div></div>' +
           '</div>' +
           (eventRSVPs[id].isUnallocated
@@ -1229,7 +1233,18 @@ function showCalendarButtons() {
     .map(function(id)    { return EVENTS.find(function(e) { return e.id === id; }); })
     .filter(function(evt) { return evt && evt.date && evt.date !== 'TBC'; });
 
-  if (!attendingEvents.length) return;
+  if (!attendingEvents.length) {
+    // Check if there are TBC events the guest is attending
+    var tbcEvents = currentEventIds
+      .filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === true; })
+      .map(function(id) { return EVENTS.find(function(e) { return e.id === id; }); })
+      .filter(function(evt) { return evt && evt.date === 'TBC'; });
+    if (tbcEvents.length > 0) {
+      container.innerHTML = '<p style="font-size:var(--text-body-sm);color:var(--muted);text-align:center;">Event dates are to be confirmed. Calendar links will be available once dates are finalised.</p>';
+      section.classList.remove('hidden');
+    }
+    return;
+  }
 
   container.innerHTML = attendingEvents.map(function(evt) {
     var googleUrl = makeGoogleCalUrl(evt);

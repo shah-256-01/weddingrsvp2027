@@ -73,7 +73,12 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const body    = JSON.parse(e.postData.contents);
+    let body;
+    try {
+      body = JSON.parse(e.postData.contents);
+    } catch (parseErr) {
+      return jsonResponse({ ok: false, error: 'Invalid request format.' });
+    }
     const { action, payload = {}, pin } = body;
 
     // Actions that require admin PIN authorization

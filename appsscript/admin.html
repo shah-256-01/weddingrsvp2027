@@ -1040,6 +1040,7 @@ function startSessionTimer() {
 function clearSessionTimers() {
   if (sessionTimer)  { clearTimeout(sessionTimer);  sessionTimer  = null; }
   if (warningTimer)  { clearTimeout(warningTimer);   warningTimer  = null; }
+  stopActivityListeners();
 }
 
 function resetSessionTimer() {
@@ -1072,10 +1073,15 @@ function hideSessionWarning() {
   if (el) el.remove();
 }
 
+var _activityEvents = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'];
 function startActivityListeners() {
-  var events = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'];
-  events.forEach(function(evt) {
+  _activityEvents.forEach(function(evt) {
     document.addEventListener(evt, resetSessionTimer, { passive: true });
+  });
+}
+function stopActivityListeners() {
+  _activityEvents.forEach(function(evt) {
+    document.removeEventListener(evt, resetSessionTimer);
   });
 }
 
@@ -1397,6 +1403,16 @@ function closeViewModal() {
   document.getElementById('view-modal-overlay').classList.add('hidden');
 }
 
+// Close modals on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var gm = document.getElementById('guest-modal-overlay');
+    var vm = document.getElementById('view-modal-overlay');
+    if (gm && !gm.classList.contains('hidden')) closeGuestModal();
+    else if (vm && !vm.classList.contains('hidden')) closeViewModal();
+  }
+});
+
 // ══════════════════════════════════════════════
 //   EXPORT GUEST LIST
 // ══════════════════════════════════════════════
@@ -1489,7 +1505,7 @@ function copyGenCode() {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(code).then(function() { alert('Copied: ' + code); });
   } else {
-    prompt('Copy this code:', code);
+    fallbackCopy(code);
   }
 }
 
@@ -1539,6 +1555,8 @@ function handleCSVFile(file) {
 }
 
 function parseCSV(text) {
+  // Strip UTF-8 BOM if present
+  if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
   var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
   if (lines.length < 2) return [];
   var headers = parseCSVLine(lines[0]).map(function(h) { return h.trim(); });
@@ -1841,7 +1859,14 @@ function copyMessage(flashId, guestId, section) {
 }
 
 function fallbackCopy(text) {
-  prompt('Copy this message:', text);
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); alert('Copied to clipboard!'); }
+  catch (e) { prompt('Copy this message:', text); }
+  document.body.removeChild(ta);
 }
 
 function showFlash(flashId) {
