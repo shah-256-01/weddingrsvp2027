@@ -553,8 +553,8 @@ function getRSVPStatus(g) {
 
 function showLoadError(containerId, msg, retryFn) {
   document.getElementById(containerId).innerHTML =
-    '<div class="empty-state">&#9888; ' + msg +
-    ' <button class="btn btn-secondary btn-sm" onclick="' + retryFn + '()">Retry</button></div>';
+    '<div class="empty-state">&#9888; ' + escapeAttr(msg) +
+    ' <button class="btn btn-secondary btn-sm" onclick="' + escapeAttr(retryFn) + '()">Retry</button></div>';
 }
 
 // ── PIN Authentication ─────────────────────
@@ -1621,7 +1621,7 @@ function renderCSVPreview(rows) {
     '</tr></thead><tbody>';
   for (var i = 0; i < maxShow; i++) {
     html += '<tr>' + cols.map(function(c) {
-      return '<td>' + (rows[i][c] || '') + '</td>';
+      return '<td>' + escapeAttr(rows[i][c] || '') + '</td>';
     }).join('') + '</tr>';
   }
   html += '</tbody></table>';
@@ -1645,7 +1645,7 @@ function uploadCSV() {
       html += '.</div>';
       if (r.errors && r.errors.length) {
         html += '<div class="upload-results upload-error" style="margin-top:.5rem;">' +
-          '<strong>Errors:</strong><br>' + r.errors.join('<br>') + '</div>';
+          '<strong>Errors:</strong><br>' + r.errors.map(escapeAttr).join('<br>') + '</div>';
       }
       document.getElementById('csv-results').innerHTML = html;
       clearCSV();
@@ -1655,7 +1655,7 @@ function uploadCSV() {
     .withFailureHandler(function(err) {
       btn.textContent = 'Upload Guests'; btn.disabled = false;
       document.getElementById('csv-results').innerHTML =
-        '<div class="upload-results upload-error">Upload failed: ' + (err.message || 'Unknown error') + '</div>';
+        '<div class="upload-results upload-error">Upload failed: ' + escapeAttr(err.message || 'Unknown error') + '</div>';
     })
     .bulkAddGuests({ guests: parsedCSVRows });
 }

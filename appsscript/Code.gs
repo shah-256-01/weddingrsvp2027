@@ -983,7 +983,7 @@ function getStats() {
 function getDuplicates() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
-  const rows    = sheetToObjects(sheet).filter(r => String(r.status).toUpperCase() !== 'DELETED');
+  const rows    = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
   const counts  = {};
   const byCode  = {};
 
@@ -1006,10 +1006,15 @@ function getDuplicates() {
       submissions: byCode[code].sort(
         (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
       ),
-      latestTimestamp: byCode[code]
-        .map(s => new Date(s.timestamp))
-        .reduce((a, b) => a > b ? a : b)
-        .toISOString(),
+      latestTimestamp: (() => {
+        try {
+          return byCode[code]
+            .map(s => new Date(s.timestamp))
+            .filter(d => !isNaN(d.getTime()))
+            .reduce((a, b) => a > b ? a : b)
+            .toISOString();
+        } catch (_) { return ''; }
+      })(),
     }));
 }
 
