@@ -534,7 +534,7 @@ function buildEventDots(g) {
   return evIds.map(function(id) {
     var ev = allEvents.find(e => e.id === id);
     if (!ev) return '';
-    return '<span title="' + ev.name + '" style="font-size:.9rem;">' + ev.icon + '</span>';
+    return '<span title="' + escapeAttr(ev.name) + '" style="font-size:.9rem;">' + escapeAttr(ev.icon) + '</span>';
   }).join(' ');
 }
 
@@ -1103,9 +1103,9 @@ function buildModalEventTicks(selected) {
   grid.innerHTML = allEvents.map(function(ev) {
     var checked = selected.indexOf(ev.id) > -1;
     return '<label class="event-tick' + (checked ? ' selected' : '') + '">' +
-      '<input type="checkbox" value="' + ev.id + '"' + (checked ? ' checked' : '') +
+      '<input type="checkbox" value="' + escapeAttr(ev.id) + '"' + (checked ? ' checked' : '') +
       ' onchange="onModalTickChange(this)"/>' +
-      '<span>' + ev.icon + ' ' + ev.name + '</span></label>';
+      '<span>' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</span></label>';
   }).join('');
 }
 
@@ -1444,8 +1444,8 @@ function renderCSVTab() {
   if (grid && allEvents.length) {
     grid.innerHTML = allEvents.map(function(ev) {
       return '<label class="event-tick">' +
-        '<input type="checkbox" value="' + ev.id + '" onchange="updateGenCode()"/>' +
-        '<span>' + ev.icon + ' ' + ev.name + '</span></label>';
+        '<input type="checkbox" value="' + escapeAttr(ev.id) + '" onchange="updateGenCode()"/>' +
+        '<span>' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</span></label>';
     }).join('');
   }
 
@@ -1722,11 +1722,11 @@ function renderSettingsTab() {
     '<thead><tr><th>ID</th><th>Name</th><th>Icon</th><th>Date</th><th>Venue</th><th>Active</th></tr></thead><tbody>';
   allEvents.forEach(function(ev) {
     html += '<tr>' +
-      '<td style="font-weight:600;">' + ev.id + '</td>' +
-      '<td>' + ev.name + '</td>' +
-      '<td style="font-size:1.1rem;">' + ev.icon + '</td>' +
-      '<td>' + (ev.date || 'TBC') + (ev.time ? ' ' + ev.time : '') + '</td>' +
-      '<td>' + (ev.venue || 'TBC') + '</td>' +
+      '<td style="font-weight:600;">' + escapeAttr(ev.id) + '</td>' +
+      '<td>' + escapeAttr(ev.name) + '</td>' +
+      '<td style="font-size:1.1rem;">' + escapeAttr(ev.icon) + '</td>' +
+      '<td>' + escapeAttr(ev.date || 'TBC') + (ev.time ? ' ' + escapeAttr(ev.time) : '') + '</td>' +
+      '<td>' + escapeAttr(ev.venue || 'TBC') + '</td>' +
       '<td>' + (String(ev.active).toUpperCase() === 'TRUE' ? '<span style="color:var(--green);">Active</span>' : '<span style="color:var(--red);">Inactive</span>') + '</td>' +
       '</tr>';
   });

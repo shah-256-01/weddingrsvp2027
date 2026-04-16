@@ -61,30 +61,6 @@ function doGet(e) {
       return jsonResponse({ ok: false, error: err.message });
     }
   }
-  // Update guest contact details
-  if (e && e.parameter && e.parameter.action === 'updateContact') {
-    try {
-      const rateKey = 'contact_' + String(e.parameter.guestId || '').trim();
-      const cache = CacheService.getScriptCache();
-      const attempts = parseInt(cache.get(rateKey) || '0', 10);
-      if (attempts >= 10) {
-        return jsonResponse({ ok: false, error: 'Too many attempts. Please wait a minute and try again.' });
-      }
-      cache.put(rateKey, String(attempts + 1), 60);
-
-      const result = updateGuestContact(
-        e.parameter.guestId   || '',
-        e.parameter.email     || '',
-        e.parameter.whatsapp  || '',
-        e.parameter.code      || '',
-        e.parameter.firstName || '',
-        e.parameter.lastName  || ''
-      );
-      return jsonResponse({ ok: true, data: result });
-    } catch (err) {
-      return jsonResponse({ ok: false, error: err.message });
-    }
-  }
   // Default — return active events
   try {
     return jsonResponse({ ok: true, data: getEvents() });
@@ -129,6 +105,17 @@ function doPost(e) {
     else if (action === 'getDuplicates')    result = getDuplicates();
     else if (action === 'getSubmittedCodes') result = getSubmittedCodes();
     else if (action === 'checkPin')         result = { ok: constantTimeEquals(String(payload.pin || ''), String(ADMIN_PIN)) };
+    else if (action === 'updateContact') {
+      const rateKey = 'contact_' + String(payload.guestId || '').trim();
+      const cache = CacheService.getScriptCache();
+      const attempts = parseInt(cache.get(rateKey) || '0', 10);
+      if (attempts >= 10) throw new Error('Too many attempts. Please wait a minute and try again.');
+      cache.put(rateKey, String(attempts + 1), 60);
+      result = updateGuestContact(
+        payload.guestId || '', payload.email || '', payload.whatsapp || '',
+        payload.code || '', payload.firstName || '', payload.lastName || ''
+      );
+    }
     else throw new Error('Unknown action: ' + action);
     return jsonResponse({ ok: true, data: result });
   } catch (err) {
@@ -993,12 +980,18 @@ function getStats() {
     });
   });
 
-  // Deduplicate byEvent rows — keep only rows whose code is in dedupedSubmissions
+  const latestTimestamps = {};
+  Object.keys(latestByCode).forEach(code => {
+    latestTimestamps[code] = latestByCode[code].timestamp;
+  });
+
+  // Deduplicate byEvent rows — only count rows from the latest submission per code
   byEvent.forEach(row => {
     const id   = row.event_id;
     const code = String(row.invitation_code || '').toUpperCase().trim();
     if (!perEvent[id]) return;
     if (!submittedCodes.has(code)) return;
+    if (row.timestamp !== latestTimestamps[code]) return;
 
     if (String(row.attending).toLowerCase() === 'yes') {
       perEvent[id].attending++;

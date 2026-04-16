@@ -672,16 +672,21 @@ async function validateGuest(firstName, lastName, code) {
 }
 
 async function saveContactDetails(email, whatsapp) {
-  var params = new URLSearchParams({
-    action:    'updateContact',
-    guestId:   currentGuest.id,
-    email:     email.trim(),
-    whatsapp:  whatsapp.trim(),
-    code:      currentCode,
-    firstName: currentGuest.firstName,
-    lastName:  currentGuest.lastName,
+  var res = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'updateContact',
+      payload: {
+        guestId:   currentGuest.id,
+        email:     email.trim(),
+        whatsapp:  whatsapp.trim(),
+        code:      currentCode,
+        firstName: currentGuest.firstName,
+        lastName:  currentGuest.lastName,
+      },
+    }),
   });
-  var res  = await fetch(SCRIPT_URL + '?' + params);
   var json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Failed to save contact details.');
   return json.data;
@@ -1057,7 +1062,8 @@ function renderEventCards() {
     if (!evt) return;
     const rawColor = evt.color || 'var(--wine)';
     const safeColor = /^(#[0-9a-fA-F]{3,8}|var\(--[a-zA-Z0-9-]+\)|[a-zA-Z]+)$/.test(rawColor) ? rawColor : 'var(--wine)';
-    const bg = safeColor + '18';
+    const bg = safeColor.startsWith('#') ? safeColor + '18' : safeColor;
+    const bgOpacity = safeColor.startsWith('#') ? '' : 'opacity:0.1;';
     const color = safeColor;
     const safeId = escapeAttr(id);
     const el = document.createElement('div');
@@ -1065,7 +1071,7 @@ function renderEventCards() {
     el.id = 'ecard-' + id;
     el.innerHTML =
       '<div class="event-card-header" role="button" tabindex="0" onclick="toggleCard(\'' + safeId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleCard(\'' + safeId + '\');}">' +
-        '<div class="event-icon" style="background:' + bg + ';color:' + color + ';">' + escapeHtml(evt.icon) + '</div>' +
+        '<div class="event-icon" style="background:' + bg + ';color:' + color + ';' + bgOpacity + '">' + escapeHtml(evt.icon) + '</div>' +
         '<div class="event-card-meta">' +
           '<div class="event-name">' + escapeHtml(evt.name) + '</div>' +
           '<div class="event-datetime">' + escapeHtml(evt.date) + ' &nbsp;·&nbsp; ' + escapeHtml(evt.time) + '</div>' +
