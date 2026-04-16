@@ -628,7 +628,7 @@ function submitRSVP(payload) {
   if (events.length === 0) throw new Error('No valid events in submission.');
   if (!submissionName) throw new Error('Submission name is required.');
   const invitationCode = normCode;
-  const ts = submittedAt || new Date().toISOString();
+  const ts = new Date().toISOString();
 
   // Validate submissionName matches a real guest for this invitation code
   const guestsForValidation = getGuests();
@@ -639,6 +639,13 @@ function submitRSVP(payload) {
   if (!nameMatchesCode) {
     throw new Error('Submission name does not match any guest with this invitation code.');
   }
+
+  // Replace client-supplied event names with canonical server-side values
+  const activeEvents = getEvents();
+  events.forEach(ev => {
+    const canonical = activeEvents.find(e => e.id === ev.id);
+    if (canonical) ev.name = canonical.name;
+  });
 
   // Use script lock for atomicity — duplicate check + write must be inside lock
   const lock = LockService.getScriptLock();
@@ -686,7 +693,7 @@ function submitRSVP(payload) {
         ev.attending ? 'Yes' : 'No',
         ev.attending ? (ev.adults   || 0) : 0,
         ev.attending ? (ev.children || 0) : 0,
-        sanitizeForSheet(ev.notes || ''),
+        sanitizeForSheet(String(ev.notes || '').slice(0, 500)),
         '',
       ]);
     });
@@ -741,7 +748,7 @@ function submitRSVP(payload) {
       if (a  > -1) row[a]  = ev.attending ? 'Yes' : 'No';
       if (ad > -1) row[ad] = ev.attending ? (ev.adults   || 0) : 0;
       if (c  > -1) row[c]  = ev.attending ? (ev.children || 0) : 0;
-      if (n  > -1) row[n]  = sanitizeForSheet(ev.notes || '');
+      if (n  > -1) row[n]  = sanitizeForSheet(String(ev.notes || '').slice(0, 500));
     });
     byFamilySheet.appendRow(row);
   } finally {
@@ -752,8 +759,13 @@ function submitRSVP(payload) {
   try { sendRSVPNotification(payload); }
   catch (emailErr) { Logger.log('Admin notification failed: ' + emailErr.message); }
 
-  if (payload.guestEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.guestEmail)) {
-    try { sendGuestConfirmationEmail(payload, payload.guestEmail); }
+  const guestEmailLookup = guestsForValidation.find(g =>
+    String(g.invitation_code || '').toUpperCase().trim() === invitationCode &&
+    normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName)
+  );
+  const guestEmailAddr = guestEmailLookup ? String(guestEmailLookup.email || '').trim() : '';
+  if (guestEmailAddr && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmailAddr)) {
+    try { sendGuestConfirmationEmail(payload, guestEmailAddr); }
     catch (confErr) { Logger.log('Guest confirmation email failed: ' + confErr.message); }
   }
 

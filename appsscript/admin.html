@@ -1154,8 +1154,8 @@ function updateModalAllocations(existingGuest) {
       chVal = rawCh !== '' ? Number(rawCh) || 0 : 0;
     }
     html += '<span class="alloc-evt">' + evLabel + '</span>' +
-      '<input type="number" id="alloc-' + id + '-adults" min="0" max="99" value="' + adVal + '"/>' +
-      '<input type="number" id="alloc-' + id + '-children" min="0" max="99" value="' + chVal + '"/>';
+      '<input type="number" id="alloc-' + escapeAttr(id) + '-adults" min="0" max="99" value="' + adVal + '"/>' +
+      '<input type="number" id="alloc-' + escapeAttr(id) + '-children" min="0" max="99" value="' + chVal + '"/>';
   });
 
   grid.innerHTML = html;
@@ -1318,7 +1318,8 @@ function toggleDeletedSection(btn) {
 function openViewGuest(id) {
   var g = allGuests.find(function(x) { return x.id === id; });
   if (!g) return;
-  var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
+  var rawFullName = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+  var fullName = escapeAttr(rawFullName);
   var evIds = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   var eventNames = evIds.map(function(eid) {
     var ev = allEvents.find(function(e) { return e.id === eid; });
@@ -1359,7 +1360,7 @@ function openViewGuest(id) {
     html += '<div style="margin-top:1rem;padding:.8rem;background:rgba(184,146,74,.08);border-radius:2px;font-size:.78rem;color:var(--gold);">RSVP Pending</div>';
   }
 
-  document.getElementById('view-modal-title').textContent = fullName;
+  document.getElementById('view-modal-title').textContent = rawFullName;
   document.getElementById('view-modal-body').innerHTML = html;
   document.getElementById('view-modal-overlay').classList.remove('hidden');
 }
