@@ -61,13 +61,22 @@ function doGet(e) {
       return jsonResponse({ ok: false, error: err.message });
     }
   }
-  // Update guest contact details — ?action=updateContact&guestId=...&email=...&whatsapp=...
+  // Update guest contact details — ?action=updateContact&guestId=...&email=...&whatsapp=...&code=...
   if (e && e.parameter && e.parameter.action === 'updateContact') {
     try {
+      const rateKey = 'contact_' + String(e.parameter.guestId || '').trim();
+      const cache = CacheService.getScriptCache();
+      const attempts = parseInt(cache.get(rateKey) || '0', 10);
+      if (attempts >= 10) {
+        return jsonResponse({ ok: false, error: 'Too many attempts. Please wait a minute and try again.' });
+      }
+      cache.put(rateKey, String(attempts + 1), 60);
+
       const result = updateGuestContact(
         e.parameter.guestId  || '',
         e.parameter.email    || '',
-        e.parameter.whatsapp || ''
+        e.parameter.whatsapp || '',
+        e.parameter.code     || ''
       );
       return jsonResponse({ ok: true, data: result });
     } catch (err) {
@@ -196,10 +205,11 @@ function guestHeaders() {
 }
 
 // ── updateGuestContact ───────────────────────────────────
-function updateGuestContact(guestId, email, whatsapp) {
+function updateGuestContact(guestId, email, whatsapp, invitationCode) {
   if (!guestId) throw new Error('Guest ID required.');
   if (!email)   throw new Error('Email address required.');
   if (!whatsapp) throw new Error('WhatsApp number required.');
+  if (!invitationCode) throw new Error('Invitation code required.');
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error('Please enter a valid email address.');
@@ -210,6 +220,13 @@ function updateGuestContact(guestId, email, whatsapp) {
   if (rowNum === -1) throw new Error('Guest record not found.');
 
   const headers  = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const codeCol  = headers.indexOf('invitation_code');
+  if (codeCol === -1) throw new Error('Invalid sheet configuration.');
+  const storedCode = String(sheet.getRange(rowNum, codeCol + 1).getValue() || '').toUpperCase().trim();
+  if (storedCode !== String(invitationCode).toUpperCase().trim()) {
+    throw new Error('Invitation code does not match guest record.');
+  }
+
   const emailCol = headers.indexOf('email');
   const phoneCol = headers.indexOf('phone');
 

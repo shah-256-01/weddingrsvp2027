@@ -677,6 +677,7 @@ async function saveContactDetails(email, whatsapp) {
     guestId:  currentGuest.id,
     email:    email.trim(),
     whatsapp: whatsapp.trim(),
+    code:     currentCode,
   });
   var res  = await fetch(SCRIPT_URL + '?' + params);
   var json = await res.json();
@@ -1383,59 +1384,59 @@ async function submitRSVP() {
   }
 
   // Submit to Apps Script (no-cors — opaque response)
-  postRSVP(payload).catch(function(err) {
+  try { await postRSVP(payload); } catch (err) {
     console.warn('RSVP post failed:', err);
-  });
-
-  // Show success
-  ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.classList.add('hidden');
-  });
-  document.getElementById('success-screen').classList.remove('hidden');
-  showCalendarButtons();
-  if (currentGuest && currentGuest.isOverseas) {
-    document.getElementById('overseas-success-link').classList.remove('hidden');
   }
 
-  // Verify the RSVP was recorded (no-cors gives opaque response, so verify via GET)
-  setTimeout(function() {
-    verifyRSVPSubmission(currentCode, currentGuest.firstName, currentGuest.lastName);
-  }, 3000);
-}
-
-// Verify RSVP was recorded via a readable GET request
-async function verifyRSVPSubmission(code, firstName, lastName) {
-  try {
-    var params = new URLSearchParams({
-      action: 'validate', code: code,
-      firstName: firstName, lastName: lastName,
-    });
-    var res = await fetch(SCRIPT_URL + '?' + params);
-    var json = await res.json();
-    if (json.ok && json.data && json.data.existingRSVP) {
-      // Mark localStorage backup as synced
-      try {
-        var backups = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
-        if (backups.length > 0) {
-          backups[backups.length - 1]._syncStatus = 'confirmed';
-          localStorage.setItem('rsvp_backups', JSON.stringify(backups));
-        }
-      } catch (e) {}
-    } else {
-      // RSVP not found on server — show warning on success screen
-      var successSub = document.querySelector('#success-screen .success-sub');
-      if (successSub) {
-        successSub.innerHTML += '<br><br><strong style="color:var(--red);">Note:</strong> ' +
-          'We could not confirm your RSVP was received. ' +
-          'Your response has been saved locally. Please refresh and try again, or contact us directly.';
+  // Verify the RSVP was recorded before showing success
+  btn.textContent = 'Verifying\u2026';
+  var verified = false;
+  var delays = [2500, 3000, 4000];
+  for (var i = 0; i < delays.length; i++) {
+    await new Promise(function(r) { setTimeout(r, delays[i]); });
+    try {
+      var params = new URLSearchParams({
+        action: 'validate', code: currentCode,
+        firstName: currentGuest.firstName, lastName: currentGuest.lastName,
+      });
+      var res = await fetch(SCRIPT_URL + '?' + params);
+      var json = await res.json();
+      if (json.ok && json.data && json.data.existingRSVP) {
+        verified = true;
+        break;
       }
+    } catch (e) {}
+  }
+
+  if (verified) {
+    try {
+      var backups = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
+      if (backups.length > 0) {
+        backups[backups.length - 1]._syncStatus = 'confirmed';
+        localStorage.setItem('rsvp_backups', JSON.stringify(backups));
+      }
+    } catch (e) {}
+
+    ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.getElementById('success-screen').classList.remove('hidden');
+    showCalendarButtons();
+    if (currentGuest && currentGuest.isOverseas) {
+      document.getElementById('overseas-success-link').classList.remove('hidden');
     }
-  } catch (e) {
-    // Network error — can't verify, but backup exists
-    console.warn('RSVP verification failed:', e);
+  } else {
+    btn.textContent = 'Submit RSVP \u2726';
+    btn.disabled = false;
+    var errEl = document.getElementById('submit-error');
+    errEl.innerHTML = '<strong style="color:var(--red);">We could not confirm your RSVP was received.</strong><br>' +
+      'Your response has been saved locally as a backup. Please try submitting again, or contact us at ' +
+      '<strong>' + escapeHtml(CONTACT_INFO) + '</strong>.';
+    errEl.classList.remove('hidden');
   }
 }
+
 
 // Utility — call from browser console to see pending backups
 function getPendingRSVPBackups() {
