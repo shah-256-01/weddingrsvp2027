@@ -1249,6 +1249,60 @@ function setupSheet() {
   Logger.log('Setup complete. All tabs ready.');
 }
 
+// ── migrateToV2 ──────────────────────────────────────────
+// One-shot migration to add new columns for name capture + seating features.
+// Safe to run multiple times — only adds missing columns, never overwrites.
+// Run once from Apps Script editor, then you can delete this function.
+function migrateToV2() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const log = [];
+
+  function ensureColumns(sheet, requiredHeaders, defaults) {
+    if (!sheet || sheet.getLastRow() < 1) return;
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const missing = requiredHeaders.filter(h => !headers.includes(h));
+    if (missing.length === 0) return;
+    sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+    log.push(sheet.getName() + ': added ' + missing.join(', '));
+
+    // Backfill defaults for existing data rows, if any provided
+    if (defaults && sheet.getLastRow() > 1) {
+      const numRows = sheet.getLastRow() - 1;
+      missing.forEach((col, i) => {
+        if (defaults[col] !== undefined) {
+          const colIdx = headers.length + 1 + i;
+          const values = Array(numRows).fill([defaults[col]]);
+          sheet.getRange(2, colIdx, numRows, 1).setValues(values);
+        }
+      });
+    }
+  }
+
+  // Events: add 'seating' column, default FALSE
+  ensureColumns(ss.getSheetByName(TABS.events), ['seating'], { seating: 'FALSE' });
+
+  // Guests: add {id}_table columns for each event
+  const tableCols = EVENT_IDS.map(id => id + '_table');
+  ensureColumns(ss.getSheetByName(TABS.guests), tableCols);
+
+  // RSVPs_by_event: add adult_names, child_names
+  ensureColumns(ss.getSheetByName(TABS.rsvpByEvent), ['adult_names', 'child_names']);
+
+  // RSVPs_by_family: add {id} Adult Names, {id} Child Names per event
+  const familyNameCols = [];
+  EVENT_IDS.forEach(id => {
+    familyNameCols.push(id + ' Adult Names', id + ' Child Names');
+  });
+  ensureColumns(ss.getSheetByName(TABS.rsvpByFamily), familyNameCols);
+
+  if (log.length === 0) {
+    Logger.log('migrateToV2: nothing to do — all columns already present.');
+  } else {
+    Logger.log('migrateToV2 complete:\n' + log.join('\n'));
+  }
+  return log;
+}
+
 function ensureStatusColumn(sheet) {
   if (!sheet || sheet.getLastRow() < 1) return;
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
