@@ -368,7 +368,11 @@ function normalizePhoneForWhatsApp(phone, defaultCodeDigits) {
   if (!phone) return '';
   var digits = String(phone).replace(/[^\d]/g, '');
   if (digits.length < 10) return '';
-  if (defaultCodeDigits && digits.length === 10) digits = defaultCodeDigits + digits;
+  var codeDigits = (defaultCodeDigits || '').replace(/^0+/, '');
+  if (codeDigits && codeDigits.length >= 1 && codeDigits.length <= 3 && digits.length === 10) {
+    digits = codeDigits + digits;
+  }
+  if (digits.length > 15) return '';
   return digits;
 }
 
@@ -384,6 +388,10 @@ assert('10 digits no default code', normalizePhoneForWhatsApp('9876543210', ''),
 assert('11+ digits ignores default code', normalizePhoneForWhatsApp('919876543210', '91'), '919876543210');
 assert('spaces only', normalizePhoneForWhatsApp('   '), '');
 assert('letters mixed in', normalizePhoneForWhatsApp('+91 abc 98765 43210'), '919876543210');
+assert('leading zeros stripped from code', normalizePhoneForWhatsApp('9876543210', '091'), '919876543210');
+assert('code too long (4 digits) ignored', normalizePhoneForWhatsApp('9876543210', '9191'), '9876543210');
+assert('over 15 digits rejected', normalizePhoneForWhatsApp('+91 98765 43210 ext 12345'), '');
+assert('exactly 15 digits ok', normalizePhoneForWhatsApp('123456789012345'), '123456789012345');
 
 // ── buildWhatsAppUrl ──
 console.log('\n=== buildWhatsAppUrl ===');

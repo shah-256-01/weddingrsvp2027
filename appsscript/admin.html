@@ -520,15 +520,18 @@ function normalizePhoneForWhatsApp(phone) {
   var digits = String(phone).replace(/[^\d]/g, '');
   if (digits.length < 10) return '';
   var defaultCode = (document.getElementById('msg-default-country-code') || {}).value || '';
-  var codeDigits = defaultCode.replace(/[^\d]/g, '');
-  if (codeDigits && digits.length === 10) digits = codeDigits + digits;
+  var codeDigits = defaultCode.replace(/[^\d]/g, '').replace(/^0+/, '');
+  if (codeDigits && codeDigits.length >= 1 && codeDigits.length <= 3 && digits.length === 10) {
+    digits = codeDigits + digits;
+  }
+  if (digits.length > 15) return '';
   return digits;
 }
 
 function buildWhatsAppUrl(phone, message) {
   var normalized = normalizePhoneForWhatsApp(phone);
   if (!normalized) return '';
-  var url = 'https://wa.me/' + normalized;
+  var url = 'https://wa.me/' + escapeAttr(normalized);
   if (message) url += '?text=' + encodeURIComponent(message);
   return url;
 }
@@ -538,7 +541,7 @@ function phoneWhatsAppHtml(phone) {
   if (!safe) return '';
   var normalized = normalizePhoneForWhatsApp(safe);
   if (normalized) {
-    return '<a href="https://wa.me/' + normalized + '" target="_blank" rel="noopener" style="color:var(--wine);text-decoration:none;">' + escapeAttr(safe) + '</a>';
+    return '<a href="https://wa.me/' + escapeAttr(normalized) + '" target="_blank" rel="noopener" style="color:var(--wine);text-decoration:none;">' + escapeAttr(safe) + '</a>';
   }
   return escapeAttr(safe);
 }

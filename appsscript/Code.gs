@@ -491,18 +491,24 @@ function updateSeating(payload) {
   if (!guestId || !eventId) throw new Error('Guest ID and event ID required.');
   if (!EVENT_IDS.includes(eventId)) throw new Error('Invalid event ID.');
 
-  const sheet  = getSheet(TABS.guests);
-  const rowNum = findRowById(sheet, guestId);
-  if (rowNum === -1) throw new Error('Guest not found.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet  = getSheet(TABS.guests);
+    const rowNum = findRowById(sheet, guestId);
+    if (rowNum === -1) throw new Error('Guest not found.');
 
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const colName = eventId + '_table';
-  let colIdx = headers.indexOf(colName);
-  if (colIdx === -1) {
-    sheet.getRange(1, headers.length + 1).setValue(colName);
-    colIdx = headers.length;
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const colName = eventId + '_table';
+    let colIdx = headers.indexOf(colName);
+    if (colIdx === -1) {
+      sheet.getRange(1, headers.length + 1).setValue(colName);
+      colIdx = headers.length;
+    }
+    sheet.getRange(rowNum, colIdx + 1).setValue(sanitizeForSheet(String(table || '').trim()));
+  } finally {
+    lock.releaseLock();
   }
-  sheet.getRange(rowNum, colIdx + 1).setValue(sanitizeForSheet(String(table || '').trim()));
   return { updated: true, guestId, eventId, table };
 }
 
