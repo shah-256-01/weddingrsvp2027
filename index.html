@@ -676,24 +676,43 @@ async function validateGuest(firstName, lastName, code) {
 }
 
 async function saveContactDetails(email, whatsapp) {
-  var res = await fetch(SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'updateContact',
-      payload: {
-        guestId:   currentGuest.id,
-        email:     email.trim(),
-        whatsapp:  whatsapp.trim(),
-        code:      currentCode,
-        firstName: currentGuest.firstName,
-        lastName:  currentGuest.lastName,
-      },
-    }),
-  });
-  var json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Failed to save contact details.');
-  return json.data;
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'updateContact',
+        payload: {
+          guestId:   currentGuest.id,
+          email:     email.trim(),
+          whatsapp:  whatsapp.trim(),
+          code:      currentCode,
+          firstName: currentGuest.firstName,
+          lastName:  currentGuest.lastName,
+        },
+      }),
+      mode: 'no-cors',
+    });
+  } catch (err) {
+    console.warn('Contact save post failed:', err);
+  }
+
+  var delays = [2000, 3000, 4000];
+  for (var i = 0; i < delays.length; i++) {
+    await new Promise(function(r) { setTimeout(r, delays[i]); });
+    try {
+      var params = new URLSearchParams({
+        action: 'validate', code: currentCode,
+        firstName: currentGuest.firstName, lastName: currentGuest.lastName,
+      });
+      var res = await fetch(SCRIPT_URL + '?' + params);
+      var json = await res.json();
+      if (json.ok && json.data && json.data.email) {
+        return json.data;
+      }
+    } catch (e) {}
+  }
+  throw new Error('Could not verify contact details were saved. Please try again.');
 }
 
 function postRSVP(payload) {
@@ -993,6 +1012,7 @@ async function submitContactDetails() {
   btn.disabled    = true;
 
   try {
+    btn.textContent = 'Verifying\u2026';
     await saveContactDetails(email, whatsapp);
     currentGuest.email    = email;
     currentGuest.whatsapp = whatsapp;
