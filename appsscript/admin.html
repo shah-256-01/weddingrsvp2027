@@ -178,65 +178,81 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .session-warning-text{line-height:1.5;}
 .session-warning-extend{background:var(--gold);color:var(--wine);border:none;padding:.4rem .9rem;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.12em;cursor:pointer;border-radius:1px;white-space:nowrap;flex-shrink:0;}
+.seating-input{width:55px;text-align:center;padding:.2rem .4rem;font-size:.78rem;border:1px solid #e0d6cc;border-radius:3px;}
+.rsvp-evt-inline{display:inline-block;font-size:.74rem;margin:.15rem .55rem .15rem 0;white-space:nowrap;}
+.rsvp-evt-wrap{display:flex;flex-wrap:wrap;gap:.1rem .3rem;}
 /* ── Admin Mobile ── */
 @media(max-width:700px){
   .admin-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   .admin-tab{padding:.7rem 1rem;font-size:.56rem;}
   .stats-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
-  .stat-card{min-width:0;}
+  .stat-card{min-width:0;padding:.8rem .6rem;}
   .filter-bar{flex-direction:column;}
-  .filter-bar input,.filter-bar select{width:100%;min-width:0;}
-  .guest-table{font-size:.74rem;}
+  .filter-bar input,.filter-bar select{width:100%;min-width:0;font-size:16px;}
+  .form-row input,.form-row select,.form-row textarea{font-size:16px;}
+  .admin-login-input{font-size:16px;}
+  .guest-table{font-size:.78rem;}
   .guest-table th{font-size:.5rem;padding:.45rem .5rem;}
-  .guest-table td{padding:.5rem .5rem;}
-  .guest-table .col-events,.guest-table .col-code,.guest-table .col-rel{display:none;}
+  .guest-table td{padding:.55rem .5rem;}
+  .guest-table .col-events,.guest-table .col-code,.guest-table .col-rel,.guest-table .col-icon,.guest-table .col-date,.guest-table .col-venue{display:none;}
   .guest-mobile-meta{display:block;}
   .form-grid-2{grid-template-columns:1fr;}
   .form-full{grid-column:auto;}
-  .modal-overlay{padding:.5rem;}
-  .modal{max-width:100%;margin:0;max-height:95vh;}
-  .modal-header{padding:1rem 1.1rem;}
-  .modal-body{padding:1.1rem;}
-  .modal-footer{padding:.8rem 1.1rem;}
+  .modal-overlay{padding:.4rem;align-items:flex-start;padding-top:1rem;}
+  .modal{max-width:100%;margin:0;max-height:calc(100vh - 2rem);}
+  .modal-header{padding:.9rem 1rem;}
+  .modal-body{padding:1rem;}
+  .modal-footer{padding:.75rem 1rem;flex-wrap:wrap;}
+  .modal-footer .btn{flex:1;justify-content:center;}
   .view-switcher{gap:.3rem;}
-  .view-switcher .view-btn{font-size:.52rem;padding:.4rem .7rem;}
+  .view-switcher .view-btn{font-size:.54rem;padding:.5rem .8rem;}
   .admin-panel{padding:1rem .75rem;}
   .admin-nav{padding:.6rem .9rem;}
-  .row-actions{gap:.2rem;}
-  .row-actions .btn-icon{padding:.35rem;width:28px;height:28px;}
-  .btn{padding:.65rem 1.2rem;font-size:.58rem;}
+  .admin-nav-title{font-size:.6rem;letter-spacing:.15em;}
+  .row-actions{gap:.35rem;}
+  .row-actions .btn-icon{padding:.4rem;width:36px;height:36px;font-size:.9rem;}
+  .btn{padding:.7rem 1.1rem;font-size:.58rem;min-height:36px;}
+  .btn-sm{padding:.55rem .9rem;font-size:.56rem;min-height:32px;}
   .rsvp-breakdown{grid-template-columns:1fr;}
   .event-rsvp-card{margin-bottom:.4rem;}
-  .admin-card{padding:.8rem;}
+  .admin-card{padding:.9rem;}
   .admin-card-title{font-size:.58rem;margin-bottom:.7rem;}
   .pagination{flex-direction:column;align-items:stretch;text-align:center;}
-  .pagination-controls{justify-content:center;}
-  .event-tick-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));}
-  .alloc-grid{grid-template-columns:1fr 70px 70px;gap:.35rem .5rem;}
+  .pagination-controls{justify-content:center;flex-wrap:wrap;}
+  .event-tick-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
+  .alloc-grid{grid-template-columns:1fr 68px 68px;gap:.4rem .5rem;}
+  .alloc-grid input[type="number"]{font-size:16px;padding:.5rem .4rem;}
+  .alloc-grid .alloc-hdr{font-size:.55rem;}
   .event-filter-bar{gap:.3rem;}
-  .event-filter-btn{font-size:.48rem;padding:.4rem .7rem;}
+  .event-filter-btn{font-size:.5rem;padding:.45rem .75rem;}
   .session-warning{left:.75rem;right:.75rem;bottom:.75rem;flex-direction:column;text-align:center;gap:.6rem;}
   .group-card-header{padding:.7rem .8rem;flex-direction:column;align-items:flex-start;gap:.4rem;}
-  .group-guest-row{flex-direction:column;align-items:flex-start;gap:.3rem;}
-  .status-guest-row{flex-direction:column;align-items:flex-start;gap:.2rem;}
-  .guest-name-cell{font-size:.88rem;}
+  .group-guest-row{flex-direction:column;align-items:flex-start;gap:.3rem;padding:.55rem 0;}
+  .status-guest-row{flex-direction:column;align-items:flex-start;gap:.25rem;}
+  .guest-name-cell{font-size:.92rem;}
+  .overseas-badge{white-space:normal;display:inline-block;}
   .csv-drop-zone{padding:1.2rem .8rem;}
   .csv-preview-table{font-size:.65rem;}
   .dup-item{padding:.6rem;}
-  .deleted-guest-row{flex-direction:column;align-items:flex-start;gap:.3rem;padding:.5rem .6rem;}
-  .seating-input{min-width:45px;}
+  .deleted-guest-row{flex-direction:column;align-items:flex-start;gap:.3rem;padding:.55rem .6rem;}
+  .seating-input{width:60px;min-width:0;font-size:16px;padding:.35rem .4rem;}
+  .rsvp-evt-inline{white-space:normal;}
 }
 @media(max-width:400px){
-  .admin-tab{padding:.6rem .7rem;font-size:.5rem;letter-spacing:.1em;}
-  .stats-row{grid-template-columns:1fr;gap:.5rem;}
-  .stat-num{font-size:1.5rem;}
-  .stat-lbl{font-size:.46rem;}
-  .view-switcher{gap:.2rem;}
-  .view-switcher .view-btn{font-size:.46rem;padding:.35rem .5rem;letter-spacing:.08em;}
-  .admin-nav-title{font-size:.6rem;letter-spacing:.14em;}
+  .admin-tab{padding:.6rem .65rem;font-size:.5rem;letter-spacing:.1em;}
+  .stats-row{grid-template-columns:1fr 1fr;gap:.4rem;}
+  .stat-card{padding:.65rem .4rem;}
+  .stat-num{font-size:1.4rem;}
+  .stat-lbl{font-size:.48rem;letter-spacing:.1em;}
+  .view-switcher .view-btn{font-size:.5rem;padding:.45rem .6rem;letter-spacing:.1em;}
+  .admin-nav-title{font-size:.56rem;letter-spacing:.12em;}
   .modal-title{font-size:1.1rem;}
-  .form-row label{font-size:.5rem;}
-  .admin-panel{padding:.7rem .5rem;}
+  .form-row label{font-size:.52rem;}
+  .admin-panel{padding:.75rem .5rem;}
+  .event-tick-grid{grid-template-columns:1fr 1fr;}
+  .alloc-grid{grid-template-columns:1fr 60px 60px;gap:.3rem .35rem;}
+  .btn{padding:.65rem .9rem;font-size:.56rem;}
+  .admin-card{padding:.75rem .65rem;}
 }
 </style></head>
 <body>
@@ -1019,7 +1035,7 @@ function selectEventFilter(eventId) {
         tableCol = '<td><input type="text" class="seating-input" value="' + escapeAttr(currentTable) + '" ' +
           'data-guest-id="' + escapeAttr(g.id) + '" data-event-id="' + escapeAttr(eventId) + '" ' +
           'onblur="saveTableAssignment(this)" onkeydown="if(event.key===\'Enter\')this.blur()" ' +
-          'placeholder="\u2014" style="width:55px;text-align:center;padding:.2rem .4rem;font-size:.78rem;border:1px solid #e0d6cc;border-radius:3px;"/></td>';
+          'placeholder="\u2014"/></td>';
       } else {
         tableCol = '<td style="text-align:center;color:var(--muted);">&mdash;</td>';
       }
@@ -1874,14 +1890,14 @@ function loadRSVPsTab() {
       var att = r[ev.id + ' Attending'];
       if (!att) return '';
       var cls = att === 'Yes' ? 'color:var(--green);' : 'color:var(--red);';
-      return '<span style="font-size:.74rem;' + cls + 'margin-right:.7rem;">' + escapeAttr(ev.icon) + ' ' + escapeAttr(att) +
+      return '<span class="rsvp-evt-inline" style="' + cls + '">' + escapeAttr(ev.icon) + ' ' + escapeAttr(att) +
         (att === 'Yes' ? ' (' + (r[ev.id + ' Adults'] || 0) + 'A, ' + (r[ev.id + ' Children'] || 0) + 'C)' : '') + '</span>';
     }).join('');
 
     return '<div style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">' +
       '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:1rem;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
       '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(r.timestamp || '') + ' &middot; <span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div></div>' +
-      '<div>' + evDetails + '</div></div>';
+      '<div class="rsvp-evt-wrap">' + evDetails + '</div></div>';
   }).join('');
   listEl.innerHTML = html || '<div class="empty-state">No responses yet.</div>';
 }
@@ -1897,15 +1913,15 @@ function renderSettingsTab() {
     return;
   }
   var html = '<table class="guest-table" style="font-size:.78rem;">' +
-    '<thead><tr><th>ID</th><th>Name</th><th>Icon</th><th>Date</th><th>Venue</th><th>Active</th><th>Seating</th></tr></thead><tbody>';
+    '<thead><tr><th>ID</th><th>Name</th><th class="col-icon">Icon</th><th class="col-date">Date</th><th class="col-venue">Venue</th><th>Active</th><th>Seating</th></tr></thead><tbody>';
   allEvents.forEach(function(ev) {
     var seatingEnabled = String(ev.seating || '').toUpperCase() === 'TRUE';
     html += '<tr>' +
       '<td style="font-weight:600;">' + escapeAttr(ev.id) + '</td>' +
       '<td>' + escapeAttr(ev.name) + '</td>' +
-      '<td style="font-size:1.1rem;">' + escapeAttr(ev.icon) + '</td>' +
-      '<td>' + escapeAttr(ev.date || 'TBC') + (ev.time ? ' ' + escapeAttr(ev.time) : '') + '</td>' +
-      '<td>' + escapeAttr(ev.venue || 'TBC') + '</td>' +
+      '<td class="col-icon" style="font-size:1.1rem;">' + escapeAttr(ev.icon) + '</td>' +
+      '<td class="col-date">' + escapeAttr(ev.date || 'TBC') + (ev.time ? ' ' + escapeAttr(ev.time) : '') + '</td>' +
+      '<td class="col-venue">' + escapeAttr(ev.venue || 'TBC') + '</td>' +
       '<td>' + (String(ev.active).toUpperCase() === 'TRUE' ? '<span style="color:var(--green);">Active</span>' : '<span style="color:var(--red);">Inactive</span>') + '</td>' +
       '<td>' + (seatingEnabled ? '<span style="color:var(--green);">Enabled</span>' : '<span style="color:var(--muted);">&mdash;</span>') + '</td>' +
       '</tr>';
