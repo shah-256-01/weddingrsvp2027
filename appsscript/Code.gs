@@ -37,7 +37,8 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.page === 'admin') {
     return HtmlService
       .createHtmlOutputFromFile('admin')
-      .setTitle('Wedding Admin');
+      .setTitle('Wedding Admin')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   }
   // Validate guest — ?action=validate&code=LW2027&firstName=John&lastName=Smith
   if (e && e.parameter && e.parameter.action === 'validate') {
