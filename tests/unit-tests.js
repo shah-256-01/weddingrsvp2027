@@ -96,7 +96,7 @@ function sanitiseValue(val) {
 function codeForIds(ids) {
   if (!ids || !ids.length) return '';
   var sorted = ids.filter(Boolean).sort(function(a, b) { return a.localeCompare(b); });
-  return sorted.join('') + '2027';
+  return sorted.join('') + '2026';
 }
 
 const EVENT_IDS = ['L','S','A','G','W','B'];
@@ -114,7 +114,7 @@ function buildCodesMap(events) {
   if (n > 12) return map;
   for (let i = 1; i < (1 << n); i++) {
     const ids = sorted.filter((_, j) => i & (1 << j)).map(e => e.id);
-    map[ids.join('') + '2027'] = ids;
+    map[ids.join('') + '2026'] = ids;
   }
   return map;
 }
@@ -220,9 +220,9 @@ assert('null input', escapeAttr(null), '');
 assert('undefined input', escapeAttr(undefined), '');
 
 console.log('\n=== constantTimeEquals ===');
-assert('equal strings', constantTimeEquals('2027', '2027'), true);
-assert('different strings same length', constantTimeEquals('2027', '2028'), false);
-assert('different lengths', constantTimeEquals('2027', '20270'), false);
+assert('equal strings', constantTimeEquals('2026', '2026'), true);
+assert('different strings same length', constantTimeEquals('2026', '2028'), false);
+assert('different lengths', constantTimeEquals('2026', '20260'), false);
 assert('empty strings', constantTimeEquals('', ''), true);
 assert('one empty', constantTimeEquals('a', ''), false);
 assert('other empty', constantTimeEquals('', 'a'), false);
@@ -258,14 +258,14 @@ assert('zero', sanitiseValue(0), '0');
 assert('false', sanitiseValue(false), 'false');
 
 console.log('\n=== codeForIds ===');
-assert('single event', codeForIds(['L']), 'L2027');
-assert('two events sorted', codeForIds(['W', 'L']), 'LW2027');
-assert('all events', codeForIds(['W', 'B', 'L', 'S', 'A', 'G']), 'ABGLSW2027');
-assert('already sorted', codeForIds(['A', 'B', 'G']), 'ABG2027');
+assert('single event', codeForIds(['L']), 'L2026');
+assert('two events sorted', codeForIds(['W', 'L']), 'LW2026');
+assert('all events', codeForIds(['W', 'B', 'L', 'S', 'A', 'G']), 'ABGLSW2026');
+assert('already sorted', codeForIds(['A', 'B', 'G']), 'ABG2026');
 assert('empty array', codeForIds([]), '');
 assert('null input', codeForIds(null), '');
 assert('undefined input', codeForIds(undefined), '');
-assert('filters falsy', codeForIds(['L', '', null, 'S']), 'LS2027');
+assert('filters falsy', codeForIds(['L', '', null, 'S']), 'LS2026');
 
 console.log('\n=== guestHeaders ===');
 const headers = guestHeaders();
@@ -285,15 +285,15 @@ assert('no duplicates', headers.length, new Set(headers).size);
 console.log('\n=== buildCodesMap ===');
 const events2 = [{ id: 'L' }, { id: 'S' }];
 const map2 = buildCodesMap(events2);
-assert('single L', JSON.stringify(map2['L2027']), JSON.stringify(['L']));
-assert('single S', JSON.stringify(map2['S2027']), JSON.stringify(['S']));
-assert('both LS', JSON.stringify(map2['LS2027']), JSON.stringify(['L', 'S']));
+assert('single L', JSON.stringify(map2['L2026']), JSON.stringify(['L']));
+assert('single S', JSON.stringify(map2['S2026']), JSON.stringify(['S']));
+assert('both LS', JSON.stringify(map2['LS2026']), JSON.stringify(['L', 'S']));
 assert('total combos for 2 events', Object.keys(map2).length, 3);
 
 const events3 = [{ id: 'A' }, { id: 'B' }, { id: 'G' }];
 const map3 = buildCodesMap(events3);
 assert('total combos for 3 events', Object.keys(map3).length, 7);
-assert('triple ABG', JSON.stringify(map3['ABG2027']), JSON.stringify(['A', 'B', 'G']));
+assert('triple ABG', JSON.stringify(map3['ABG2026']), JSON.stringify(['A', 'B', 'G']));
 
 const emptyMap = buildCodesMap([]);
 assert('empty events', Object.keys(emptyMap).length, 0);
@@ -304,10 +304,10 @@ const cappedMap = buildCodesMap(manyEvents);
 assert('caps at 12 events', Object.keys(cappedMap).length, 0);
 
 console.log('\n=== formatCalDateTime ===');
-const dt1 = formatCalDateTime('25 December 2027', '7:30 PM - 11:00 PM');
+const dt1 = formatCalDateTime('25 December 2026', '7:30 PM - 11:00 PM');
 assert('valid result', dt1.valid, true);
-assert('start time', dt1.start, '20271225T193000');
-assert('end time', dt1.end, '20271225T230000');
+assert('start time', dt1.start, '20261225T193000');
+assert('end time', dt1.end, '20261225T230000');
 
 const dt2 = formatCalDateTime('1st January 2028', '6:00 PM');
 assert('ordinal date valid', dt2.valid, true);
@@ -319,11 +319,11 @@ assert('empty inputs invalid', dt3.valid, false);
 const dt4 = formatCalDateTime('gibberish', 'not a time');
 assert('gibberish invalid', dt4.valid, false);
 
-const dt5 = formatCalDateTime('25 December 2027', '2:00 PM');
+const dt5 = formatCalDateTime('25 December 2026', '2:00 PM');
 assert('single time valid', dt5.valid, true);
-assert('single time start', dt5.start, '20271225T140000');
+assert('single time start', dt5.start, '20261225T140000');
 // Default 3-hour duration
-assert('single time end (3hr default)', dt5.end, '20271225T170000');
+assert('single time end (3hr default)', dt5.end, '20261225T170000');
 
 // ═══════════════════════════════════════════════
 //   EDGE CASE / SECURITY TESTS

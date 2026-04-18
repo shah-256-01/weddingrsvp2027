@@ -369,7 +369,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div class="admin-card-title">Instructions</div>
       <div style="font-size:.78rem;color:var(--ink);line-height:1.7;">
         <p style="margin-bottom:.6rem;"><strong>6 Events:</strong> L (Lagnotri), S (Mehendi &amp; Sangeet), A (Mandvo), G (Meet &amp; Greet), W (Wedding), B (Black Tie)</p>
-        <p style="margin-bottom:.6rem;"><strong>Codes</strong> are auto-generated from the events each guest is invited to (e.g. LSAGWB2027 for all events).</p>
+        <p style="margin-bottom:.6rem;"><strong>Codes</strong> are auto-generated from the events each guest is invited to (e.g. LSAGWB2026 for all events).</p>
         <p style="margin-bottom:.6rem;"><strong>Allocations</strong> let you set how many seats each guest gets per event.</p>
         <p><strong>CSV Upload</strong> allows bulk-adding guests from a template file.</p>
       </div>
@@ -389,11 +389,11 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         </div>
         <div class="form-row">
           <label>Chase-Up Deadline</label>
-          <input type="text" id="msg-chase-deadline" placeholder="e.g. 30 November 2027" oninput="saveMessageConfig()"/>
+          <input type="text" id="msg-chase-deadline" placeholder="e.g. 30 November 2026" oninput="saveMessageConfig()"/>
         </div>
         <div class="form-row">
           <label>Invite Deadline</label>
-          <input type="text" id="msg-invite-deadline" placeholder="e.g. 30 November 2027" oninput="saveMessageConfig()"/>
+          <input type="text" id="msg-invite-deadline" placeholder="e.g. 30 November 2026" oninput="saveMessageConfig()"/>
         </div>
         <div class="form-row">
           <label>Default Country Code</label>
@@ -598,7 +598,7 @@ let   warningTimer       = null;
 function codeForIds(ids) {
   if (!ids || !ids.length) return '';
   var sorted = ids.filter(Boolean).sort(function(a, b) { return a.localeCompare(b); });
-  return sorted.join('') + '2027';
+  return sorted.join('') + '2026';
 }
 
 function buildEventDots(g) {
@@ -1285,7 +1285,7 @@ function updateModalCode() {
   var ids = [];
   ticks.forEach(function(cb) { ids.push(cb.value); });
   ids.sort(function(a, b) { return a.localeCompare(b); });
-  var code = ids.length ? ids.join('') + '2027' : '\u2014';
+  var code = ids.length ? ids.join('') + '2026' : '\u2014';
   document.getElementById('modal-code-out').textContent = code;
 }
 
@@ -1349,7 +1349,7 @@ function saveGuest() {
     notes: document.getElementById('m-notes').value.trim(),
     is_overseas: document.getElementById('m-overseas').checked ? 'TRUE' : 'FALSE',
     events: eventIds.join(','),
-    invitation_code: [...eventIds].sort(function(a, b) { return a.localeCompare(b); }).join('') + '2027'
+    invitation_code: [...eventIds].sort(function(a, b) { return a.localeCompare(b); }).join('') + '2026'
   };
 
   // Allocation columns
@@ -1635,7 +1635,7 @@ function updateGenCode() {
   var ids = [];
   ticks.forEach(function(cb) { ids.push(cb.value); });
   ids.sort(function(a, b) { return a.localeCompare(b); });
-  var code = ids.length ? ids.join('') + '2027' : '\u2014';
+  var code = ids.length ? ids.join('') + '2026' : '\u2014';
   document.getElementById('gen-code-out').textContent = code;
   if (ids.length) {
     var names = ids.map(function(id) {
@@ -1727,7 +1727,7 @@ function parseCSV(text) {
       var evIds = obj.events.split(',').map(function(s) { return s.trim(); })
         .filter(function(id) { return id && validIds.has(id); });
       evIds.sort(function(a, b) { return a.localeCompare(b); });
-      obj.invitation_code = evIds.join('') + '2027';
+      obj.invitation_code = evIds.join('') + '2026';
       obj.events = evIds.join(',');
     }
     rows.push(obj);

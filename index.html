@@ -6,7 +6,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
-<title>The Wedding — RSVP</title>
+<title>Jaini &amp; Shanay's Wedding — RSVP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Cinzel:wght@400;600;700&family=Jost:wght@200;300;400&display=swap" rel="stylesheet"/>
@@ -308,14 +308,14 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
   <div class="petals" id="petals"></div>
   <div class="landing-inner">
     <p class="landing-eyebrow">You are cordially invited to</p>
-    <h1 class="landing-title">The Wedding Day</h1>
+    <h1 class="landing-title">Jaini & Shanay's Wedding</h1>
     <p class="landing-sub">A Celebration of Love &amp; Joy</p>
     <div class="ornament" style="margin-bottom:1.3rem;">
       <div class="ornament-line rev" style="width:55px"></div>
       <div class="ornament-diamond"></div>
       <div class="ornament-line" style="width:55px"></div>
     </div>
-    <p class="landing-date" id="landing-date">25<sup>th</sup> December, 2027</p>
+    <p class="landing-date" id="landing-date">28<sup>th</sup> December, 2026</p>
     <p class="landing-venue" id="landing-venue">Park Avenue Grand · Kochi</p>
     <div id="landing-loader" class="hidden" style="padding:1rem 0;">
       <div class="loading-spinner"></div>
@@ -345,7 +345,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
         <div class="entry-field">
           <label class="entry-label" for="code-input">Invitation Code</label>
           <input class="code-input" id="code-input" type="text"
-            maxlength="12" placeholder="e.g. LSW2027" autocomplete="off"
+            maxlength="12" placeholder="e.g. LSW2026" autocomplete="off"
             inputmode="text"/>
         </div>
       </div>
@@ -361,7 +361,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 <!-- ████  GUEST RSVP  ████ -->
 <div id="page-guest" class="page">
   <nav class="guest-nav">
-    <span class="guest-nav-title">The Wedding Day</span>
+    <span class="guest-nav-title">Jaini & Shanay's Wedding</span>
     <span class="guest-nav-name" id="display-code"></span>
   </nav>
   <div class="guest-hero">
@@ -397,7 +397,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
         </div>
       </div>
       <p class="welcome-deadline" id="welcome-deadline">
-        &#128197; Please respond by <strong>30th November 2027</strong>
+        &#128197; Please respond by <strong>30th November 2026</strong>
       </p>
     </div>
   </div>
@@ -492,7 +492,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
     </div>
   </div>
   <div class="submit-section" id="submit-section">
-    <p class="submit-note">Please confirm by 30th November 2027</p>
+    <p class="submit-note">Please confirm by 30th November 2026</p>
     <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">Submit RSVP ✦</button>
     <span class="family-name-error hidden" id="submit-error" style="margin-top:.6rem;text-align:center;"></span>
   </div>
@@ -568,7 +568,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
         <div class="faq-category-title">General</div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>When is the RSVP deadline?</span><span class="faq-arrow">&#9654;</span></div>
-          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — e.g. Please respond by 30th November 2027 so we can finalise arrangements.]</div></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — e.g. Please respond by 30th November 2026 so we can finalise arrangements.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>What if I need to change my RSVP?</span><span class="faq-arrow">&#9654;</span></div>
@@ -630,11 +630,11 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 ══════════════════════════════════════════════ */
 // Replace with your Apps Script Web App URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzr_meK_ZwbNIdeqY1pHGLbJn27wIslfRnj1TdQ1AjwC5miCnmh0C5jnvMU2oJA_jYR6A/exec';
-const WEDDING_DATETIME = '2027-12-25T19:30:00+05:30';
-const RSVP_DEADLINE_DATE = '2027-11-30';  // Display deadline (inclusive)
-const RSVP_DEADLINE_BLOCK = '2027-12-01T00:00:00+05:30'; // Block submissions from this date
+const WEDDING_DATETIME = '2026-12-28T19:30:00+03:00';
+const RSVP_DEADLINE_DATE = '2026-11-30';  // Display deadline (inclusive)
+const RSVP_DEADLINE_BLOCK = '2026-12-01T00:00:00+03:00'; // Block submissions from this date
 const CONTACT_INFO = 'couple@example.com'; // ← update with your contact email or phone
-const WEDDING_VENUE = 'Park Avenue Grand · Kochi'; // ← update with your venue
+const WEDDING_VENUE = 'Aurora Bustani, Albizzia · Thika';
 
 let EVENTS = [];
 let CODES_MAP = {};
@@ -734,7 +734,7 @@ function buildCodesMap(events) {
   if (n > 12) return map; // cap at 2^12 = 4096 combinations
   for (let i = 1; i < (1 << n); i++) {
     const ids = sorted.filter((_, j) => i & (1 << j)).map(e => e.id);
-    map[ids.join('') + '2027'] = ids;
+    map[ids.join('') + '2026'] = ids;
   }
   return map;
 }
@@ -1265,11 +1265,11 @@ function escapeICSText(str) {
 function makeICSBlob(evt) {
   var dt = formatCalDateTime(evt.date, evt.time);
   if (!dt.valid) return null;
-  var uid = 'wedding-' + evt.id + '-' + Date.now() + '@wedding2027.com';
+  var uid = 'wedding-' + evt.id + '-' + Date.now() + '@wedding2026.com';
   var ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Wedding 2027//RSVP//EN',
+    'PRODID:-//Wedding 2026//RSVP//EN',
     'BEGIN:VEVENT',
     'UID:' + uid,
     'DTSTAMP:' + dt.start,

@@ -19,8 +19,8 @@ const WEDDING_SITE_URL      = 'https://jainishanay.com/';
 
 // RSVP deadline — submissions after this date/time are rejected
 // Uses explicit midnight IST (UTC+05:30) so deadline is timezone-consistent
-// If deadline is 30 Nov 2027, this is midnight starting 1 Dec IST
-const RSVP_DEADLINE = '2027-12-01T00:00:00+05:30';
+// If deadline is 30 Nov 2026, this is midnight starting 1 Dec EAT
+const RSVP_DEADLINE = '2026-12-01T00:00:00+03:00';
 
 const TABS = {
   events:       'Events',
@@ -40,7 +40,7 @@ function doGet(e) {
       .setTitle('Wedding Admin')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   }
-  // Validate guest — ?action=validate&code=LW2027&firstName=John&lastName=Smith
+  // Validate guest — ?action=validate&code=LW2026&firstName=John&lastName=Smith
   if (e && e.parameter && e.parameter.action === 'validate') {
     try {
       // Rate limit: max 10 attempts per code per 60 seconds
@@ -447,7 +447,7 @@ function addGuest(payload) {
   const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
     .map(s => s.trim()).filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
-  payload.invitation_code = sortedIds.join('') + '2027';
+  payload.invitation_code = sortedIds.join('') + '2026';
 
   const id = 'g-' + Utilities.getUuid();
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -472,7 +472,7 @@ function updateGuest(payload) {
       .map(s => s.trim()).filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
     payload.events = sortedIds.join(',');
-    payload.invitation_code = sortedIds.join('') + '2027';
+    payload.invitation_code = sortedIds.join('') + '2026';
   }
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -621,7 +621,7 @@ function bulkAddGuests(payload) {
       const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
         .map(s => s.trim()).filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
-      g.invitation_code = sortedEvIds.join('') + '2027';
+      g.invitation_code = sortedEvIds.join('') + '2026';
       const row = headers.map(h => {
         if (h === 'id') return id;
         if (h === 'events') return sortedEvIds.join(',');
@@ -891,9 +891,9 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
           '<p style="margin:0 0 4px;font-family:Georgia,serif;font-size:.72rem;' +
             'letter-spacing:.3em;color:#e8c87a;text-transform:uppercase;">You are invited to</p>' +
           '<h1 style="margin:0;font-family:Georgia,serif;font-style:italic;font-weight:300;' +
-            'font-size:2.2rem;color:#fff;line-height:1.1;">The Wedding Day</h1>' +
+            'font-size:2.2rem;color:#fff;line-height:1.1;">Jaini &amp; Shanay\'s Wedding</h1>' +
           '<p style="margin:8px 0 0;font-family:Georgia,serif;font-size:.85rem;' +
-            'color:rgba(255,255,255,.6);letter-spacing:.1em;">25th December 2027</p>' +
+            'color:rgba(255,255,255,.6);letter-spacing:.1em;">28th December 2026</p>' +
         '</div>' +
 
         // Body
@@ -943,7 +943,7 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
         // Footer
         '<div style="background:#2a1f1a;padding:20px 24px;text-align:center;">' +
           '<p style="margin:0;font-size:.75rem;color:rgba(255,255,255,.4);line-height:1.6;">' +
-            '25th December 2027<br>' +
+            '28th December 2026<br>' +
             '<a href="' + WEDDING_SITE_URL + '" style="color:#b8924a;text-decoration:none;">' +
               'View your invitation online</a></p>' +
         '</div>' +
@@ -973,7 +973,7 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
     MailApp.sendEmail({
       to:       guestEmail,
       replyTo:  GUEST_EMAIL_REPLY_TO,
-      subject:  'Your RSVP is confirmed — The Wedding Day 2027',
+      subject:  'Your RSVP is confirmed — Jaini & Shanay\'s Wedding',
       body:     plainBody,
       htmlBody: htmlBody,
       name:     GUEST_EMAIL_FROM_NAME,
