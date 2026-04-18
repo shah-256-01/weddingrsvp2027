@@ -436,12 +436,11 @@ function getDeletedGuests() {
 
 // ── addGuest ──────────────────────────────────────────────
 function addGuest(payload) {
-  const sheet   = getSheet(TABS.guests);
-  const headers = guestHeaders();
+  const sheet = getSheet(TABS.guests);
 
   // Ensure headers exist
   if (sheet.getLastRow() < 1) {
-    sheet.appendRow(headers);
+    sheet.appendRow(guestHeaders());
   }
 
   // Generate invitation_code from sorted event IDs
@@ -450,7 +449,8 @@ function addGuest(payload) {
     .sort((a, b) => a.localeCompare(b));
   payload.invitation_code = sortedIds.join('') + '2027';
 
-  const id  = 'g-' + Utilities.getUuid();
+  const id = 'g-' + Utilities.getUuid();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const row = headers.map(h => {
     if (h === 'id') return id;
     if (h === 'events') return sortedIds.join(',');
@@ -601,13 +601,13 @@ function restoreRSVPRows(invitationCode) {
 // ── bulkAddGuests ─────────────────────────────────────────
 // payload.guests = array of guest objects from CSV upload
 function bulkAddGuests(payload) {
-  const sheet   = getSheet(TABS.guests);
-  const headers = guestHeaders();
+  const sheet = getSheet(TABS.guests);
 
   if (sheet.getLastRow() < 1) {
-    sheet.appendRow(headers);
+    sheet.appendRow(guestHeaders());
   }
 
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const results = { added: 0, skipped: 0, errors: [] };
   (payload.guests || []).forEach((g, idx) => {
     try {
