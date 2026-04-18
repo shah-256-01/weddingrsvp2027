@@ -200,7 +200,7 @@ function sanitiseSheetValue(val) {
 
 function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
-  const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children', id + '_table']);
+  const alloc = EVENT_IDS.flatMap(id => [id + '_guests', id + '_table']);
   return [...fixed, ...alloc];
 }
 
@@ -338,8 +338,7 @@ function validateGuest(code, firstName, lastName) {
   const allocations = {};
   eventIds.forEach(function(id) {
     allocations[id] = {
-      adults:   Number(match[id + '_adults'])   || 0,
-      children: Number(match[id + '_children']) || 0,
+      guests: Number(match[id + '_guests']) || 0,
     };
   });
 
@@ -399,10 +398,10 @@ function getExistingRSVP(code, familyName) {
           name:       evt.name,
           icon:       evt.icon,
           attending:  attending === 'yes',
-          adults:     Number(latest[evt.id + ' Adults'])   || 0,
-          children:   Number(latest[evt.id + ' Children']) || 0,
-          adultNames: String(latest[evt.id + ' Adult Names'] || '').split('|').filter(Boolean),
-          childNames: String(latest[evt.id + ' Child Names'] || '').split('|').filter(Boolean),
+          guests:     Number(latest[evt.id + ' Guests']) || (Number(latest[evt.id + ' Adults']) || 0) + (Number(latest[evt.id + ' Children']) || 0),
+          names:      (latest[evt.id + ' Names']
+            ? String(latest[evt.id + ' Names']).split('|').filter(Boolean)
+            : (String(latest[evt.id + ' Adult Names'] || '') + '|' + String(latest[evt.id + ' Child Names'] || '')).split('|').filter(Boolean)),
         });
       }
     });
@@ -699,19 +698,14 @@ function submitRSVP(payload) {
     if (guestRecord) {
       events.forEach(ev => {
         if (!ev.attending) {
-          ev.adultNames = []; ev.childNames = [];
+          ev.names = [];
           return;
         }
-        const maxAdults   = Number(guestRecord[ev.id + '_adults'])   || 0;
-        const maxChildren = Number(guestRecord[ev.id + '_children']) || 0;
-        const effectiveMaxAdults = maxAdults === 0 ? 1 : maxAdults;
-        ev.adults   = Math.min(Math.max(0, Number(ev.adults)   || 0), effectiveMaxAdults);
-        ev.children = Math.min(Math.max(0, Number(ev.children) || 0), maxChildren);
-        ev.adultNames = (Array.isArray(ev.adultNames) ? ev.adultNames : [])
-          .slice(0, ev.adults)
-          .map(n => String(n || '').replace(/\|/g, '').trim().slice(0, 100));
-        ev.childNames = (Array.isArray(ev.childNames) ? ev.childNames : [])
-          .slice(0, ev.children)
+        const maxGuests = Number(guestRecord[ev.id + '_guests']) || 0;
+        const effectiveMax = maxGuests === 0 ? 1 : maxGuests;
+        ev.guests = Math.min(Math.max(0, Number(ev.guests) || 0), effectiveMax);
+        ev.names = (Array.isArray(ev.names) ? ev.names : [])
+          .slice(0, ev.guests)
           .map(n => String(n || '').replace(/\|/g, '').trim().slice(0, 100));
       });
     }
@@ -720,7 +714,7 @@ function submitRSVP(payload) {
     const byEventSheet = getSheet(TABS.rsvpByEvent);
     const byEventExpectedHeaders = [
       'timestamp','submission_name','invitation_code',
-      'event_id','event_name','attending','adults','children','notes','adult_names','child_names','status'
+      'event_id','event_name','attending','guests','notes','guest_names','status'
     ];
     if (byEventSheet.getLastRow() < 1) {
       byEventSheet.appendRow(byEventExpectedHeaders);
@@ -741,11 +735,9 @@ function submitRSVP(payload) {
       s('event_id',        ev.id);
       s('event_name',      ev.name);
       s('attending',       ev.attending ? 'Yes' : 'No');
-      s('adults',          ev.attending ? (ev.adults   || 0) : 0);
-      s('children',        ev.attending ? (ev.children || 0) : 0);
+      s('guests',          ev.attending ? (ev.guests || 0) : 0);
       s('notes',           sanitizeForSheet(String(ev.notes || '').slice(0, 500)));
-      s('adult_names',     sanitizeForSheet((ev.adultNames || []).join('|')));
-      s('child_names',     sanitizeForSheet((ev.childNames || []).join('|')));
+      s('guest_names',     sanitizeForSheet((ev.names || []).join('|')));
       byEventSheet.appendRow(row);
     });
 
@@ -756,9 +748,8 @@ function submitRSVP(payload) {
       headers = ['timestamp','submission_name','invitation_code','status'];
       events.forEach(ev => {
         headers.push(
-          ev.id + ' Attending', ev.id + ' Adults',
-          ev.id + ' Children',  ev.id + ' Notes',
-          ev.id + ' Adult Names', ev.id + ' Child Names'
+          ev.id + ' Attending', ev.id + ' Guests',
+          ev.id + ' Notes', ev.id + ' Names'
         );
       });
       byFamilySheet.appendRow(headers);
@@ -774,7 +765,7 @@ function submitRSVP(payload) {
       // Batch-collect new columns, then write them all at once
       const newCols = [];
       events.forEach(ev => {
-        [' Attending',' Adults',' Children',' Notes',' Adult Names',' Child Names'].forEach(suffix => {
+        [' Attending',' Guests',' Notes',' Names'].forEach(suffix => {
           const col = ev.id + suffix;
           if (!headers.includes(col) && newCols.indexOf(col) === -1) {
             newCols.push(col);
@@ -794,17 +785,13 @@ function submitRSVP(payload) {
     row[headers.indexOf('invitation_code')] = invitationCode;
     events.forEach(ev => {
       const a  = headers.indexOf(ev.id + ' Attending');
-      const ad = headers.indexOf(ev.id + ' Adults');
-      const c  = headers.indexOf(ev.id + ' Children');
+      const g  = headers.indexOf(ev.id + ' Guests');
       const n  = headers.indexOf(ev.id + ' Notes');
-      const an = headers.indexOf(ev.id + ' Adult Names');
-      const cn = headers.indexOf(ev.id + ' Child Names');
+      const nm = headers.indexOf(ev.id + ' Names');
       if (a  > -1) row[a]  = ev.attending ? 'Yes' : 'No';
-      if (ad > -1) row[ad] = ev.attending ? (ev.adults   || 0) : 0;
-      if (c  > -1) row[c]  = ev.attending ? (ev.children || 0) : 0;
+      if (g  > -1) row[g]  = ev.attending ? (ev.guests || 0) : 0;
       if (n  > -1) row[n]  = sanitizeForSheet(String(ev.notes || '').slice(0, 500));
-      if (an > -1) row[an] = sanitizeForSheet((ev.adultNames || []).join('|'));
-      if (cn > -1) row[cn] = sanitizeForSheet((ev.childNames || []).join('|'));
+      if (nm > -1) row[nm] = sanitizeForSheet((ev.names || []).join('|'));
     });
     byFamilySheet.appendRow(row);
   } finally {
@@ -838,8 +825,8 @@ function sendRSVPNotification(payload) {
 
   const eventLines = (payload.events || []).map(ev => {
     if (ev.attending) {
-      let line = '  ' + ev.name + ': YES — ' + (ev.adults || 0) + ' adult(s), ' + (ev.children || 0) + ' child(ren)';
-      const allNames = (ev.adultNames || []).concat(ev.childNames || []).filter(Boolean);
+      let line = '  ' + ev.name + ': YES — ' + (ev.guests || 0) + ' guest(s)';
+      const allNames = (ev.names || []).filter(Boolean);
       if (allNames.length) line += '\n    Names: ' + allNames.join(', ');
       return line;
     }
@@ -872,10 +859,9 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
     var eventRowsHtml = (payload.events || []).map(function(ev) {
       var attending = ev.attending;
       var detail = attending
-        ? (ev.adults + ' adult' + (ev.adults !== 1 ? 's' : '') +
-           (ev.children > 0 ? ', ' + ev.children + ' child' + (ev.children !== 1 ? 'ren' : '') : ''))
+        ? ((ev.guests || 0) + ' guest' + ((ev.guests || 0) !== 1 ? 's' : ''))
         : 'Declined';
-      var allNames = attending ? (ev.adultNames || []).concat(ev.childNames || []).filter(Boolean) : [];
+      var allNames = attending ? (ev.names || []).filter(Boolean) : [];
       var namesLine = allNames.length ? '<br><span style="font-size:.78rem;color:#6b5e53;">' + allNames.map(function(n) { return escapeHtml(n); }).join(', ') + '</span>' : '';
       var iconColor = attending ? '#2d4a3e' : '#8b2020';
       var icon      = attending ? '✓' : '✕';
@@ -971,8 +957,7 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
       '',
       (payload.events || []).map(function(ev) {
         return (ev.attending ? '✓ ' : '✕ ') + ev.name +
-          (ev.attending ? ' — ' + ev.adults + ' adult(s)' +
-            (ev.children > 0 ? ', ' + ev.children + ' child(ren)' : '') : ' — Declined');
+          (ev.attending ? ' — ' + (ev.guests || 0) + ' guest(s)' : ' — Declined');
       }).join('\n'),
       '',
       'Invitation code: ' + payload.invitationCode,
@@ -1035,17 +1020,14 @@ function getStats() {
   // ── Overall guest counts (unique headcount, not per-event sum) ──
   // Uses max allocation across events to avoid double-counting families
   // invited to multiple events. Per-event totals are in perEvent below.
-  let totalInvitedAdults = 0, totalInvitedChildren = 0;
+  let totalInvitedGuests = 0;
   guests.forEach(g => {
-    let maxAdults = 0, maxChildren = 0;
+    let maxGuests = 0;
     EVENT_IDS.forEach(id => {
-      const a = Number(g[id + '_adults'])   || 0;
-      const c = Number(g[id + '_children']) || 0;
-      if (a > maxAdults)   maxAdults   = a;
-      if (c > maxChildren) maxChildren = c;
+      const n = Number(g[id + '_guests']) || 0;
+      if (n > maxGuests) maxGuests = n;
     });
-    totalInvitedAdults   += maxAdults;
-    totalInvitedChildren += maxChildren;
+    totalInvitedGuests += maxGuests;
   });
 
   // ── Per-event breakdown ──────────────────────────────
@@ -1054,11 +1036,9 @@ function getStats() {
     perEvent[id] = {
       id,
       invitedGuests:    0,
-      invitedAdults:    0,
-      invitedChildren:  0,
+      invitedHeadcount: 0,
       attending:        0,
-      attendingAdults:  0,
-      attendingChildren:0,
+      attendingGuests:  0,
       declined:         0,
       pending:          0,
     };
@@ -1069,8 +1049,7 @@ function getStats() {
     eventIds.forEach(id => {
       if (!perEvent[id]) return;
       perEvent[id].invitedGuests++;
-      perEvent[id].invitedAdults   += Number(g[id + '_adults'])   || 0;
-      perEvent[id].invitedChildren += Number(g[id + '_children']) || 0;
+      perEvent[id].invitedHeadcount += Number(g[id + '_guests']) || 0;
     });
   });
 
@@ -1089,8 +1068,7 @@ function getStats() {
 
     if (String(row.attending).toLowerCase() === 'yes') {
       perEvent[id].attending++;
-      perEvent[id].attendingAdults   += Number(row.adults)   || 0;
-      perEvent[id].attendingChildren += Number(row.children) || 0;
+      perEvent[id].attendingGuests += Number(row.guests) || 0;
     } else {
       perEvent[id].declined++;
     }
@@ -1112,29 +1090,24 @@ function getStats() {
   // Confirmed adults/children — uses same max-across-events approach
   // as invited counts above for consistent unique headcount semantics
   const allEventsData = getEvents();
-  let finalConfirmedAdults = 0, finalConfirmedChildren = 0;
+  let finalConfirmedGuests = 0;
   dedupedSubmissions.forEach(row => {
-    let maxA = 0, maxC = 0;
+    let maxG = 0;
     allEventsData.forEach(evt => {
-      const a = Number(row[evt.id + ' Adults'])   || 0;
-      const c = Number(row[evt.id + ' Children']) || 0;
+      const g = Number(row[evt.id + ' Guests']) || 0;
       if (String(row[evt.id + ' Attending']).toLowerCase() === 'yes') {
-        if (a > maxA) maxA = a;
-        if (c > maxC) maxC = c;
+        if (g > maxG) maxG = g;
       }
     });
-    finalConfirmedAdults   += maxA;
-    finalConfirmedChildren += maxC;
+    finalConfirmedGuests += maxG;
   });
 
   return {
     totalGuests:           guests.length,
     rsvpd:                 submittedCodes.size,
     pending:               Math.max(0, guests.length - submittedCodes.size),
-    totalInvitedAdults,
-    totalInvitedChildren,
-    confirmedAdults:       finalConfirmedAdults,
-    confirmedChildren:     finalConfirmedChildren,
+    totalInvitedGuests,
+    confirmedGuests:       finalConfirmedGuests,
     duplicates:            Math.max(0, byFamily.length - dedupedSubmissions.length),
     perEvent:              Object.values(perEvent),
   };
@@ -1238,7 +1211,7 @@ function setupSheet() {
     evRSVP = ss.insertSheet(TABS.rsvpByEvent);
     evRSVP.appendRow([
       'timestamp','submission_name','invitation_code',
-      'event_id','event_name','attending','adults','children','notes','adult_names','child_names','status'
+      'event_id','event_name','attending','guests','notes','guest_names','status'
     ]);
   }
 
@@ -1304,6 +1277,140 @@ function migrateToV2() {
   return log;
 }
 
+// ── migrateToV3 ──────────────────────────────────────────
+// Merges adults/children columns into single guests columns.
+// Safe to run multiple times — only adds missing columns, never overwrites.
+function migrateToV3() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const log = [];
+
+  function getHeaders(sheet) {
+    if (!sheet || sheet.getLastRow() < 1) return [];
+    return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  }
+
+  function addColumnIfMissing(sheet, headers, colName) {
+    if (headers.includes(colName)) return -1;
+    const idx = headers.length + 1;
+    sheet.getRange(1, idx).setValue(colName);
+    headers.push(colName);
+    return idx;
+  }
+
+  // ── Guests sheet: add {id}_guests, backfill from _adults + _children ──
+  const gSheet = ss.getSheetByName(TABS.guests);
+  if (gSheet && gSheet.getLastRow() >= 1) {
+    const gHeaders = getHeaders(gSheet);
+    EVENT_IDS.forEach(id => {
+      const colIdx = addColumnIfMissing(gSheet, gHeaders, id + '_guests');
+      if (colIdx === -1) return;
+      log.push('Guests: added ' + id + '_guests');
+      if (gSheet.getLastRow() < 2) return;
+      const adultsIdx = gHeaders.indexOf(id + '_adults');
+      const childrenIdx = gHeaders.indexOf(id + '_children');
+      const numRows = gSheet.getLastRow() - 1;
+      const backfill = [];
+      const adultsCol = adultsIdx >= 0 ? gSheet.getRange(2, adultsIdx + 1, numRows, 1).getValues() : null;
+      const childrenCol = childrenIdx >= 0 ? gSheet.getRange(2, childrenIdx + 1, numRows, 1).getValues() : null;
+      for (let r = 0; r < numRows; r++) {
+        const a = adultsCol ? (Number(adultsCol[r][0]) || 0) : 0;
+        const c = childrenCol ? (Number(childrenCol[r][0]) || 0) : 0;
+        backfill.push([a + c]);
+      }
+      gSheet.getRange(2, colIdx, numRows, 1).setValues(backfill);
+      log.push('Guests: backfilled ' + id + '_guests for ' + numRows + ' rows');
+    });
+  }
+
+  // ── RSVPs_by_event: add guests, guest_names ──
+  const evSheet = ss.getSheetByName(TABS.rsvpByEvent);
+  if (evSheet && evSheet.getLastRow() >= 1) {
+    const evHeaders = getHeaders(evSheet);
+    const guestsIdx = addColumnIfMissing(evSheet, evHeaders, 'guests');
+    const namesIdx = addColumnIfMissing(evSheet, evHeaders, 'guest_names');
+    if (guestsIdx !== -1 || namesIdx !== -1) {
+      log.push('RSVPs_by_event: added ' + [guestsIdx !== -1 ? 'guests' : '', namesIdx !== -1 ? 'guest_names' : ''].filter(Boolean).join(', '));
+      if (evSheet.getLastRow() >= 2) {
+        const numRows = evSheet.getLastRow() - 1;
+        const adultsIdx = evHeaders.indexOf('adults');
+        const childrenIdx = evHeaders.indexOf('children');
+        const aNamesIdx = evHeaders.indexOf('adult_names');
+        const cNamesIdx = evHeaders.indexOf('child_names');
+        const adultsCol = adultsIdx >= 0 ? evSheet.getRange(2, adultsIdx + 1, numRows, 1).getValues() : null;
+        const childrenCol = childrenIdx >= 0 ? evSheet.getRange(2, childrenIdx + 1, numRows, 1).getValues() : null;
+        const aNamesCol = aNamesIdx >= 0 ? evSheet.getRange(2, aNamesIdx + 1, numRows, 1).getValues() : null;
+        const cNamesCol = cNamesIdx >= 0 ? evSheet.getRange(2, cNamesIdx + 1, numRows, 1).getValues() : null;
+        if (guestsIdx !== -1) {
+          const backfill = [];
+          for (let r = 0; r < numRows; r++) {
+            const a = adultsCol ? (Number(adultsCol[r][0]) || 0) : 0;
+            const c = childrenCol ? (Number(childrenCol[r][0]) || 0) : 0;
+            backfill.push([a + c]);
+          }
+          evSheet.getRange(2, guestsIdx, numRows, 1).setValues(backfill);
+        }
+        if (namesIdx !== -1) {
+          const backfill = [];
+          for (let r = 0; r < numRows; r++) {
+            const an = aNamesCol ? String(aNamesCol[r][0] || '') : '';
+            const cn = cNamesCol ? String(cNamesCol[r][0] || '') : '';
+            backfill.push([(an + '|' + cn).split('|').filter(Boolean).join('|')]);
+          }
+          evSheet.getRange(2, namesIdx, numRows, 1).setValues(backfill);
+        }
+        log.push('RSVPs_by_event: backfilled ' + numRows + ' rows');
+      }
+    }
+  }
+
+  // ── RSVPs_by_family: add {id} Guests, {id} Names ──
+  const famSheet = ss.getSheetByName(TABS.rsvpByFamily);
+  if (famSheet && famSheet.getLastRow() >= 1) {
+    const famHeaders = getHeaders(famSheet);
+    const numRows = famSheet.getLastRow() >= 2 ? famSheet.getLastRow() - 1 : 0;
+    EVENT_IDS.forEach(id => {
+      const gIdx = addColumnIfMissing(famSheet, famHeaders, id + ' Guests');
+      const nIdx = addColumnIfMissing(famSheet, famHeaders, id + ' Names');
+      if (gIdx === -1 && nIdx === -1) return;
+      log.push('RSVPs_by_family: added ' + [gIdx !== -1 ? id + ' Guests' : '', nIdx !== -1 ? id + ' Names' : ''].filter(Boolean).join(', '));
+      if (numRows === 0) return;
+      const adultsIdx = famHeaders.indexOf(id + ' Adults');
+      const childrenIdx = famHeaders.indexOf(id + ' Children');
+      const aNamesIdx = famHeaders.indexOf(id + ' Adult Names');
+      const cNamesIdx = famHeaders.indexOf(id + ' Child Names');
+      if (gIdx !== -1) {
+        const adultsCol = adultsIdx >= 0 ? famSheet.getRange(2, adultsIdx + 1, numRows, 1).getValues() : null;
+        const childrenCol = childrenIdx >= 0 ? famSheet.getRange(2, childrenIdx + 1, numRows, 1).getValues() : null;
+        const backfill = [];
+        for (let r = 0; r < numRows; r++) {
+          const a = adultsCol ? (Number(adultsCol[r][0]) || 0) : 0;
+          const c = childrenCol ? (Number(childrenCol[r][0]) || 0) : 0;
+          backfill.push([a + c]);
+        }
+        famSheet.getRange(2, gIdx, numRows, 1).setValues(backfill);
+      }
+      if (nIdx !== -1) {
+        const aNamesCol = aNamesIdx >= 0 ? famSheet.getRange(2, aNamesIdx + 1, numRows, 1).getValues() : null;
+        const cNamesCol = cNamesIdx >= 0 ? famSheet.getRange(2, cNamesIdx + 1, numRows, 1).getValues() : null;
+        const backfill = [];
+        for (let r = 0; r < numRows; r++) {
+          const an = aNamesCol ? String(aNamesCol[r][0] || '') : '';
+          const cn = cNamesCol ? String(cNamesCol[r][0] || '') : '';
+          backfill.push([(an + '|' + cn).split('|').filter(Boolean).join('|')]);
+        }
+        famSheet.getRange(2, nIdx, numRows, 1).setValues(backfill);
+      }
+    });
+  }
+
+  if (log.length === 0) {
+    Logger.log('migrateToV3: nothing to do — all columns already present.');
+  } else {
+    Logger.log('migrateToV3 complete:\n' + log.join('\n'));
+  }
+  return log;
+}
+
 function ensureStatusColumn(sheet) {
   if (!sheet || sheet.getLastRow() < 1) return;
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -1333,7 +1440,7 @@ function sendDailyDigest() {
     var eventLines = (stats.perEvent || []).map(function(ev) {
       var evtConfig = allEventsData.find(function(e) { return e.id === ev.id; }) || {};
       return '  ' + (evtConfig.icon || '') + ' ' + (evtConfig.name || ev.id) + ':' +
-        ' ' + ev.attendingAdults + ' adults attending' +
+        ' ' + ev.attendingGuests + ' guests attending' +
         ', ' + ev.pending + ' pending';
     }).join('\n');
 
@@ -1346,8 +1453,7 @@ function sendDailyDigest() {
       'Total Guests:       ' + stats.totalGuests,
       'RSVPd:              ' + stats.rsvpd,
       'Pending:            ' + stats.pending,
-      'Adults Confirmed:   ' + stats.confirmedAdults,
-      'Children Confirmed: ' + stats.confirmedChildren,
+      'Guests Confirmed:   ' + stats.confirmedGuests,
       stats.duplicates > 0 ? '⚠ Duplicates:     ' + stats.duplicates : '',
       '',
       'Per Event:',

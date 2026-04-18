@@ -130,7 +130,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .upload-success{background:rgba(45,74,62,.08);border:1px solid rgba(45,74,62,.2);color:var(--green);}
 .upload-error{background:rgba(139,32,32,.06);border:1px solid rgba(139,32,32,.2);color:var(--red);}
 /* ── Allocation grid in modal ── */
-.alloc-grid{display:grid;grid-template-columns:1fr 80px 80px;gap:.45rem .8rem;align-items:center;margin-top:.35rem;}
+.alloc-grid{display:grid;grid-template-columns:1fr 80px;gap:.45rem .8rem;align-items:center;margin-top:.35rem;}
 .alloc-grid .alloc-hdr{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;text-align:center;}
 .alloc-grid .alloc-evt{font-size:.78rem;color:var(--ink);display:flex;align-items:center;gap:.4rem;}
 .alloc-grid input[type="number"]{width:100%;border:1px solid rgba(0,0,0,.11);background:transparent;padding:.45rem .5rem;border-radius:2px;font-family:'Jost',sans-serif;font-size:.82rem;text-align:center;outline:none;transition:border-color .2s;}
@@ -713,8 +713,7 @@ function loadStats() {
         '<div class="stat-card"><div class="stat-num">' + (s.totalGuests || 0) + '</div><div class="stat-lbl">Total Guests</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + (s.rsvpd || 0) + '</div><div class="stat-lbl">RSVPd</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + (s.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + (s.confirmedAdults || 0) + '</div><div class="stat-lbl">Adults Confirmed</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + (s.confirmedChildren || 0) + '</div><div class="stat-lbl">Children Confirmed</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + (s.confirmedGuests || 0) + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
         '<div class="stat-card"><div class="stat-num' + dupCls + '">' + (s.duplicates || 0) + '</div><div class="stat-lbl">Duplicates</div></div>';
     })
     .withFailureHandler(function(err) {
@@ -1028,8 +1027,7 @@ function selectEventFilter(eventId) {
       '<td><div class="guest-name-cell">' + escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')) + overseasBadge + '</div>' +
       '<div class="guest-sub">' + phoneWhatsAppHtml(g.phone) + '</div></td>' +
       '<td class="col-rel">' + escapeAttr(sanitiseValue(g.relationship)) + '</td>' +
-      '<td style="text-align:center;">' + (Number(g[eventId + '_adults']) || 0) + '</td>' +
-      '<td style="text-align:center;">' + (Number(g[eventId + '_children']) || 0) + '</td>' +
+      '<td style="text-align:center;">' + (Number(g[eventId + '_guests']) || 0) + '</td>' +
       '<td><span class="rsvp-pill ' + status.cls + '">' + status.label + '</span></td>' +
       tableCol +
       '</tr>';
@@ -1055,16 +1053,14 @@ function selectEventFilter(eventId) {
   content.innerHTML =
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:1rem 0;">' +
     '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Families Invited</div></div>' +
-    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedAdults || 0) + '</div><div class="stat-lbl">Adults Invited</div></div>' +
-    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedChildren || 0) + '</div><div class="stat-lbl">Children Invited</div></div>' +
-    '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingAdults || 0) + '</div><div class="stat-lbl">Adults Confirmed</div></div>' +
-    '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingChildren || 0) + '</div><div class="stat-lbl">Children Confirmed</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedHeadcount || 0) + '</div><div class="stat-lbl">Guests Invited</div></div>' +
+    '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingGuests || 0) + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--gold);">' + (evtStats.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--red);">' + (evtStats.declined || 0) + '</div><div class="stat-lbl">Declined</div></div>' +
     '</div>' + seatingStatsHtml +
     '<div class="admin-card"><div class="admin-card-title">' + escapeAttr(evtConfig.icon || '') + ' ' + escapeAttr(evtConfig.name || eventId) + ' — Guest List</div>' +
     '<div class="guest-table-wrap"><table class="guest-table"><thead><tr>' +
-    '<th>Name</th><th class="col-rel">Relationship</th><th>Adults</th><th>Children</th><th>RSVP</th>' +
+    '<th>Name</th><th class="col-rel">Relationship</th><th>Guests</th><th>RSVP</th>' +
     (seatingEnabled ? '<th>Table</th>' : '') +
     '</tr></thead><tbody>' + guestRows + '</tbody></table></div>' +
     (seatingEnabled ? '<div style="text-align:right;margin-top:.5rem;"><button class="btn btn-secondary btn-sm" onclick="exportSeatingCSV(\'' + escapeAttr(eventId) + '\')">Export Seating CSV</button></div>' : '') +
@@ -1116,13 +1112,12 @@ function exportSeatingCSV(eventId) {
     return s;
   };
 
-  var headers = ['Table','Name','Adults','Children'];
+  var headers = ['Table','Name','Guests'];
   var rows = invitedGuests.map(function(g) {
     return [
       sanitiseValue(g[eventId + '_table']) || 'Unassigned',
       ((g.first_name || '') + ' ' + (g.last_name || '')).trim(),
-      Number(g[eventId + '_adults']) || 0,
-      Number(g[eventId + '_children']) || 0,
+      Number(g[eventId + '_guests']) || 0,
     ].map(csvEsc).join(',');
   });
 
@@ -1311,21 +1306,18 @@ function updateModalAllocations(existingGuest) {
   section.classList.remove('hidden');
 
   // Header row (3 cells in the same grid)
-  var html = '<span></span><span class="alloc-hdr">Adults</span><span class="alloc-hdr">Children</span>';
+  var html = '<span></span><span class="alloc-hdr">Guests</span>';
 
   ids.forEach(function(id) {
     var ev = allEvents.find(function(e) { return e.id === id; });
     var evLabel = ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(id);
-    var adVal = 2, chVal = 0;
+    var gVal = 2;
     if (existingGuest) {
-      var rawAd = sanitiseValue(existingGuest[id + '_adults']);
-      var rawCh = sanitiseValue(existingGuest[id + '_children']);
-      adVal = rawAd !== '' ? Number(rawAd) || 0 : 0;
-      chVal = rawCh !== '' ? Number(rawCh) || 0 : 0;
+      var rawG = sanitiseValue(existingGuest[id + '_guests']);
+      gVal = rawG !== '' ? Number(rawG) || 0 : 0;
     }
     html += '<span class="alloc-evt">' + evLabel + '</span>' +
-      '<input type="number" id="alloc-' + escapeAttr(id) + '-adults" min="0" max="99" value="' + adVal + '"/>' +
-      '<input type="number" id="alloc-' + escapeAttr(id) + '-children" min="0" max="99" value="' + chVal + '"/>';
+      '<input type="number" id="alloc-' + escapeAttr(id) + '-guests" min="0" max="99" value="' + gVal + '"/>';
   });
 
   grid.innerHTML = html;
@@ -1362,18 +1354,15 @@ function saveGuest() {
 
   // Allocation columns
   eventIds.forEach(function(id) {
-    var adEl = document.getElementById('alloc-' + id + '-adults');
-    var chEl = document.getElementById('alloc-' + id + '-children');
-    payload[id + '_adults'] = adEl ? Number(adEl.value) || 0 : 0;
-    payload[id + '_children'] = chEl ? Number(chEl.value) || 0 : 0;
+    var gEl = document.getElementById('alloc-' + id + '-guests');
+    payload[id + '_guests'] = gEl ? Number(gEl.value) || 0 : 0;
   });
 
   // Zero out allocations for non-selected events
   var allIds = allEvents.map(function(e) { return e.id; });
   allIds.forEach(function(id) {
     if (eventIds.indexOf(id) === -1) {
-      payload[id + '_adults'] = 0;
-      payload[id + '_children'] = 0;
+      payload[id + '_guests'] = 0;
     }
   });
 
@@ -1501,7 +1490,7 @@ function openViewGuest(id) {
     var evName = ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(eid);
     return '<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:.78rem;">' +
       '<span>' + evName + '</span>' +
-      '<span>' + (Number(g[eid + '_adults']) || 0) + ' adults, ' + (Number(g[eid + '_children']) || 0) + ' children</span></div>';
+      '<span>' + (Number(g[eid + '_guests']) || 0) + ' guests</span></div>';
   }).join('');
 
   var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
@@ -1584,7 +1573,7 @@ function exportGuestListCSV() {
       ];
       var eventHeaders = [];
       allEvents.forEach(function(ev) {
-        eventHeaders.push(ev.id + '_adults', ev.id + '_children', ev.id + '_table');
+        eventHeaders.push(ev.id + '_guests', ev.id + '_table');
       });
       var headers = fixedHeaders.concat(eventHeaders);
       var rows = guests.map(function(g) {
@@ -1673,17 +1662,17 @@ function downloadCSVTemplate() {
   var headers = [
     'first_name','last_name','phone','email','relationship',
     'notes','is_overseas','events',
-    'L_adults','L_children',
-    'S_adults','S_children',
-    'A_adults','A_children',
-    'G_adults','G_children',
-    'W_adults','W_children',
-    'B_adults','B_children'
+    'L_guests',
+    'S_guests',
+    'A_guests',
+    'G_guests',
+    'W_guests',
+    'B_guests'
   ];
   var exampleRow = [
     'Priya','Sharma','+447700000000','priya@email.com',
     "Bride's Family",'Any notes here','FALSE','"L,S,W"',
-    '4','2','4','2','0','0','4','0','4','2','0','0'
+    '6','6','0','4','6','0'
   ];
   var csv  = [headers.join(','), exampleRow.join(',')].join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
@@ -1840,17 +1829,14 @@ function loadRSVPsTab() {
     return;
   }
 
-  // Compute per-event stats from allRSVPs (wide format: eventId + ' Attending', ' Adults', ' Children')
   var eventCards = allEvents.map(function(ev) {
     var attKey = ev.id + ' Attending';
-    var adKey = ev.id + ' Adults';
-    var chKey = ev.id + ' Children';
-    var yes = 0, no = 0, totalAd = 0, totalCh = 0;
+    var gKey = ev.id + ' Guests';
+    var yes = 0, no = 0, totalGuests = 0;
     allRSVPs.forEach(function(r) {
       if (r[attKey] === 'Yes') {
         yes++;
-        totalAd += Number(r[adKey]) || 0;
-        totalCh += Number(r[chKey]) || 0;
+        totalGuests += Number(r[gKey]) || 0;
       } else if (r[attKey] === 'No') {
         no++;
       }
@@ -1861,8 +1847,7 @@ function loadRSVPsTab() {
       '<div class="event-rsvp-stats">' +
       '<div class="ersvp-stat"><div class="ersvp-num">' + yes + '</div><div class="ersvp-lbl">Yes</div></div>' +
       '<div class="ersvp-stat"><div class="ersvp-num">' + no + '</div><div class="ersvp-lbl">No</div></div>' +
-      '<div class="ersvp-stat"><div class="ersvp-num">' + totalAd + '</div><div class="ersvp-lbl">Adults</div></div>' +
-      '<div class="ersvp-stat"><div class="ersvp-num">' + totalCh + '</div><div class="ersvp-lbl">Children</div></div>' +
+      '<div class="ersvp-stat"><div class="ersvp-num">' + totalGuests + '</div><div class="ersvp-lbl">Guests</div></div>' +
       '</div></div>';
   }).join('');
   breakdownEl.innerHTML = eventCards;
@@ -1875,7 +1860,7 @@ function loadRSVPsTab() {
       if (!att) return '';
       var cls = att === 'Yes' ? 'color:var(--green);' : 'color:var(--red);';
       return '<span style="font-size:.74rem;' + cls + 'margin-right:.7rem;">' + escapeAttr(ev.icon) + ' ' + escapeAttr(att) +
-        (att === 'Yes' ? ' (' + (r[ev.id + ' Adults'] || 0) + 'A, ' + (r[ev.id + ' Children'] || 0) + 'C)' : '') + '</span>';
+        (att === 'Yes' ? ' (' + (r[ev.id + ' Guests'] || 0) + ' guests)' : '') + '</span>';
     }).join('');
 
     return '<div style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">' +

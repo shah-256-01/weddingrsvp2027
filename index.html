@@ -937,26 +937,19 @@ function showRSVPFlow() {
 
   eventRSVPs = {};
   currentEventIds.forEach(function(id) {
-    var alloc       = (currentGuest.allocations && currentGuest.allocations[id]) || {};
-    var maxAdults   = Number(alloc.adults)   || 0;
-    var maxChildren = Number(alloc.children) || 0;
+    var alloc      = (currentGuest.allocations && currentGuest.allocations[id]) || {};
+    var maxGuests  = Number(alloc.guests) || 0;
 
-    // If both are 0, flag as unallocated
-    var isUnallocated = maxAdults === 0 && maxChildren === 0;
-
-    // Default adults to 1 if unallocated — better than blocking entirely
-    if (isUnallocated) maxAdults = 1;
+    var isUnallocated = maxGuests === 0;
+    if (isUnallocated) maxGuests = 1;
 
     eventRSVPs[id] = {
       attending:     null,
-      adults:        maxAdults,
-      children:      maxChildren,
-      maxAdults:     maxAdults,
-      maxChildren:   maxChildren,
+      guests:        maxGuests,
+      maxGuests:     maxGuests,
       notes:         '',
       isUnallocated: isUnallocated,
-      adultNames:    Array(maxAdults).fill(''),
-      childNames:    Array(maxChildren).fill(''),
+      guestNames:    Array(maxGuests).fill(''),
     };
   });
 
@@ -1046,12 +1039,9 @@ function showAlreadySubmittedScreen(existingRSVP) {
   // Build event summary rows
   var eventRows = (existingRSVP.eventSummary || []).map(function(ev) {
     var detail = ev.attending
-      ? (ev.adults + ' adult' + (ev.adults !== 1 ? 's' : '') +
-        (ev.children > 0
-          ? ', ' + ev.children + ' child' + (ev.children !== 1 ? 'ren' : '')
-          : '') +
+      ? ((ev.guests || 0) + ' guest' + ((ev.guests || 0) !== 1 ? 's' : '') +
         (function() {
-          var names = (ev.adultNames || []).concat(ev.childNames || []).filter(Boolean);
+          var names = (ev.names || []).filter(Boolean);
           return names.length ? ' (' + names.map(function(n) { return escapeHtml(n); }).join(', ') + ')' : '';
         })())
       : 'Declined';
@@ -1122,23 +1112,15 @@ function renderEventCards() {
             ? '<div style="font-size:var(--text-ui-sm);color:var(--muted);margin-top:-.4rem;' +
               'margin-bottom:1.2rem;line-height:1.6;">' +
               'Your invitation includes up to <strong style="color:var(--wine);">' +
-              eventRSVPs[id].maxAdults + ' adult' + (eventRSVPs[id].maxAdults !== 1 ? 's' : '') +
-              (eventRSVPs[id].maxChildren > 0
-                ? ' and ' + eventRSVPs[id].maxChildren + ' child' + (eventRSVPs[id].maxChildren !== 1 ? 'ren' : '')
-                : '') +
+              eventRSVPs[id].maxGuests + ' guest' + (eventRSVPs[id].maxGuests !== 1 ? 's' : '') +
               '</strong> for this event.' +
             '</div>'
             : '') +
           '<div class="guest-count-row">' +
-            '<div class="guest-count-item"><label>Adults</label><div class="counter-row">' +
-              '<button class="counter-btn" aria-label="Decrease adults" onclick="adjCount(\'' + safeId + '\',\'adults\',-1)">\u2212</button>' +
-              '<span class="counter-val" id="adults-' + safeId + '" aria-live="polite">' + eventRSVPs[id].adults + '</span>' +
-              '<button class="counter-btn" aria-label="Increase adults" onclick="adjCount(\'' + safeId + '\',\'adults\',1)">+</button>' +
-            '</div></div>' +
-            '<div class="guest-count-item"><label>Children <span style="font-size:var(--text-ui-xs);color:var(--muted)">(under 12)</span></label><div class="counter-row">' +
-              '<button class="counter-btn" aria-label="Decrease children" onclick="adjCount(\'' + safeId + '\',\'children\',-1)">\u2212</button>' +
-              '<span class="counter-val" id="children-' + safeId + '" aria-live="polite">' + eventRSVPs[id].children + '</span>' +
-              '<button class="counter-btn" aria-label="Increase children" onclick="adjCount(\'' + safeId + '\',\'children\',1)">+</button>' +
+            '<div class="guest-count-item"><label>Guests</label><div class="counter-row">' +
+              '<button class="counter-btn" aria-label="Decrease guests" onclick="adjCount(\'' + safeId + '\',\'guests\',-1)">\u2212</button>' +
+              '<span class="counter-val" id="guests-' + safeId + '" aria-live="polite">' + eventRSVPs[id].guests + '</span>' +
+              '<button class="counter-btn" aria-label="Increase guests" onclick="adjCount(\'' + safeId + '\',\'guests\',1)">+</button>' +
             '</div></div>' +
           '</div>' +
           '<div id="names-' + safeId + '" class="name-inputs-container"></div>' +
@@ -1178,13 +1160,11 @@ function setAttending(id, val) {
 
 function adjCount(id, field, delta) {
   var r   = eventRSVPs[id];
-  var max = field === 'adults' ? r.maxAdults : r.maxChildren;
-  if (max === 0 && field === 'adults') max = 1; // safety fallback
-  r[field] = Math.min(max, Math.max(field === 'adults' ? 1 : 0, r[field] + delta));
-  document.getElementById(field + '-' + id).textContent = r[field];
-  var nameArr = field === 'adults' ? r.adultNames : r.childNames;
-  while (nameArr.length < r[field]) nameArr.push('');
-  if (nameArr.length > r[field]) nameArr.length = r[field];
+  var max = r.maxGuests || 1;
+  r.guests = Math.min(max, Math.max(1, r.guests + delta));
+  document.getElementById('guests-' + id).textContent = r.guests;
+  while (r.guestNames.length < r.guests) r.guestNames.push('');
+  if (r.guestNames.length > r.guests) r.guestNames.length = r.guests;
   renderNameInputs(id);
 }
 
@@ -1194,23 +1174,13 @@ function renderNameInputs(id) {
   var r = eventRSVPs[id];
   if (!r.attending) { container.innerHTML = ''; return; }
   var html = '';
-  if (r.adults > 0) {
+  if (r.guests > 0) {
     html += '<div class="name-inputs-group"><span class="field-label" style="margin-bottom:.3rem;">Guest Names</span>';
-    for (var i = 0; i < r.adults; i++) {
+    for (var i = 0; i < r.guests; i++) {
       var safeId = escapeAttr(id);
-      html += '<input type="text" class="name-input" maxlength="100" placeholder="Adult ' + (i + 1) + ' name" ' +
-        'value="' + escapeAttr(r.adultNames[i] || '') + '" ' +
-        'oninput="eventRSVPs[\'' + safeId + '\'].adultNames[' + i + ']=this.value.replace(/\\|/g,\'\')" />';
-    }
-    html += '</div>';
-  }
-  if (r.children > 0) {
-    html += '<div class="name-inputs-group"><span class="field-label" style="margin-bottom:.3rem;">Children Names</span>';
-    for (var j = 0; j < r.children; j++) {
-      var safeId2 = escapeAttr(id);
-      html += '<input type="text" class="name-input" maxlength="100" placeholder="Child ' + (j + 1) + ' name" ' +
-        'value="' + escapeAttr(r.childNames[j] || '') + '" ' +
-        'oninput="eventRSVPs[\'' + safeId2 + '\'].childNames[' + j + ']=this.value.replace(/\\|/g,\'\')" />';
+      html += '<input type="text" class="name-input" maxlength="100" placeholder="Guest ' + (i + 1) + ' name" ' +
+        'value="' + escapeAttr(r.guestNames[i] || '') + '" ' +
+        'oninput="eventRSVPs[\'' + safeId + '\'].guestNames[' + i + ']=this.value.replace(/\\|/g,\'\')" />';
     }
     html += '</div>';
   }
@@ -1387,8 +1357,8 @@ function renderSummary() {
     if (r.attending === null) badge = '<span class="summary-status status-pending">Pending</span>';
     else if (r.attending) {
       badge = '<span class="summary-status status-attending">Attending</span>';
-      detail = ' · ' + r.adults + (r.adults === 1 ? ' adult' : ' adults') + ', ' + r.children + (r.children === 1 ? ' child' : ' children');
-      var allNames = (r.adultNames || []).concat(r.childNames || []).filter(Boolean);
+      detail = ' · ' + r.guests + (r.guests === 1 ? ' guest' : ' guests');
+      var allNames = (r.guestNames || []).filter(Boolean);
       if (allNames.length) detail += ' (' + allNames.map(function(n) { return escapeHtml(n); }).join(', ') + ')';
     }
     else badge = '<span class="summary-status status-declined">Declined</span>';
@@ -1443,11 +1413,9 @@ async function submitRSVP() {
       var evt = EVENTS.find(function(e) { return e.id === id; }) || {};
       return {
         id: id, name: evt.name || id, attending: r.attending,
-        adults:     r.attending ? r.adults   : 0,
-        children:   r.attending ? r.children : 0,
+        guests:     r.attending ? r.guests : 0,
         notes:      r.notes || '',
-        adultNames: r.attending ? (r.adultNames || []).slice(0, r.adults) : [],
-        childNames: r.attending ? (r.childNames || []).slice(0, r.children) : [],
+        names:      r.attending ? (r.guestNames || []).slice(0, r.guests) : [],
       };
     }),
     _syncStatus: 'pending',

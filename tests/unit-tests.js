@@ -103,7 +103,7 @@ const EVENT_IDS = ['L','S','A','G','W','B'];
 
 function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
-  const alloc = EVENT_IDS.flatMap(id => [id + '_adults', id + '_children', id + '_table']);
+  const alloc = EVENT_IDS.flatMap(id => [id + '_guests', id + '_table']);
   return [...fixed, ...alloc];
 }
 
@@ -274,14 +274,12 @@ assert('has first_name', headers.includes('first_name'), true);
 assert('has last_name', headers.includes('last_name'), true);
 assert('has invitation_code', headers.includes('invitation_code'), true);
 assert('has status', headers.includes('status'), true);
-assert('has L_adults', headers.includes('L_adults'), true);
-assert('has L_children', headers.includes('L_children'), true);
-assert('has B_adults', headers.includes('B_adults'), true);
-assert('has B_children', headers.includes('B_children'), true);
+assert('has L_guests', headers.includes('L_guests'), true);
+assert('has B_guests', headers.includes('B_guests'), true);
 assert('has L_table', headers.includes('L_table'), true);
 assert('has W_table', headers.includes('W_table'), true);
 assert('has B_table', headers.includes('B_table'), true);
-assert('total count', headers.length, 11 + EVENT_IDS.length * 3);
+assert('total count', headers.length, 11 + EVENT_IDS.length * 2);
 assert('no duplicates', headers.length, new Set(headers).size);
 
 console.log('\n=== buildCodesMap ===');
