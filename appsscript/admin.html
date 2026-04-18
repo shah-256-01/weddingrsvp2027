@@ -508,6 +508,7 @@ var editingGuestId = null;
 var parsedCSVRows = [];
 var _eventViewGuests = [];
 var _eventViewStats = {};
+var _activityEvents = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'];
 
 // ── HTML escaping for safe interpolation ──
 function escapeAttr(str) {
@@ -1166,7 +1167,6 @@ function hideSessionWarning() {
   if (el) el.remove();
 }
 
-var _activityEvents = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'];
 function startActivityListeners() {
   _activityEvents.forEach(function(evt) {
     document.addEventListener(evt, resetSessionTimer, { passive: true });
