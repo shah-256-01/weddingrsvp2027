@@ -853,7 +853,7 @@ async function submitEntry() {
   try {
     currentGuest    = await validateGuest(firstName, lastName, code);
     currentCode     = currentGuest.invitationCode;
-    currentEventIds = [...currentGuest.events].sort((a, b) => a.localeCompare(b));
+    currentEventIds = [...(currentGuest.events || [])].sort((a, b) => a.localeCompare(b));
     loadGuestPage();
   } catch (err) {
     errEl.textContent = err.message || 'Invalid details. Please check and try again.';
@@ -1440,9 +1440,9 @@ async function submitRSVP() {
     guestEmail:     currentGuest.email || '',
     events: currentEventIds.map(function(id) {
       var r   = eventRSVPs[id];
-      var evt = EVENTS.find(function(e) { return e.id === id; });
+      var evt = EVENTS.find(function(e) { return e.id === id; }) || {};
       return {
-        id: id, name: evt.name, attending: r.attending,
+        id: id, name: evt.name || id, attending: r.attending,
         adults:     r.attending ? r.adults   : 0,
         children:   r.attending ? r.children : 0,
         notes:      r.notes || '',

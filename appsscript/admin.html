@@ -243,7 +243,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
       <div class="view-switcher">
-        <button class="view-btn active" onclick="setGuestView('table')" id="vbtn-table">&#9776; List</button>
+        <button class="view-btn active" onclick="setGuestView('list')" id="vbtn-list">&#9776; List</button>
         <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; By Code</button>
         <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">&#10003; RSVP Status</button>
         <button class="view-btn" onclick="setGuestView('event')" id="vbtn-event">&#128197; By Event</button>
@@ -604,7 +604,7 @@ function checkLogin() {
   google.script.run
     .withSuccessHandler(function(ok) {
       if (ok) {
-        sessionStorage.setItem('adminAuth', '1');
+        try { sessionStorage.setItem('adminAuth', '1'); } catch (e) {}
         loadDashboard();
       } else {
         document.getElementById('pin-error').textContent = 'Incorrect PIN. Please try again.';
@@ -618,9 +618,11 @@ function checkLogin() {
 
 // Auto-login on page load
 (function() {
-  if (sessionStorage.getItem('adminAuth')) {
-    loadDashboard();
-  }
+  try {
+    if (sessionStorage.getItem('adminAuth')) {
+      loadDashboard();
+    }
+  } catch (e) {}
 })();
 
 // ── Tab Switching ──────────────────────────
@@ -655,6 +657,7 @@ function loadEvents() {
       allEvents = data || [];
       renderCSVTab();
       renderSettingsTab();
+      if (allGuests.length) renderGuestView();
     })
     .withFailureHandler(function(err) {
       console.error('Failed to load events:', err);
@@ -716,7 +719,8 @@ function setGuestView(view) {
   currentView = view;
   currentPage = 1;
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('.view-btn[onclick*="' + view + '"]').classList.add('active');
+  var activeBtn = document.querySelector('.view-btn[onclick*="' + view + '"]');
+  if (activeBtn) activeBtn.classList.add('active');
   renderGuestView();
 }
 
@@ -909,7 +913,7 @@ function renderRSVPStatusView(guests, container) {
   var dupHtml = '';
   if (allDuplicates.length > 0) {
     var dupItems = allDuplicates.map(function(d) {
-      var subs = d.submissions.map(function(s, i) {
+      var subs = (d.submissions || []).map(function(s, i) {
         var prefix = i === 0 ? '\u2605 Latest (counted): ' : '\u25CB Earlier: ';
         var ts = s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
         return '<div class="dup-sub">' + prefix + escapeAttr(s.name || 'Unknown') + ' \u00B7 ' + escapeAttr(ts) + '</div>';
@@ -1915,21 +1919,23 @@ function saveMessageConfig() {
 }
 
 function loadChaseTemplate() {
-  var saved = localStorage.getItem(CHASE_TEMPLATE_KEY);
+  var saved = '';
+  try { saved = localStorage.getItem(CHASE_TEMPLATE_KEY); } catch (e) {}
   document.getElementById('msg-chase-template').value = saved || DEFAULT_CHASE_TEMPLATE;
 }
 
 function saveChaseTemplate() {
-  localStorage.setItem(CHASE_TEMPLATE_KEY, document.getElementById('msg-chase-template').value);
+  try { localStorage.setItem(CHASE_TEMPLATE_KEY, document.getElementById('msg-chase-template').value); } catch (e) {}
 }
 
 function loadInviteTemplate() {
-  var saved = localStorage.getItem(INVITE_TEMPLATE_KEY);
+  var saved = '';
+  try { saved = localStorage.getItem(INVITE_TEMPLATE_KEY); } catch (e) {}
   document.getElementById('msg-invite-template').value = saved || DEFAULT_INVITE_TEMPLATE;
 }
 
 function saveInviteTemplate() {
-  localStorage.setItem(INVITE_TEMPLATE_KEY, document.getElementById('msg-invite-template').value);
+  try { localStorage.setItem(INVITE_TEMPLATE_KEY, document.getElementById('msg-invite-template').value); } catch (e) {}
 }
 
 function getUniqueRelationships() {

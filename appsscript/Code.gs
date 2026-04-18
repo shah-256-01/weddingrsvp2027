@@ -734,17 +734,18 @@ function submitRSVP(payload) {
     const byEventHeaders = byEventSheet.getRange(1, 1, 1, byEventSheet.getLastColumn()).getValues()[0];
     events.forEach(ev => {
       const row = new Array(byEventHeaders.length).fill('');
-      row[byEventHeaders.indexOf('timestamp')]       = ts;
-      row[byEventHeaders.indexOf('submission_name')] = sanitizeForSheet(submissionName);
-      row[byEventHeaders.indexOf('invitation_code')] = invitationCode;
-      row[byEventHeaders.indexOf('event_id')]         = ev.id;
-      row[byEventHeaders.indexOf('event_name')]       = ev.name;
-      row[byEventHeaders.indexOf('attending')]         = ev.attending ? 'Yes' : 'No';
-      row[byEventHeaders.indexOf('adults')]            = ev.attending ? (ev.adults   || 0) : 0;
-      row[byEventHeaders.indexOf('children')]          = ev.attending ? (ev.children || 0) : 0;
-      row[byEventHeaders.indexOf('notes')]             = sanitizeForSheet(String(ev.notes || '').slice(0, 500));
-      row[byEventHeaders.indexOf('adult_names')]       = sanitizeForSheet((ev.adultNames || []).join('|'));
-      row[byEventHeaders.indexOf('child_names')]       = sanitizeForSheet((ev.childNames || []).join('|'));
+      const s = (col, val) => { const i = byEventHeaders.indexOf(col); if (i > -1) row[i] = val; };
+      s('timestamp',       ts);
+      s('submission_name', sanitizeForSheet(submissionName));
+      s('invitation_code', invitationCode);
+      s('event_id',        ev.id);
+      s('event_name',      ev.name);
+      s('attending',       ev.attending ? 'Yes' : 'No');
+      s('adults',          ev.attending ? (ev.adults   || 0) : 0);
+      s('children',        ev.attending ? (ev.children || 0) : 0);
+      s('notes',           sanitizeForSheet(String(ev.notes || '').slice(0, 500)));
+      s('adult_names',     sanitizeForSheet((ev.adultNames || []).join('|')));
+      s('child_names',     sanitizeForSheet((ev.childNames || []).join('|')));
       byEventSheet.appendRow(row);
     });
 
