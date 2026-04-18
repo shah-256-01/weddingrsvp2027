@@ -76,6 +76,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .guest-table tr:hover td{background:#faf8f5;}
 .guest-table .guest-name{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);font-weight:400;}
 .guest-table .guest-contact{font-size:.7rem;color:var(--muted);}
+.guest-mobile-meta{display:none;margin-top:.25rem;font-size:.7rem;}
 .code-pill{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.13em;color:var(--wine);background:var(--gold-pale);padding:.16rem .5rem;border-radius:10px;white-space:nowrap;}
 .event-dot{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;font-size:.65rem;margin:.1rem;}
 .rsvp-pill{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.1em;padding:.2rem .6rem;border-radius:20px;white-space:nowrap;}
@@ -180,27 +181,62 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 /* ── Admin Mobile ── */
 @media(max-width:700px){
   .admin-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .admin-tab{padding:.7rem 1rem;font-size:.52rem;}
+  .admin-tab{padding:.7rem 1rem;font-size:.56rem;}
   .stats-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
   .stat-card{min-width:0;}
   .filter-bar{flex-direction:column;}
   .filter-bar input,.filter-bar select{width:100%;min-width:0;}
-  .guest-table{min-width:600px;}
+  .guest-table{font-size:.74rem;}
+  .guest-table th{font-size:.5rem;padding:.45rem .5rem;}
+  .guest-table td{padding:.5rem .5rem;}
+  .guest-table .col-events,.guest-table .col-code,.guest-table .col-rel{display:none;}
+  .guest-mobile-meta{display:block;}
   .form-grid-2{grid-template-columns:1fr;}
   .form-full{grid-column:auto;}
-  .modal{max-width:100%;margin:0;}
+  .modal-overlay{padding:.5rem;}
+  .modal{max-width:100%;margin:0;max-height:95vh;}
+  .modal-header{padding:1rem 1.1rem;}
+  .modal-body{padding:1.1rem;}
+  .modal-footer{padding:.8rem 1.1rem;}
   .view-switcher{gap:.3rem;}
-  .view-switcher .view-btn{font-size:.5rem;padding:.35rem .6rem;}
+  .view-switcher .view-btn{font-size:.52rem;padding:.4rem .7rem;}
   .admin-panel{padding:1rem .75rem;}
   .admin-nav{padding:.6rem .9rem;}
   .row-actions{gap:.2rem;}
-  .row-actions .btn-icon{padding:.35rem;width:26px;height:26px;}
+  .row-actions .btn-icon{padding:.35rem;width:28px;height:28px;}
   .btn{padding:.65rem 1.2rem;font-size:.58rem;}
   .rsvp-breakdown{grid-template-columns:1fr;}
   .event-rsvp-card{margin-bottom:.4rem;}
-  .admin-card{padding:1rem;}
+  .admin-card{padding:.8rem;}
+  .admin-card-title{font-size:.58rem;margin-bottom:.7rem;}
   .pagination{flex-direction:column;align-items:stretch;text-align:center;}
   .pagination-controls{justify-content:center;}
+  .event-tick-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));}
+  .alloc-grid{grid-template-columns:1fr 70px 70px;gap:.35rem .5rem;}
+  .event-filter-bar{gap:.3rem;}
+  .event-filter-btn{font-size:.48rem;padding:.4rem .7rem;}
+  .session-warning{left:.75rem;right:.75rem;bottom:.75rem;flex-direction:column;text-align:center;gap:.6rem;}
+  .group-card-header{padding:.7rem .8rem;flex-direction:column;align-items:flex-start;gap:.4rem;}
+  .group-guest-row{flex-direction:column;align-items:flex-start;gap:.3rem;}
+  .status-guest-row{flex-direction:column;align-items:flex-start;gap:.2rem;}
+  .guest-name-cell{font-size:.88rem;}
+  .csv-drop-zone{padding:1.2rem .8rem;}
+  .csv-preview-table{font-size:.65rem;}
+  .dup-item{padding:.6rem;}
+  .deleted-guest-row{flex-direction:column;align-items:flex-start;gap:.3rem;padding:.5rem .6rem;}
+  .seating-input{min-width:45px;}
+}
+@media(max-width:400px){
+  .admin-tab{padding:.6rem .7rem;font-size:.5rem;letter-spacing:.1em;}
+  .stats-row{grid-template-columns:1fr;gap:.5rem;}
+  .stat-num{font-size:1.5rem;}
+  .stat-lbl{font-size:.46rem;}
+  .view-switcher{gap:.2rem;}
+  .view-switcher .view-btn{font-size:.46rem;padding:.35rem .5rem;letter-spacing:.08em;}
+  .admin-nav-title{font-size:.6rem;letter-spacing:.14em;}
+  .modal-title{font-size:1.1rem;}
+  .form-row label{font-size:.5rem;}
+  .admin-panel{padding:.7rem .5rem;}
 }
 </style></head>
 <body>
@@ -774,9 +810,10 @@ function renderTableView(guests, container) {
 
     return '<tr>' +
       '<td><div class="guest-name">' + fullName + overseasBadge + '</div>' +
-        '<div class="guest-contact">' + contactParts + '</div></td>' +
-      '<td>' + dots + '</td>' +
-      '<td><span class="code-pill">' + code + '</span></td>' +
+        '<div class="guest-contact">' + contactParts + '</div>' +
+        '<div class="guest-mobile-meta"><span class="code-pill">' + code + '</span> ' + dots + '</div></td>' +
+      '<td class="col-events">' + dots + '</td>' +
+      '<td class="col-code"><span class="code-pill">' + code + '</span></td>' +
       '<td><span class="' + rsvpCls + '">' + rsvpLabel + '</span></td>' +
       '<td><div class="row-actions">' +
         '<button class="btn btn-icon btn-ghost" title="View" onclick="openViewGuest(\'' + escapeAttr(g.id) + '\')">&#128065;</button>' +
@@ -788,7 +825,7 @@ function renderTableView(guests, container) {
   container.innerHTML =
     '<div class="admin-card" style="padding:0;overflow:hidden;"><div class="guest-table-wrap">' +
     '<table class="guest-table"><thead><tr>' +
-    '<th>Name</th><th>Events</th><th>Code</th><th>RSVP Status</th><th style="text-align:right;">Actions</th>' +
+    '<th>Name</th><th class="col-events">Events</th><th class="col-code">Code</th><th>RSVP</th><th style="text-align:right;">Actions</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 
   renderPagination(container);
@@ -990,7 +1027,7 @@ function selectEventFilter(eventId) {
     return '<tr>' +
       '<td><div class="guest-name-cell">' + escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')) + overseasBadge + '</div>' +
       '<div class="guest-sub">' + phoneWhatsAppHtml(g.phone) + '</div></td>' +
-      '<td>' + escapeAttr(sanitiseValue(g.relationship)) + '</td>' +
+      '<td class="col-rel">' + escapeAttr(sanitiseValue(g.relationship)) + '</td>' +
       '<td style="text-align:center;">' + (Number(g[eventId + '_adults']) || 0) + '</td>' +
       '<td style="text-align:center;">' + (Number(g[eventId + '_children']) || 0) + '</td>' +
       '<td><span class="rsvp-pill ' + status.cls + '">' + status.label + '</span></td>' +
@@ -1027,7 +1064,7 @@ function selectEventFilter(eventId) {
     '</div>' + seatingStatsHtml +
     '<div class="admin-card"><div class="admin-card-title">' + escapeAttr(evtConfig.icon || '') + ' ' + escapeAttr(evtConfig.name || eventId) + ' — Guest List</div>' +
     '<div class="guest-table-wrap"><table class="guest-table"><thead><tr>' +
-    '<th>Name</th><th>Relationship</th><th>Allocated Adults</th><th>Allocated Children</th><th>RSVP Status</th>' +
+    '<th>Name</th><th class="col-rel">Relationship</th><th>Adults</th><th>Children</th><th>RSVP</th>' +
     (seatingEnabled ? '<th>Table</th>' : '') +
     '</tr></thead><tbody>' + guestRows + '</tbody></table></div>' +
     (seatingEnabled ? '<div style="text-align:right;margin-top:.5rem;"><button class="btn btn-secondary btn-sm" onclick="exportSeatingCSV(\'' + escapeAttr(eventId) + '\')">Export Seating CSV</button></div>' : '') +

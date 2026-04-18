@@ -15,7 +15,7 @@ const NOTIFICATION_EMAIL = 'couple@example.com';
 const GUEST_EMAIL_ENABLED   = true;
 const GUEST_EMAIL_FROM_NAME = 'The Wedding Team';   // ← update with couple names
 const GUEST_EMAIL_REPLY_TO  = 'YOUR_EMAIL@gmail.com'; // ← update with contact email
-const WEDDING_SITE_URL      = 'YOUR_GITHUB_PAGES_URL'; // ← update after deployment
+const WEDDING_SITE_URL      = 'https://jainishanay.com/';
 
 // RSVP deadline — submissions after this date/time are rejected
 // Uses explicit midnight IST (UTC+05:30) so deadline is timezone-consistent
@@ -37,7 +37,8 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.page === 'admin') {
     return HtmlService
       .createHtmlOutputFromFile('admin')
-      .setTitle('Wedding Admin');
+      .setTitle('Wedding Admin')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   }
   // Validate guest — ?action=validate&code=LW2027&firstName=John&lastName=Smith
   if (e && e.parameter && e.parameter.action === 'validate') {
