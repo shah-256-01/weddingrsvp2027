@@ -1494,13 +1494,90 @@ function setupProperties() {
 
 // ── Message Config (server-persisted) ───────────────────
 const DEFAULT_MSG_CONFIG = {
-  settings: { rsvpUrl: '', chaseDeadline: '', inviteDeadline: '', defaultCountryCode: '' },
+  settings: {
+    rsvpUrl: 'https://jainishanay.com',
+    chaseDeadline: '30 November 2026',
+    inviteDeadline: '30 November 2026',
+    defaultCountryCode: '+254',
+  },
   templates: [
-    { id: 't_invite', name: 'Initial Invite', body: 'Hi {{name}},\n\nYou are cordially invited to our wedding celebrations!\n\nYour invitation code: {{code}}\nRSVP here: {{url}}\nPlease respond by: {{deadline}}\n\nWe hope to see you there!' },
-    { id: 't_chase', name: 'Chase-Up', body: 'Hi {{name}},\n\nJust a friendly reminder to RSVP for the wedding!\n\nYour code: {{code}}\nRSVP here: {{url}}\nDeadline: {{deadline}}\n\nLooking forward to hearing from you!' },
+    {
+      id: 't_invite',
+      name: 'Initial Invite',
+      body:
+        'Hi {{name}} \u{1F48C}\n\n' +
+        'Jaini & Shanay would love for you to join them in celebrating their wedding this December.\n\n' +
+        'You can see the full programme of events and RSVP here:\n' +
+        '{{url}}\n\n' +
+        'Your personal invitation code: {{code}}\n\n' +
+        'Please respond by {{deadline}} so we can finalise everything.\n\n' +
+        'Any questions, just reply here.\n\n' +
+        'With love,\nJaini & Shanay',
+    },
+    {
+      id: 't_chase',
+      name: 'Chase-Up',
+      body:
+        'Hi {{name}} \u{1F490}\n\n' +
+        'Just a gentle nudge about our wedding RSVP \u2014 we\u2019d hate to miss you!\n\n' +
+        'RSVP link: {{url}}\n' +
+        'Your code: {{code}}\n\n' +
+        'Please try to respond by {{deadline}}. A quick yes or no on the site really helps us lock in numbers.\n\n' +
+        'Thank you!\nJaini & Shanay',
+    },
+    {
+      id: 't_final_reminder',
+      name: 'Final Reminder',
+      body:
+        'Hi {{name}} \u{23F0}\n\n' +
+        'Final reminder \u2014 our RSVP deadline is {{deadline}}.\n\n' +
+        'If you haven\u2019t yet, please take a moment to respond:\n' +
+        '{{url}}\n' +
+        'Code: {{code}}\n\n' +
+        'Thank you so much!\nJaini & Shanay',
+    },
+    {
+      id: 't_thank_you',
+      name: 'Thank You (post-RSVP)',
+      body:
+        'Hi {{name}} \u{1F49B}\n\n' +
+        'Thank you so much for your RSVP \u2014 we can\u2019t wait to celebrate with you!\n\n' +
+        'You can revisit the site anytime to see event details or your confirmed invitations:\n' +
+        '{{url}}\n\n' +
+        'We\u2019ll be in touch closer to the date with any updates.\n\n' +
+        'With love,\nJaini & Shanay',
+    },
+    {
+      id: 't_save_the_date',
+      name: 'Save the Date',
+      body:
+        'Hi {{name}} \u{1F495}\n\n' +
+        'Save the date \u2014 Jaini & Shanay are getting married this December!\n\n' +
+        'Full invitation and RSVP details are here:\n' +
+        '{{url}}\n\n' +
+        'More to follow soon.\n\n' +
+        'Love,\nJaini & Shanay',
+    },
   ],
   relationshipDefaults: {},
 };
+
+// Force-write DEFAULT_MSG_CONFIG to script properties, overwriting whatever is
+// currently saved. Run this once from the Apps Script editor to push refreshed
+// templates into the live admin when the defaults above have changed (new
+// templates added, wording tweaked, etc.). The admin reads from the saved
+// property on load, so without this the admin keeps its old saved copy
+// indefinitely.
+function seedMessageConfig() {
+  PropertiesService.getScriptProperties().setProperty(
+    'MSG_CONFIG',
+    JSON.stringify(DEFAULT_MSG_CONFIG)
+  );
+  Logger.log(
+    'Seeded MSG_CONFIG with ' + DEFAULT_MSG_CONFIG.templates.length +
+    ' templates and settings ' + JSON.stringify(DEFAULT_MSG_CONFIG.settings)
+  );
+}
 
 function getMessageConfig() {
   try {
