@@ -6,45 +6,60 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
-<title>The Wedding — RSVP</title>
+<title>Jaini &amp; Shanay's Wedding — RSVP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Cinzel:wght@400;600;700&family=Jost:wght@200;300;400&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  --blush:#f5e6da; --rose:#c97b84; --wine:#6b2737; --wine-d:#4a1a25;
-  --gold:#b8924a;  --gold-lt:#e8c87a; --gold-pale:#f7edda;
-  --green:#2d4a3e; --cream:#fdf6ef; --ink:#2a1f1a; --teal:#4a7c74;
-  --muted:#8a7060; --border:rgba(184,146,74,.22);
-  --red:#8b2020;
+  /* Palette */
+  --cream:      #faf5ec;
+  --cream-deep: #f1e8d8;
+  --blush:      #eadacb;
+  --ink:        #2a1a18;
+  --ink-soft:   #5b4a45;
+  --muted:      #8f7c74;
 
-  /* ── Type Scale ── */
-  --text-display-xl: clamp(3.2rem, 10vw, 6rem);
-  --text-display-lg: clamp(2.4rem, 7vw, 3.6rem);
-  --text-display-md: clamp(1.8rem, 4.5vw, 2.4rem);
-  --text-display-sm: 1.4rem;
-  --text-body-lg: 1.2rem;
-  --text-body-md: 1.1rem;
-  --text-body-sm: 1rem;
-  --text-ui-md: 0.95rem;
-  --text-ui-sm: 0.88rem;
-  --text-ui-xs: 0.82rem;
+  --wine:       #6b2737;
+  --wine-deep:  #4a1a25;
+  --gold:       #a6803a;
+  --gold-soft:  #c9a866;
+  --gold-pale:  #eed9a8;
+  --green:      #2d4a3e;
+  --red:        #8b2020;
 
-  /* ── Spacing Scale ── */
-  --space-xs:  0.5rem;
-  --space-sm:  0.75rem;
-  --space-md:  1.25rem;
-  --space-lg:  2rem;
-  --space-xl:  3rem;
-  --space-2xl: 4.5rem;
+  --border:     rgba(108, 56, 22, .14);
+  --rule:       rgba(42, 26, 24, .10);
+
+  /* Type scale */
+  --display-xl: clamp(3.6rem, 11vw, 7rem);
+  --display-lg: clamp(2.6rem, 6vw, 4rem);
+  --display-md: clamp(1.75rem, 3.5vw, 2.4rem);
+  --display-sm: 1.4rem;
+  --body-lg: 1.125rem;
+  --body:    1rem;
+  --ui:      0.9rem;
+  --ui-sm:   0.78rem;
+  --ui-xs:   0.68rem;
+
+  /* Spacing */
+  --s1:.5rem; --s2:.75rem; --s3:1rem; --s4:1.5rem;
+  --s5:2rem;  --s6:3rem;   --s7:4.5rem; --s8:6rem;
+
+  /* Families */
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --sans:  'Jost', 'Helvetica Neue', system-ui, sans-serif;
+  --label: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;}
-body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font-weight:300;font-size:18px;overflow-x:hidden;}
+body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weight:300;font-size:var(--body);line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
 .hidden{display:none!important;}
 .page{display:none;min-height:100vh;}
 .page.active{display:block;}
 #page-landing.active{display:flex;}
+.label{font-family:var(--label);font-weight:500;font-size:var(--ui-sm);letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-feature-settings:"smcp","c2sc";font-variant-caps:all-small-caps;}
+.label-sm{font-size:var(--ui-xs);letter-spacing:.3em;}
 
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:.45rem;padding:0.85rem 1.8rem;font-family:'Cinzel',serif;font-size:var(--text-ui-md);letter-spacing:.2em;text-transform:uppercase;border:none;cursor:pointer;transition:all .22s;border-radius:1px;white-space:nowrap;min-height:48px;}
