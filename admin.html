@@ -792,17 +792,23 @@ function loadDashboard() {
 // ── Data Loading Functions ─────────────────
 
 function loadEvents() {
-  google.script.run
-    .withSuccessHandler(function(data) {
-      allEvents = data || [];
-      renderCSVTab();
-      renderSettingsTab();
-      if (allGuests.length) renderGuestView();
+  if (typeof _showDebug === 'function') _showDebug('→ getEvents (GET)', 'info');
+  fetch(SCRIPT_URL, { credentials: 'omit' })
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (json && json.ok) {
+        if (typeof _showDebug === 'function') _showDebug('✓ getEvents OK', 'ok');
+        allEvents = json.data || [];
+        renderCSVTab();
+        renderSettingsTab();
+        if (allGuests.length) renderGuestView();
+      } else {
+        if (typeof _showDebug === 'function') _showDebug('✗ getEvents: ' + (json && json.error), 'error');
+      }
     })
-    .withFailureHandler(function(err) {
-      console.error('Failed to load events:', err);
-    })
-    .getEvents();
+    .catch(function(err) {
+      if (typeof _showDebug === 'function') _showDebug('✗ getEvents: ' + err.message, 'error');
+    });
 }
 
 function loadStats() {
