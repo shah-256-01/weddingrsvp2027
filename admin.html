@@ -1787,22 +1787,34 @@ function copyGenCode() {
 }
 
 function downloadCSVTemplate() {
-  var headers = [
-    'first_name','last_name','phone','email','relationship',
-    'notes','is_overseas','events',
-    'L_guests',
-    'S_guests',
-    'A_guests',
-    'G_guests',
-    'W_guests',
-    'B_guests'
+  // Column order mirrors the Guests tab after rebuildSheetToTemplate(): all
+  // fixed identity/contact columns first, then one _guests column per event,
+  // then one _table column per event. Invitation code and events list can be
+  // left blank on import — the server auto-generates them from the
+  // per-event guest allocations.
+  var eventIds = (allEvents || []).map(function(e) { return e.id; });
+  if (!eventIds.length) eventIds = ['L', 'S', 'A', 'G', 'W', 'B'];
+
+  var fixed = [
+    'first_name', 'last_name', 'phone', 'email', 'relationship',
+    'is_overseas', 'notes', 'events',
   ];
-  var exampleRow = [
-    'Priya','Sharma','+447700000000','priya@email.com',
-    "Bride's Family",'Any notes here','FALSE','"L,S,W"',
-    '6','6','0','4','6','0'
+  var guestCols = eventIds.map(function(id) { return id + '_guests'; });
+  var tableCols = eventIds.map(function(id) { return id + '_table'; });
+  var headers = fixed.concat(guestCols).concat(tableCols);
+
+  // Example row — family of 2 invited to Mehndi & Sangeet, Wedding, Black Tie
+  var fixedRow = [
+    'Priya', 'Sharma', '+254700000000', 'priya@email.com',
+    "Bride's Family", 'FALSE', 'Vegetarian', '"S,W,B"',
   ];
-  var csv  = [headers.join(','), exampleRow.join(',')].join('\n');
+  var guestRow = eventIds.map(function(id) {
+    return (['S', 'W', 'B'].indexOf(id) >= 0) ? '2' : '0';
+  });
+  var tableRow = eventIds.map(function() { return ''; });
+  var row = fixedRow.concat(guestRow).concat(tableRow);
+
+  var csv  = [headers.join(','), row.join(',')].join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
