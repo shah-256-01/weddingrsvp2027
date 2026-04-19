@@ -242,16 +242,16 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 
 /* ── FAQ Accordion ── */
 .faq-section{max-width:900px;margin:0 auto;padding:3rem 2rem;}
-.faq-category{margin-bottom:2rem;}
-.faq-category-title{font-family:'Cormorant Garamond',serif;font-size:var(--display-sm);font-style:italic;color:var(--wine);margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);}
-.faq-item{border:1px solid var(--border);margin-bottom:.5rem;background:#fff;overflow:hidden;}
-.faq-question{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;cursor:pointer;font-family:'Jost',sans-serif;font-size:var(--ui);color:var(--ink);user-select:none;transition:background .2s;min-height:48px;}
-.faq-question:hover{background:var(--blush);}
-.faq-arrow{font-size:var(--ui-sm);color:var(--gold);transition:transform .25s;flex-shrink:0;}
-.faq-item.open .faq-arrow{transform:rotate(90deg);}
+.faq-category{margin-bottom:2.2rem;}
+.faq-category-title{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--rule);}
+.faq-item{border-bottom:1px solid var(--rule);background:transparent;overflow:hidden;}
+.faq-question{display:flex;align-items:center;justify-content:space-between;padding:1.3rem 0;cursor:pointer;font-family:var(--serif);font-size:1.3rem;color:var(--wine);user-select:none;transition:color .15s;min-height:56px;gap:1rem;}
+.faq-question:hover{color:var(--gold);}
+.faq-arrow{font-size:1rem;color:var(--gold);transition:transform .25s;flex-shrink:0;font-family:var(--serif);font-style:italic;}
+.faq-item.open .faq-arrow{transform:rotate(45deg);}
 .faq-answer{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(0.23,1,0.32,1);}
 .faq-item.open .faq-answer{max-height:500px;}
-.faq-answer-inner{padding:0 1.2rem 1rem;font-size:var(--ui);color:var(--muted);line-height:1.7;}
+.faq-answer-inner{padding:0 0 1.2rem;font-size:var(--body);color:var(--ink-soft);line-height:1.7;}
 
 /* ── Overseas Info ── */
 .overseas-section{max-width:900px;margin:0 auto;padding:3rem 2rem;}
@@ -564,19 +564,19 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <div class="faq-category">
         <div class="faq-category-title">Events</div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>What is the dress code?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>What is the dress code?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe dress code for each event, e.g. traditional attire for the wedding ceremony, smart casual for Meet &amp; Greet, formal for Black Tie, etc.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>What time should I arrive?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>What time should I arrive?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide suggested arrival times for each event. The exact times are shown on each RSVP card.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>Are children welcome?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>Are children welcome?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe your children policy, e.g. children are welcome at all events, or specify age limits.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>Can I bring a plus-one?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>Can I bring a plus-one?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — explain your plus-one policy, e.g. guest allocations are set per invitation.]</div></div>
         </div>
       </div>
@@ -584,15 +584,15 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <div class="faq-category">
         <div class="faq-category-title">Getting There</div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>Where is the venue?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>Where is the venue?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide venue address, Google Maps link, and any landmarks to look for.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>Is parking available?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>Is parking available?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — describe parking options, valet services, or alternative transport.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>Is there accommodation nearby?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>Is there accommodation nearby?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — list nearby hotels, group rates if available, or accommodation blocks you have reserved.]</div></div>
         </div>
       </div>
@@ -600,15 +600,15 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <div class="faq-category">
         <div class="faq-category-title">General</div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>When is the RSVP deadline?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>When is the RSVP deadline?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — e.g. Please respond by 30th November 2027 so we can finalise arrangements.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>What if I need to change my RSVP?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>What if I need to change my RSVP?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — explain how guests can update their RSVP, e.g. contact the couple directly.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
-          <div class="faq-question"><span>Who should I contact with questions?</span><span class="faq-arrow">&#9654;</span></div>
+          <div class="faq-question"><span>Who should I contact with questions?</span><span class="faq-arrow">+</span></div>
           <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — provide a contact name, phone number, or email for wedding queries.]</div></div>
         </div>
       </div>
