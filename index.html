@@ -195,6 +195,29 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .status-attending{color:var(--green);}
 .status-declined{color:var(--red);}
 .status-pending{color:var(--muted);}
+/* Invitation cards shown to returning guests after they've RSVP'd ── one per attending event */
+.invite-cards-wrap{display:flex;flex-direction:column;gap:1.1rem;max-width:520px;margin:0 auto 1.8rem;text-align:left;}
+.invite-cards-heading{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.3em;color:var(--gold);text-transform:uppercase;text-align:center;margin-bottom:.3rem;}
+.invite-card{background:#fff;border:1px solid var(--border);border-left:4px solid var(--gold);padding:1.4rem 1.5rem;border-radius:2px;position:relative;box-shadow:0 2px 12px rgba(107,39,55,.05);}
+.invite-card::before{content:'';position:absolute;top:.6rem;right:.6rem;width:10px;height:10px;background:var(--gold);transform:rotate(45deg);opacity:.45;}
+.invite-card-top{display:flex;align-items:center;gap:1rem;margin-bottom:.9rem;}
+.invite-card-icon{width:54px;height:54px;border-radius:50%;background:var(--gold-pale);color:var(--wine);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;}
+.invite-card-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--text-display-sm);color:var(--wine);line-height:1.2;}
+.invite-card-eyebrow{font-family:'Cinzel',serif;font-size:var(--text-ui-xs);letter-spacing:.22em;color:var(--gold);text-transform:uppercase;margin-bottom:.15rem;}
+.invite-card-meta{display:grid;grid-template-columns:auto 1fr;gap:.4rem .9rem;margin:.6rem 0 .9rem;font-size:var(--text-body-sm);}
+.invite-card-meta dt{font-family:'Cinzel',serif;font-size:var(--text-ui-xs);letter-spacing:.14em;color:var(--muted);text-transform:uppercase;align-self:center;}
+.invite-card-meta dd{color:var(--ink);margin:0;align-self:center;}
+.invite-card-footer{display:flex;align-items:center;gap:.55rem;padding-top:.8rem;border-top:1px dashed var(--border);font-size:var(--text-ui-sm);color:var(--green);font-family:'Cinzel',serif;letter-spacing:.08em;}
+.invite-card-footer-check{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;font-size:.75rem;flex-shrink:0;}
+.invite-card-names{color:var(--muted);font-family:'Jost',sans-serif;letter-spacing:0;font-size:var(--text-body-sm);margin-left:.3rem;}
+@media(max-width:600px){
+  .invite-cards-wrap{gap:.9rem;margin-bottom:1.3rem;}
+  .invite-card{padding:1.1rem 1.15rem;}
+  .invite-card-top{gap:.75rem;margin-bottom:.7rem;}
+  .invite-card-icon{width:44px;height:44px;font-size:1.3rem;}
+  .invite-card-meta{gap:.35rem .7rem;margin:.45rem 0 .75rem;}
+  .invite-card-footer{flex-wrap:wrap;}
+}
 .submit-section{max-width:900px;margin:0 auto;padding:0 1.5rem 5rem;text-align:center;}
 .submit-note{font-size:var(--text-body-sm);color:var(--muted);margin-bottom:1.4rem;line-height:1.7;}
 #submit-btn{width:100%;max-width:400px;min-height:56px;font-size:var(--text-ui-md);letter-spacing:.2em;justify-content:center;}
@@ -1036,13 +1059,45 @@ function showAlreadySubmittedScreen(existingRSVP) {
     });
   } catch (e) {}
 
-  // Build event summary rows
-  var eventRows = (existingRSVP.eventSummary || []).map(function(ev) {
+  var summary = existingRSVP.eventSummary || [];
+
+  // Build invitation cards for events the guest is attending — each card is their keepsake invite
+  var attendingCards = summary
+    .filter(function(ev) { return ev.attending; })
+    .map(function(ev) {
+      var evt = EVENTS.find(function(e) { return e.id === ev.id; }) || {};
+      var guests = Number(ev.guests) || 0;
+      var names = (ev.names || []).filter(Boolean).map(function(n) { return escapeHtml(n); }).join(', ');
+      var dateLine = [evt.date, evt.time].filter(Boolean).map(escapeHtml).join(' &middot; ');
+      return '<article class="invite-card">' +
+          '<div class="invite-card-top">' +
+            '<div class="invite-card-icon">' + escapeHtml(evt.icon || ev.icon || '') + '</div>' +
+            '<div>' +
+              '<div class="invite-card-eyebrow">You\u2019re invited</div>' +
+              '<div class="invite-card-title">' + escapeHtml(evt.name || ev.name || '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          (dateLine || evt.venue
+            ? '<dl class="invite-card-meta">' +
+                (dateLine ? '<dt>When</dt><dd>' + dateLine + '</dd>' : '') +
+                (evt.venue ? '<dt>Where</dt><dd>' + escapeHtml(evt.venue) + '</dd>' : '') +
+              '</dl>'
+            : '') +
+          '<div class="invite-card-footer">' +
+            '<span class="invite-card-footer-check">\u2713</span>' +
+            'Confirmed \u00b7 ' + guests + ' guest' + (guests !== 1 ? 's' : '') +
+            (names ? '<span class="invite-card-names">' + names + '</span>' : '') +
+          '</div>' +
+        '</article>';
+    }).join('');
+
+  // Compact summary row (attending + declined) for at-a-glance reference
+  var eventRows = summary.map(function(ev) {
     var detail = ev.attending
       ? ((ev.guests || 0) + ' guest' + ((ev.guests || 0) !== 1 ? 's' : '') +
         (function() {
-          var names = (ev.names || []).filter(Boolean);
-          return names.length ? ' (' + names.map(function(n) { return escapeHtml(n); }).join(', ') + ')' : '';
+          var ns = (ev.names || []).filter(Boolean);
+          return ns.length ? ' (' + ns.map(function(n) { return escapeHtml(n); }).join(', ') + ')' : '';
         })())
       : 'Declined';
     var statusClass = ev.attending ? 'status-attending' : 'status-declined';
@@ -1060,6 +1115,10 @@ function showAlreadySubmittedScreen(existingRSVP) {
       'We received a response for <strong>' + escapeHtml(existingRSVP.submissionName || 'your family') + '</strong> ' +
       'on ' + submittedDate + '.' +
     '</p>' +
+    (attendingCards
+      ? '<div class="invite-cards-heading">Your invitations</div>' +
+        '<div class="invite-cards-wrap">' + attendingCards + '</div>'
+      : '') +
     (eventRows
       ? '<div class="summary-card" style="max-width:480px;margin:0 auto 1.5rem;text-align:left;">' +
           '<div class="summary-title">Your responses</div>' +
