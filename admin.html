@@ -366,14 +366,52 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 
   <!-- ── TAB: RSVPs ── -->
   <div class="admin-panel" id="tab-rsvps">
+    <!-- Filters -->
+    <div class="filter-bar" id="rsvp-filter-bar">
+      <input type="text" id="rsvp-search" placeholder="Search name or code..." oninput="applyRSVPFilters()"/>
+      <select id="rsvp-event-filter" onchange="applyRSVPFilters()">
+        <option value="">All events</option>
+      </select>
+      <select id="rsvp-response-filter" onchange="applyRSVPFilters()">
+        <option value="">All responses</option>
+        <option value="attending">Attending any</option>
+        <option value="declined">Declined all</option>
+        <option value="mixed">Mixed (some yes, some no)</option>
+      </select>
+      <select id="rsvp-relationship-filter" onchange="applyRSVPFilters()">
+        <option value="">All relationships</option>
+      </select>
+      <select id="rsvp-sort" onchange="applyRSVPFilters()">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="name">Name A&rarr;Z</option>
+      </select>
+    </div>
+
+    <!-- View switcher + export -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
+      <div class="view-switcher">
+        <button class="view-btn active" onclick="setRSVPView('submissions')" id="rvbtn-submissions">&#9776; Submissions</button>
+        <button class="view-btn" onclick="setRSVPView('event')" id="rvbtn-event">&#128197; By Event</button>
+        <button class="view-btn" onclick="setRSVPView('matrix')" id="rvbtn-matrix">&#8862; Matrix</button>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="clearRSVPFilters()">Clear filters</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportFilteredRSVPsCSV()">&#8595; Export CSV</button>
+      </div>
+    </div>
+
+    <!-- Event breakdown (reflects current filter) -->
     <div style="margin-bottom:1.2rem;">
       <div class="rsvp-breakdown" id="rsvp-event-breakdown">
         <div class="skeleton-loader"></div>
       </div>
     </div>
+
+    <!-- View container -->
     <div class="admin-card">
-      <div class="admin-card-title">Submitted RSVPs</div>
-      <div id="rsvp-responses-list"><div class="skeleton-loader"></div></div>
+      <div class="admin-card-title" id="rsvp-view-title">Submissions</div>
+      <div id="rsvp-view-container"><div class="skeleton-loader"></div></div>
     </div>
   </div>
 
@@ -1910,26 +1948,179 @@ function clearCSV() {
 //   RSVPs TAB
 // ══════════════════════════════════════════════
 
+// ── RSVPs tab state ───────────────────────────────────────
+var rsvpFilters = { search: '', eventId: '', response: '', relationship: '', sort: 'newest' };
+var rsvpView = 'submissions';
+var _rsvpFilterOptionsPopulated = false;
+
 function loadRSVPsTab() {
-  // Event breakdown cards
-  var breakdownEl = document.getElementById('rsvp-event-breakdown');
-  if (!allEvents.length || !allRSVPs.length) {
-    breakdownEl.innerHTML = '<div class="empty-state">No RSVP data yet.</div>';
-    document.getElementById('rsvp-responses-list').innerHTML = '<div class="empty-state">No RSVPs submitted yet.</div>';
+  populateRSVPFilterOptions();
+  renderRSVPsTab();
+}
+
+function populateRSVPFilterOptions() {
+  if (_rsvpFilterOptionsPopulated) return;
+  _rsvpFilterOptionsPopulated = true;
+
+  var evSel = document.getElementById('rsvp-event-filter');
+  if (evSel && allEvents.length) {
+    evSel.innerHTML = '<option value="">All events</option>' +
+      allEvents.map(function(ev) {
+        return '<option value="' + escapeAttr(ev.id) + '">' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</option>';
+      }).join('');
+  }
+
+  var relSel = document.getElementById('rsvp-relationship-filter');
+  if (relSel) {
+    var rels = {};
+    allGuests.forEach(function(g) {
+      var r = (g.relationship || '').trim();
+      if (r) rels[r] = true;
+    });
+    relSel.innerHTML = '<option value="">All relationships</option>' +
+      Object.keys(rels).sort().map(function(r) {
+        return '<option value="' + escapeAttr(r) + '">' + escapeAttr(r) + '</option>';
+      }).join('');
+  }
+}
+
+function applyRSVPFilters() {
+  rsvpFilters.search       = (document.getElementById('rsvp-search').value || '').toLowerCase().trim();
+  rsvpFilters.eventId      = document.getElementById('rsvp-event-filter').value;
+  rsvpFilters.response     = document.getElementById('rsvp-response-filter').value;
+  rsvpFilters.relationship = document.getElementById('rsvp-relationship-filter').value;
+  rsvpFilters.sort         = document.getElementById('rsvp-sort').value;
+  renderRSVPsTab();
+}
+
+function clearRSVPFilters() {
+  document.getElementById('rsvp-search').value = '';
+  document.getElementById('rsvp-event-filter').value = '';
+  document.getElementById('rsvp-response-filter').value = '';
+  document.getElementById('rsvp-relationship-filter').value = '';
+  document.getElementById('rsvp-sort').value = 'newest';
+  applyRSVPFilters();
+}
+
+function setRSVPView(v) {
+  rsvpView = v;
+  document.querySelectorAll('#tab-rsvps .view-switcher .view-btn').forEach(function(b) { b.classList.remove('active'); });
+  var btn = document.getElementById('rvbtn-' + v);
+  if (btn) btn.classList.add('active');
+  renderRSVPsTab();
+}
+
+function _rsvpGuestsByCode() {
+  var map = {};
+  allGuests.forEach(function(g) {
+    var c = String(g.invitation_code || '').toUpperCase().trim();
+    if (!c) return;
+    if (!map[c]) map[c] = [];
+    map[c].push(g);
+  });
+  return map;
+}
+
+function getFilteredRSVPs() {
+  var byCode = _rsvpGuestsByCode();
+
+  var filtered = (allRSVPs || []).filter(function(r) {
+    if (String(r.status || '').toUpperCase() === 'DELETED') return false;
+
+    // Search: submission name or invitation code
+    if (rsvpFilters.search) {
+      var hay = ((r.submission_name || '') + ' ' + (r.invitation_code || '')).toLowerCase();
+      if (hay.indexOf(rsvpFilters.search) < 0) return false;
+    }
+
+    // Event + response filter
+    if (rsvpFilters.eventId) {
+      var att = r[rsvpFilters.eventId + ' Attending'];
+      if (!att) return false;
+      if (rsvpFilters.response === 'attending' && att !== 'Yes') return false;
+      if (rsvpFilters.response === 'declined'  && att !== 'No')  return false;
+      if (rsvpFilters.response === 'mixed') {
+        // "mixed" with a specific event selected doesn't make sense; treat as no-op.
+      }
+    } else if (rsvpFilters.response) {
+      var hasYes = false, hasNo = false;
+      (allEvents || []).forEach(function(ev) {
+        var a = r[ev.id + ' Attending'];
+        if (a === 'Yes') hasYes = true;
+        else if (a === 'No') hasNo = true;
+      });
+      if (rsvpFilters.response === 'attending' && !hasYes) return false;
+      if (rsvpFilters.response === 'declined'  && (hasYes || !hasNo)) return false;
+      if (rsvpFilters.response === 'mixed'     && !(hasYes && hasNo)) return false;
+    }
+
+    // Relationship filter (via the guest family)
+    if (rsvpFilters.relationship) {
+      var code = String(r.invitation_code || '').toUpperCase().trim();
+      var family = byCode[code] || [];
+      var hasRel = family.some(function(g) { return g.relationship === rsvpFilters.relationship; });
+      if (!hasRel) return false;
+    }
+
+    return true;
+  });
+
+  filtered.sort(function(a, b) {
+    if (rsvpFilters.sort === 'oldest') return new Date(a.timestamp || 0) - new Date(b.timestamp || 0);
+    if (rsvpFilters.sort === 'name')   return String(a.submission_name || '').localeCompare(String(b.submission_name || ''));
+    return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+  });
+
+  return filtered;
+}
+
+function renderRSVPsTab() {
+  if (!allEvents.length) {
+    document.getElementById('rsvp-event-breakdown').innerHTML = '<div class="empty-state">Loading events...</div>';
+    document.getElementById('rsvp-view-container').innerHTML = '';
     return;
   }
 
-  var eventCards = allEvents.map(function(ev) {
+  var filtered = getFilteredRSVPs();
+  renderRSVPEventBreakdown(filtered);
+
+  var container = document.getElementById('rsvp-view-container');
+  var titleEl = document.getElementById('rsvp-view-title');
+
+  if (!filtered.length) {
+    var empty = (allRSVPs || []).length
+      ? 'No RSVPs match the current filters.'
+      : 'No RSVPs submitted yet.';
+    container.innerHTML = '<div class="empty-state">' + empty + '</div>';
+    if (titleEl) titleEl.textContent = 'No results';
+    return;
+  }
+
+  if (rsvpView === 'event') {
+    titleEl.textContent = 'By Event';
+    container.innerHTML = renderRSVPByEventView(filtered);
+  } else if (rsvpView === 'matrix') {
+    titleEl.textContent = 'Attendance Matrix (' + filtered.length + ')';
+    container.innerHTML = renderRSVPMatrixView(filtered);
+  } else {
+    titleEl.textContent = 'Submissions (' + filtered.length + ')';
+    container.innerHTML = renderRSVPSubmissionsView(filtered);
+  }
+}
+
+function renderRSVPEventBreakdown(filtered) {
+  var breakdownEl = document.getElementById('rsvp-event-breakdown');
+  if (!filtered.length) {
+    breakdownEl.innerHTML = '<div class="empty-state" style="padding:1rem;">No matches.</div>';
+    return;
+  }
+  breakdownEl.innerHTML = allEvents.map(function(ev) {
     var attKey = ev.id + ' Attending';
     var gKey = ev.id + ' Guests';
     var yes = 0, no = 0, totalGuests = 0;
-    allRSVPs.forEach(function(r) {
-      if (r[attKey] === 'Yes') {
-        yes++;
-        totalGuests += Number(r[gKey]) || 0;
-      } else if (r[attKey] === 'No') {
-        no++;
-      }
+    filtered.forEach(function(r) {
+      if (r[attKey] === 'Yes') { yes++; totalGuests += Number(r[gKey]) || 0; }
+      else if (r[attKey] === 'No') { no++; }
     });
     return '<div class="event-rsvp-card">' +
       '<div class="event-rsvp-header"><span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
@@ -1940,11 +2131,11 @@ function loadRSVPsTab() {
       '<div class="ersvp-stat"><div class="ersvp-num">' + totalGuests + '</div><div class="ersvp-lbl">Guests</div></div>' +
       '</div></div>';
   }).join('');
-  breakdownEl.innerHTML = eventCards;
+}
 
-  // Response list
-  var listEl = document.getElementById('rsvp-responses-list');
-  var html = allRSVPs.map(function(r) {
+function renderRSVPSubmissionsView(filtered) {
+  var byCode = _rsvpGuestsByCode();
+  return filtered.map(function(r) {
     var evDetails = allEvents.map(function(ev) {
       var att = r[ev.id + ' Attending'];
       if (!att) return '';
@@ -1953,12 +2144,123 @@ function loadRSVPsTab() {
         (att === 'Yes' ? ' (' + (r[ev.id + ' Guests'] || 0) + ' guests)' : '') + '</span>';
     }).join('');
 
+    var code = String(r.invitation_code || '').toUpperCase().trim();
+    var family = byCode[code] || [];
+    var rel = family.length ? escapeAttr(family[0].relationship || '') : '';
+    var relPart = rel ? ' &middot; ' + rel : '';
+
     return '<div style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">' +
       '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:1rem;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(r.timestamp || '') + ' &middot; <span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div></div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(r.timestamp || '') + ' &middot; <span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span>' + relPart + '</div></div>' +
       '<div class="rsvp-evt-wrap">' + evDetails + '</div></div>';
   }).join('');
-  listEl.innerHTML = html || '<div class="empty-state">No responses yet.</div>';
+}
+
+function renderRSVPByEventView(filtered) {
+  return allEvents.map(function(ev) {
+    var attending = [], declining = [];
+    filtered.forEach(function(r) {
+      var a = r[ev.id + ' Attending'];
+      if (a === 'Yes') attending.push(r);
+      else if (a === 'No') declining.push(r);
+    });
+    var row = function(r) {
+      var g = Number(r[ev.id + ' Guests']) || 0;
+      return '<div class="summary-row" style="border-bottom:1px solid rgba(0,0,0,.05);padding:.4rem 0;font-size:.78rem;">' +
+        '<span>' + escapeAttr(r.submission_name || '') + '</span>' +
+        '<span class="summary-status" style="color:var(--muted);">' + (g ? g + ' guest' + (g !== 1 ? 's' : '') : '') + '</span>' +
+      '</div>';
+    };
+    var block = function(title, arr, cls) {
+      if (!arr.length) return '';
+      return '<div style="margin-top:.6rem;">' +
+        '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.14em;color:' + cls + ';text-transform:uppercase;margin-bottom:.3rem;">' + title + ' (' + arr.length + ')</div>' +
+        arr.map(row).join('') +
+      '</div>';
+    };
+    return '<div class="admin-card" style="margin-bottom:1rem;padding:1rem;">' +
+      '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">' +
+        '<span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
+        '<span style="font-family:\'Cormorant Garamond\',serif;font-size:1.1rem;color:var(--wine);">' + escapeAttr(ev.name) + '</span>' +
+      '</div>' +
+      block('Attending', attending, 'var(--green)') +
+      block('Declined',  declining, 'var(--red)') +
+      (!attending.length && !declining.length
+        ? '<div class="empty-state" style="padding:.5rem;">No responses for this event.</div>'
+        : '') +
+    '</div>';
+  }).join('');
+}
+
+function renderRSVPMatrixView(filtered) {
+  var header = '<tr><th style="text-align:left;">Guest</th>' +
+    allEvents.map(function(ev) {
+      return '<th title="' + escapeAttr(ev.name) + '" style="text-align:center;">' + escapeAttr(ev.icon) + '</th>';
+    }).join('') +
+    '<th style="text-align:right;">Total guests</th></tr>';
+
+  var rows = filtered.map(function(r) {
+    var cells = allEvents.map(function(ev) {
+      var a = r[ev.id + ' Attending'];
+      var g = Number(r[ev.id + ' Guests']) || 0;
+      if (a === 'Yes') return '<td style="text-align:center;color:var(--green);font-weight:600;" title="Attending' + (g ? ' &middot; ' + g + ' guests' : '') + '">\u2713' + (g ? ' ' + g : '') + '</td>';
+      if (a === 'No')  return '<td style="text-align:center;color:var(--red);"   title="Declined">\u2715</td>';
+      return '<td style="text-align:center;color:var(--muted);">&mdash;</td>';
+    }).join('');
+    var total = allEvents.reduce(function(s, ev) {
+      return s + (r[ev.id + ' Attending'] === 'Yes' ? (Number(r[ev.id + ' Guests']) || 0) : 0);
+    }, 0);
+    return '<tr>' +
+      '<td style="text-align:left;">' +
+        '<div style="font-family:\'Cormorant Garamond\',serif;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
+        '<div style="font-size:.6rem;color:var(--muted);"><span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div>' +
+      '</td>' + cells +
+      '<td style="text-align:right;font-weight:600;">' + total + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="guest-table-wrap"><table class="guest-table">' +
+    '<thead>' + header + '</thead>' +
+    '<tbody>' + rows + '</tbody>' +
+  '</table></div>';
+}
+
+function exportFilteredRSVPsCSV() {
+  var filtered = getFilteredRSVPs();
+  if (!filtered.length) { alert('No RSVPs to export.'); return; }
+  var byCode = _rsvpGuestsByCode();
+
+  var esc = function(v) {
+    var s = v == null ? '' : String(v);
+    // Guard against CSV formula injection (=, +, -, @, tab, CR)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+
+  var headers = ['timestamp', 'submission_name', 'invitation_code', 'relationship'];
+  allEvents.forEach(function(ev) {
+    headers.push(ev.id + '_attending', ev.id + '_guests');
+  });
+  var rows = filtered.map(function(r) {
+    var code = String(r.invitation_code || '').toUpperCase().trim();
+    var fam  = byCode[code] || [];
+    var rel  = fam.length ? (fam[0].relationship || '') : '';
+    var base = [r.timestamp || '', r.submission_name || '', r.invitation_code || '', rel];
+    allEvents.forEach(function(ev) {
+      base.push(r[ev.id + ' Attending'] || '');
+      base.push(r[ev.id + ' Guests'] || '');
+    });
+    return base.map(esc).join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'rsvps-filtered.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ══════════════════════════════════════════════
