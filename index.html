@@ -215,6 +215,18 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .already-seal svg{width:32px;height:32px;color:var(--gold);}
 .success-title{font-family:var(--serif);font-style:italic;font-size:var(--display-lg);color:var(--wine);margin-bottom:.75rem;}
 .success-sub{font-size:var(--body);color:var(--ink-soft);line-height:1.9;max-width:480px;margin-bottom:2rem;}
+.invite-cards-wrap{display:flex;flex-direction:column;gap:1rem;text-align:left;max-width:520px;width:100%;margin:0 auto 2.2rem;}
+.invite-card{background:#fff;border:1px solid var(--rule);padding:1.5rem 1.6rem;position:relative;transition:transform .25s ease,box-shadow .25s ease;}
+.invite-card:hover{transform:translateY(-1px);box-shadow:0 12px 36px -18px rgba(107,39,55,.22);}
+.invite-card-top{display:flex;align-items:baseline;gap:1rem;margin-bottom:.9rem;}
+.invite-card-numeral{font-family:var(--serif);font-style:italic;color:var(--gold);font-size:2rem;line-height:1;min-width:40px;}
+.invite-card-eyebrow{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.3em;color:var(--muted);text-transform:uppercase;margin-bottom:.15rem;}
+.invite-card-title{font-family:var(--serif);font-style:italic;color:var(--wine);font-size:1.5rem;line-height:1.2;}
+.invite-card-meta{display:grid;grid-template-columns:auto 1fr;gap:.5rem 1rem;margin:1rem 0 1.1rem;padding:1rem 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+.invite-card-meta dt{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.2em;color:var(--muted);text-transform:uppercase;align-self:baseline;padding-top:.15rem;}
+.invite-card-meta dd{color:var(--ink);margin:0;font-family:var(--serif);font-size:1.1rem;}
+.invite-card-footer{display:flex;align-items:center;gap:.7rem;font-size:var(--ui);color:var(--green);font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";letter-spacing:.18em;text-transform:uppercase;flex-wrap:wrap;}
+.invite-card-footer-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;font-size:.7rem;flex-shrink:0;}
 
 .loading-spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;margin:1rem auto;}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -1088,41 +1100,67 @@ function showAlreadySubmittedScreen(existingRSVP) {
     });
   } catch (e) {}
 
-  // Build event summary rows
-  var eventRows = (existingRSVP.eventSummary || []).map(function(ev) {
-    var detail = ev.attending
-      ? (ev.adults + ' adult' + (ev.adults !== 1 ? 's' : '') +
-        (ev.children > 0
-          ? ', ' + ev.children + ' child' + (ev.children !== 1 ? 'ren' : '')
-          : '') +
-        (function() {
-          var names = (ev.adultNames || []).concat(ev.childNames || []).filter(Boolean);
-          return names.length ? ' (' + names.map(function(n) { return escapeHtml(n); }).join(', ') + ')' : '';
-        })())
-      : 'Declined';
+  var summary = existingRSVP.eventSummary || [];
+  var attendingEvents = summary.filter(function(ev){ return ev.attending; });
+
+  // Build keepsake invitation cards for attending events only
+  var inviteCards = attendingEvents.map(function(ev, i) {
+    var numeral = ROMAN[i] || String(i + 1);
+    var guests = (Number(ev.adults) || 0) + (Number(ev.children) || 0);
+    return '<article class="invite-card">' +
+      '<div class="invite-card-top">' +
+        '<div class="invite-card-numeral">' + numeral + '</div>' +
+        '<div>' +
+          '<div class="invite-card-eyebrow">You are invited to</div>' +
+          '<div class="invite-card-title">' + escapeHtml(ev.name) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<dl class="invite-card-meta">' +
+        '<dt>When</dt><dd>' + escapeHtml(ev.date || '') + (ev.time ? ' &middot; ' + escapeHtml(ev.time) : '') + '</dd>' +
+        '<dt>Where</dt><dd>' + escapeHtml(ev.venue || '&mdash;') + '</dd>' +
+      '</dl>' +
+      '<div class="invite-card-footer">' +
+        '<span class="invite-card-footer-check">\u2713</span>' +
+        'Confirmed &middot; ' + guests + ' guest' + (guests === 1 ? '' : 's') +
+      '</div>' +
+    '</article>';
+  }).join('');
+
+  // "All responses" summary rows (attending + regrets)
+  var allRows = summary.map(function(ev) {
     var statusClass = ev.attending ? 'status-attending' : 'status-declined';
+    var statusText  = ev.attending ? 'Attending' : 'Regrets';
     return '<div class="summary-row">' +
-      '<span>' + escapeHtml(ev.icon) + ' ' + escapeHtml(ev.name) + '</span>' +
-      '<span class="summary-status ' + statusClass + '">' + escapeHtml(detail) + '</span>' +
+      '<span class="summary-name">' + escapeHtml(ev.name) + '</span>' +
+      '<span class="summary-status ' + statusClass + '">' + statusText + '</span>' +
     '</div>';
   }).join('');
 
   var screen = document.getElementById('already-submitted-screen');
   screen.innerHTML =
-    '<div class="success-icon">\u2709\uFE0F</div>' +
-    '<h2 class="success-title">We have your RSVP</h2>' +
+    '<div class="already-seal">' +
+      '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
+        '<path d="M6 10 L16 19 L26 10"/>' +
+        '<path d="M6 10 L6 23 L26 23 L26 10"/>' +
+        '<path d="M6 10 L16 3 L26 10"/>' +
+      '</svg>' +
+    '</div>' +
+    '<h2 class="success-title">Your response is received</h2>' +
     '<p class="success-sub" style="margin-bottom:1.5rem;">' +
-      'We received a response for <strong>' + escapeHtml(existingRSVP.submissionName || 'your family') + '</strong> ' +
-      'on ' + submittedDate + '.' +
+      'A reply for <strong>' + escapeHtml(existingRSVP.submissionName || 'your family') + '</strong> ' +
+      'was noted on ' + submittedDate + '. Below, a keepsake of the events you\'ll be joining us for.' +
     '</p>' +
-    (eventRows
-      ? '<div class="summary-card" style="max-width:480px;margin:0 auto 1.5rem;text-align:left;">' +
-          '<div class="summary-title">Your responses</div>' +
-          eventRows +
+    (inviteCards
+      ? '<div class="invite-cards-wrap">' + inviteCards + '</div>'
+      : '') +
+    (allRows
+      ? '<div class="summary-card" style="max-width:520px;margin:0 auto 1.8rem;text-align:left;">' +
+          '<div class="summary-title">All responses</div>' +
+          allRows +
         '</div>'
       : '') +
-    '<p style="font-size:var(--ui);color:var(--muted);line-height:1.9;max-width:420px;margin:0 auto;">' +
-      'If you need to make any changes please get in touch:<br>' +
+    '<p style="font-size:var(--ui);color:var(--ink-soft);line-height:1.9;max-width:420px;margin:0 auto;">' +
+      'Need to make changes? Please write to us at<br>' +
       '<strong style="color:var(--wine);">' + escapeHtml(CONTACT_INFO) + '</strong>' +
     '</p>';
 
