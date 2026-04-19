@@ -85,6 +85,7 @@ function doPost(e) {
       'addGuest', 'updateGuest', 'deleteGuest', 'restoreGuest',
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
+      'getRSVPsByFamily',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -115,6 +116,8 @@ function doPost(e) {
     else if (action === 'getDuplicates')    result = getDuplicates();
     else if (action === 'getSubmittedCodes') result = getSubmittedCodes();
     else if (action === 'updateSeating')    result = updateSeating(payload);
+    else if (action === 'getEvents')        result = getEvents();
+    else if (action === 'getRSVPsByFamily') result = getRSVPsByFamily();
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'updateContact') {
       const rateKey = 'contact_' + String(payload.guestId || '').trim();
