@@ -184,17 +184,17 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .counter-row{display:flex;align-items:center;gap:.75rem;}
 .counter-btn{width:44px;height:44px;border:1.5px solid var(--border);background:transparent;cursor:pointer;font-size:1.3rem;color:var(--wine);display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;border-radius:2px;}
 .counter-btn:hover{background:var(--blush);}
-.counter-val{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--wine);min-width:36px;text-align:center;}
-.notes-field{width:100%;border:1px solid var(--border);background:transparent;padding:0.85rem 1rem;font-family:'Jost',sans-serif;font-size:var(--body);color:var(--ink);outline:none;transition:border-color .2s;resize:vertical;min-height:80px;}
+.counter-val{font-family:var(--serif);font-size:1.6rem;color:var(--wine);min-width:36px;text-align:center;}
+.notes-field{width:100%;border:1px solid var(--border);background:transparent;padding:0.85rem 1rem;font-family:var(--sans);font-size:var(--body);color:var(--ink);outline:none;transition:border-color .2s;resize:vertical;min-height:80px;}
 .notes-field:focus{border-color:var(--gold);}
 .name-inputs-container{margin-top:.8rem;}
 .name-inputs-group{margin-bottom:.6rem;}
-.name-input{width:100%;border:1px solid var(--border);background:transparent;padding:.6rem .8rem;font-family:'Jost',sans-serif;font-size:var(--ui);color:var(--ink);outline:none;transition:border-color .2s;margin-bottom:.4rem;box-sizing:border-box;}
+.name-input{width:100%;border:1px solid var(--border);background:transparent;padding:.6rem .8rem;font-family:var(--sans);font-size:var(--ui);color:var(--ink);outline:none;transition:border-color .2s;margin-bottom:.4rem;box-sizing:border-box;}
 .name-input:focus{border-color:var(--gold);}
 .field-section{margin-bottom:1.5rem;}
 .family-name-section{max-width:900px;margin:0 auto;padding:0 1.5rem 1.4rem;}
 .family-name-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.2em;color:var(--wine);text-transform:uppercase;display:block;margin-bottom:.45rem;}
-.family-name-input{width:100%;border:1px solid var(--border);background:#fff;padding:.85rem 1rem;font-family:'Cormorant Garamond',serif;font-size:var(--body-lg);color:var(--wine);outline:none;transition:border-color .2s;}
+.family-name-input{width:100%;border:1px solid var(--border);background:#fff;padding:.85rem 1rem;font-family:var(--serif);font-size:var(--body-lg);color:var(--wine);outline:none;transition:border-color .2s;}
 .family-name-input:focus{border-color:var(--gold);}
 .rsvp-summary{max-width:900px;margin:0 auto 1.5rem;padding:0 1.5rem;}
 .summary-card{background:var(--cream-deep);border:1px solid var(--rule);padding:1.8rem;position:relative;}
@@ -290,7 +290,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .contact-form{display:flex;flex-direction:column;gap:1.2rem;}
 .contact-field{display:flex;flex-direction:column;gap:.35rem;}
 .contact-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.16em;color:var(--wine);text-transform:uppercase;}
-.contact-input{border:1px solid var(--border);background:#fff;padding:.9rem 1rem;font-family:'Jost',sans-serif;font-size:var(--body);color:var(--ink);outline:none;transition:border-color .2s;min-height:52px;border-radius:2px;width:100%;}
+.contact-input{border:1px solid var(--border);background:#fff;padding:.9rem 1rem;font-family:var(--sans);font-size:var(--body);color:var(--ink);outline:none;transition:border-color .2s;min-height:52px;border-radius:2px;width:100%;}
 .contact-input:focus{border-color:var(--gold);}
 .contact-field-hint{font-size:var(--ui-sm);color:var(--muted);line-height:1.5;}
 .contact-error{font-size:var(--ui);color:var(--red);display:block;line-height:1.5;padding:.5rem .75rem;background:rgba(139,32,32,.05);border-radius:2px;}
@@ -310,7 +310,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .cal-event-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1.1rem;background:#fff;border:1px solid var(--border);border-radius:2px;flex-wrap:wrap;}
 .cal-event-info{display:flex;align-items:center;gap:.75rem;flex:1;min-width:0;}
 .cal-event-icon{font-size:1.1rem;flex-shrink:0;}
-.cal-event-name{font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--wine);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-event-name{font-family:var(--serif);font-size:1rem;color:var(--wine);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .cal-event-date{font-size:var(--ui-sm);color:var(--muted);margin-top:.08rem;}
 .cal-options{display:flex;gap:.4rem;flex-shrink:0;}
 .cal-option{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.1em;padding:.38rem .75rem;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;border-radius:2px;text-decoration:none;transition:all .18s;white-space:nowrap;display:inline-flex;align-items:center;}
@@ -491,7 +491,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         <span class="contact-error hidden" id="contact-error"></span>
         <button class="btn btn-primary contact-submit-btn"
           id="contact-submit-btn" onclick="submitContactDetails()">
-          Continue to RSVP &#10022;
+          Continue to RSVP
         </button>
         <p style="font-size:var(--ui-xs);color:var(--muted);text-align:center;margin-top:.8rem;line-height:1.6;">
           Your details are stored securely and will only be used for wedding-related communications.
@@ -1079,7 +1079,7 @@ async function submitContactDetails() {
   } catch (err) {
     errEl.textContent = err.message || 'Something went wrong. Please try again.';
     errEl.classList.remove('hidden');
-    btn.textContent = 'Continue to RSVP \u2726';
+    btn.textContent = 'Continue to RSVP';
     btn.disabled    = false;
   } finally {
     _contactSaving = false;
@@ -1592,7 +1592,7 @@ async function submitRSVP() {
       document.getElementById('overseas-success-link').classList.remove('hidden');
     }
   } else {
-    btn.textContent = 'Submit RSVP \u2726';
+    btn.textContent = 'Send my response';
     btn.disabled = false;
     var errEl = document.getElementById('submit-error');
     errEl.innerHTML = '<strong style="color:var(--red);">We could not confirm your RSVP was received.</strong><br>' +
