@@ -1229,6 +1229,324 @@ function setupSheet() {
   Logger.log('Setup complete. All tabs ready.');
 }
 
+// ══════════════════════════════════════════════
+//   TEMPLATE REBUILD
+// ══════════════════════════════════════════════
+//
+// rebuildSheetToTemplate() is a one-shot "reset the sheet to a fresh,
+// well-labelled template" function. Run it from the Apps Script editor
+// (Run menu → rebuildSheetToTemplate) when you want to wipe and relay
+// the sheet so that:
+//   - All four tabs exist with headers in a consistent, readable order
+//   - Header row 1 is frozen, bold, wine-on-gold, and every header cell
+//     carries a plain-English note explaining what the column is for
+//   - Dropdowns restrict values on status / is_overseas / seating / active
+//     / attending, so hand-editing the sheet is less error-prone
+//   - Conditional formatting visually fades any row whose status is
+//     DELETED (soft-delete rows stay visible but are obviously out)
+//   - Column widths are set to sensible defaults (readable without
+//     having to autosize each time)
+//
+// What it DOES NOT do:
+//   - It does not touch your Events tab *data* — events are curated and
+//     this function preserves them. Only reformats Events headers.
+//   - It WILL clear all rows in Guests, RSVPs_by_family, RSVPs_by_event.
+//     Run only when you're comfortable wiping those rows (e.g. going
+//     live with a fresh data set after testing).
+//
+// Header *keys* in row 1 are kept identical to what the rest of the
+// code expects (first_name, invitation_code, L_guests, etc.). The
+// "clear labelling" lives in the per-cell notes and in the dropdowns.
+function rebuildSheetToTemplate() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const log = [];
+
+  _templateRebuildEventsTab(ss, log);
+  _templateRebuildGuestsTab(ss, log);
+  _templateRebuildRSVPFamilyTab(ss, log);
+  _templateRebuildRSVPEventTab(ss, log);
+
+  Logger.log('rebuildSheetToTemplate complete:\n' + log.join('\n'));
+}
+
+// ── Palette / colours used in header styling ─────────────
+const _TPL_HEADER_BG = '#6b2737'; // wine
+const _TPL_HEADER_FG = '#e8c87a'; // gold-lt
+const _TPL_DELETED_BG = '#f3ece6'; // cream-blush
+
+function _templateWriteHeader(sheet, headers, notes, widths) {
+  // Wipe everything and rewrite header row
+  sheet.clear();
+  sheet.clearConditionalFormatRules();
+  sheet.clearNotes();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  const headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange
+    .setBackground(_TPL_HEADER_BG)
+    .setFontColor(_TPL_HEADER_FG)
+    .setFontWeight('bold')
+    .setFontSize(10)
+    .setHorizontalAlignment('left')
+    .setVerticalAlignment('middle');
+  sheet.setFrozenRows(1);
+  sheet.setRowHeight(1, 32);
+
+  // Per-cell header notes — plain-English explanation of each column
+  if (notes) {
+    headers.forEach(function(h, i) {
+      if (notes[h]) sheet.getRange(1, i + 1).setNote(notes[h]);
+    });
+  }
+
+  // Column widths — if provided as a map of header key → px; otherwise defaults
+  if (widths) {
+    headers.forEach(function(h, i) {
+      if (widths[h]) sheet.setColumnWidth(i + 1, widths[h]);
+    });
+  }
+
+  // Trim trailing empty columns so the sheet doesn't have 26 blanks after the data
+  const maxCols = sheet.getMaxColumns();
+  if (maxCols > headers.length) {
+    sheet.deleteColumns(headers.length + 1, maxCols - headers.length);
+  }
+}
+
+function _templateAddDropdown(sheet, a1Range, values) {
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(values, true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(a1Range).setDataValidation(rule);
+}
+
+function _templateAddDeletedRowFade(sheet, headers) {
+  const statusIdx = headers.indexOf('status');
+  if (statusIdx < 0) return;
+  const colLetter = _columnIndexToLetter(statusIdx + 1);
+  const lastCol = _columnIndexToLetter(headers.length);
+  const rule = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=$' + colLetter + '2="DELETED"')
+    .setBackground(_TPL_DELETED_BG)
+    .setFontColor('#8a7060')
+    .setItalic(true)
+    .setRanges([sheet.getRange('A2:' + lastCol + '1000')])
+    .build();
+  const rules = sheet.getConditionalFormatRules();
+  rules.push(rule);
+  sheet.setConditionalFormatRules(rules);
+}
+
+function _columnIndexToLetter(idx) {
+  // 1-based (A = 1). Handles double letters for > 26.
+  let s = '';
+  while (idx > 0) {
+    const rem = (idx - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    idx = Math.floor((idx - 1) / 26);
+  }
+  return s;
+}
+
+// ── Events tab ──────────────────────────────────────────
+function _templateRebuildEventsTab(ss, log) {
+  let sheet = ss.getSheetByName(TABS.events);
+  if (!sheet) sheet = ss.insertSheet(TABS.events);
+
+  const headers = ['id', 'name', 'date', 'time', 'venue', 'icon', 'active', 'seating'];
+  const notes = {
+    id:      'Short letter code (e.g. L, S, A, G, W, B). Used throughout the system — do not change after guests have been added.',
+    name:    'Full event name shown to guests on the website (e.g. Mehndi & Sangeet).',
+    date:    'Human-readable date (e.g. 25 Dec 2026). Shown on guest cards. "TBC" is fine while planning.',
+    time:    'Human-readable time (e.g. 4:00 PM). Shown on guest cards. "TBC" is fine while planning.',
+    venue:   'Venue name + location as guests should see it.',
+    icon:    'Single emoji used next to this event in every list (🎶 🎩 🍛 🌿 💍 🥂 etc.).',
+    active:  'TRUE = shown to guests; FALSE = hidden from the website but kept in the sheet.',
+    seating: 'TRUE = event has allocated tables; FALSE = no seating plan (most pre-wedding events).',
+  };
+  const widths = { id: 60, name: 220, date: 120, time: 100, venue: 240, icon: 60, active: 80, seating: 80 };
+
+  // Preserve existing event data. Read it before we clear.
+  const existing = sheet.getLastRow() > 1
+    ? sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues()
+    : [];
+  const existingHeaders = sheet.getLastRow() > 0
+    ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    : [];
+
+  _templateWriteHeader(sheet, headers, notes, widths);
+
+  // If we had data, remap it into the new column order by header name
+  if (existing.length && existingHeaders.length) {
+    const remapped = existing.map(function(row) {
+      return headers.map(function(h) {
+        const i = existingHeaders.indexOf(h);
+        return i >= 0 ? row[i] : '';
+      });
+    });
+    sheet.getRange(2, 1, remapped.length, headers.length).setValues(remapped);
+    log.push('Events: rebuilt, preserved ' + remapped.length + ' rows.');
+  } else {
+    // Seed with the six default events when sheet was empty
+    const seed = [
+      ['A', 'Mandvo',            'TBC', 'TBC', 'TBC', '🍛', 'TRUE', 'FALSE'],
+      ['B', 'Black Tie',         'TBC', 'TBC', 'TBC', '🥂', 'TRUE', 'FALSE'],
+      ['G', 'Meet & Greet',      'TBC', 'TBC', 'TBC', '🌿', 'TRUE', 'FALSE'],
+      ['L', 'Lagnotri',          'TBC', 'TBC', 'TBC', '🪔', 'TRUE', 'FALSE'],
+      ['S', 'Mehendi & Sangeet', 'TBC', 'TBC', 'TBC', '🎩', 'TRUE', 'FALSE'],
+      ['W', 'Wedding',           'TBC', 'TBC', 'TBC', '💍', 'TRUE', 'FALSE'],
+    ];
+    sheet.getRange(2, 1, seed.length, headers.length).setValues(seed);
+    log.push('Events: rebuilt, seeded 6 default events.');
+  }
+
+  // Dropdowns
+  _templateAddDropdown(sheet, 'G2:G1000', ['TRUE', 'FALSE']); // active
+  _templateAddDropdown(sheet, 'H2:H1000', ['TRUE', 'FALSE']); // seating
+}
+
+// ── Guests tab ──────────────────────────────────────────
+function _templateRebuildGuestsTab(ss, log) {
+  let sheet = ss.getSheetByName(TABS.guests);
+  if (!sheet) sheet = ss.insertSheet(TABS.guests);
+
+  // Fixed columns (reordered for readability), then all *_guests, then all *_table
+  const fixed = [
+    'id', 'first_name', 'last_name', 'phone', 'email', 'relationship',
+    'is_overseas', 'notes', 'invitation_code', 'events', 'status',
+  ];
+  const guestCols = EVENT_IDS.map(function(id) { return id + '_guests'; });
+  const tableCols = EVENT_IDS.map(function(id) { return id + '_table'; });
+  const headers = fixed.concat(guestCols).concat(tableCols);
+
+  const notes = {
+    id:              'Stable, auto-generated guest ID. Do not edit — the app uses this to track a guest across renames, restores, etc.',
+    first_name:      'Guest first name. Must match what the guest enters on the RSVP site.',
+    last_name:       'Guest last name. Must match what the guest enters on the RSVP site.',
+    phone:           'Phone number with country code (e.g. +254 700 000 000). Used to open WhatsApp from the admin.',
+    email:           'Contact email. Used for invitation confirmations and any follow-ups.',
+    relationship:    'Which side of the wedding this guest is from. One of: Bride\u2019s Family, Groom\u2019s Family, Bride\u2019s Friend, Groom\u2019s Friend, Colleague, Other.',
+    is_overseas:     'TRUE if the guest is travelling internationally. Shown as an "Overseas" badge in the admin and guest UI.',
+    notes:           'Free-text notes visible only to the admin.',
+    invitation_code: 'The code the guest enters to RSVP (shared by their whole family). Auto-generated from the events they are invited to.',
+    events:          'Comma-separated event IDs the guest is invited to (e.g. L,S,A,G,W,B). Drives which event cards they see on the site.',
+    status:          'ACTIVE or DELETED. DELETED rows are kept for audit but hidden from the site and admin list by default.',
+  };
+  EVENT_IDS.forEach(function(id) {
+    notes[id + '_guests'] = 'Number of seats reserved for this guest\u2019s family at event "' + id + '". This is the maximum they can RSVP for.';
+    notes[id + '_table']  = 'Optional table number at event "' + id + '" (only used for seated events).';
+  });
+
+  const widths = {
+    id: 110, first_name: 110, last_name: 110, phone: 140, email: 190,
+    relationship: 140, is_overseas: 90, notes: 200, invitation_code: 120,
+    events: 120, status: 90,
+  };
+  EVENT_IDS.forEach(function(id) { widths[id + '_guests'] = 75; widths[id + '_table'] = 75; });
+
+  _templateWriteHeader(sheet, headers, notes, widths);
+  log.push('Guests: rebuilt with ' + headers.length + ' columns. Data wiped.');
+
+  // Dropdowns
+  const overseasCol = _columnIndexToLetter(headers.indexOf('is_overseas') + 1);
+  _templateAddDropdown(sheet, overseasCol + '2:' + overseasCol + '1000', ['TRUE', 'FALSE']);
+  const statusCol = _columnIndexToLetter(headers.indexOf('status') + 1);
+  _templateAddDropdown(sheet, statusCol + '2:' + statusCol + '1000', ['ACTIVE', 'DELETED']);
+  const relCol = _columnIndexToLetter(headers.indexOf('relationship') + 1);
+  _templateAddDropdown(sheet, relCol + '2:' + relCol + '1000', [
+    "Bride\u2019s Family", "Groom\u2019s Family",
+    "Bride\u2019s Friend", "Groom\u2019s Friend",
+    'Colleague', 'Other',
+  ]);
+
+  _templateAddDeletedRowFade(sheet, headers);
+}
+
+// ── RSVPs_by_family tab ─────────────────────────────────
+function _templateRebuildRSVPFamilyTab(ss, log) {
+  let sheet = ss.getSheetByName(TABS.rsvpByFamily);
+  if (!sheet) sheet = ss.insertSheet(TABS.rsvpByFamily);
+
+  const fixed = ['timestamp', 'submission_name', 'invitation_code', 'status'];
+  const perEvent = [];
+  EVENT_IDS.forEach(function(id) {
+    perEvent.push(id + ' Attending');
+    perEvent.push(id + ' Guests');
+    perEvent.push(id + ' Names');
+  });
+  const headers = fixed.concat(perEvent);
+
+  const notes = {
+    timestamp:       'When this RSVP was submitted (server-side UTC ISO time).',
+    submission_name: 'Name of the guest who submitted the RSVP. Must match a first_name + last_name in the Guests tab for the same invitation_code.',
+    invitation_code: 'Invitation code the guest entered. Ties this RSVP back to their family in Guests.',
+    status:          'ACTIVE or DELETED. DELETED rows are preserved but ignored in stats.',
+  };
+  EVENT_IDS.forEach(function(id) {
+    notes[id + ' Attending'] = 'Yes / No / (blank). Did this submitter attend event "' + id + '"?';
+    notes[id + ' Guests']    = 'If attending, how many people in their party are coming to event "' + id + '".';
+    notes[id + ' Names']     = 'Pipe-separated names of the attendees for event "' + id + '" (e.g. "Shanay|Partner").';
+  });
+
+  const widths = { timestamp: 160, submission_name: 160, invitation_code: 120, status: 90 };
+  EVENT_IDS.forEach(function(id) {
+    widths[id + ' Attending'] = 90;
+    widths[id + ' Guests']    = 80;
+    widths[id + ' Names']     = 160;
+  });
+
+  _templateWriteHeader(sheet, headers, notes, widths);
+  log.push('RSVPs_by_family: rebuilt with ' + headers.length + ' columns. Data wiped.');
+
+  // Dropdowns for each Attending column
+  EVENT_IDS.forEach(function(id) {
+    const col = _columnIndexToLetter(headers.indexOf(id + ' Attending') + 1);
+    _templateAddDropdown(sheet, col + '2:' + col + '1000', ['Yes', 'No']);
+  });
+  // Status dropdown
+  const statusCol = _columnIndexToLetter(headers.indexOf('status') + 1);
+  _templateAddDropdown(sheet, statusCol + '2:' + statusCol + '1000', ['ACTIVE', 'DELETED']);
+
+  _templateAddDeletedRowFade(sheet, headers);
+}
+
+// ── RSVPs_by_event tab ──────────────────────────────────
+function _templateRebuildRSVPEventTab(ss, log) {
+  let sheet = ss.getSheetByName(TABS.rsvpByEvent);
+  if (!sheet) sheet = ss.insertSheet(TABS.rsvpByEvent);
+
+  const headers = [
+    'timestamp', 'submission_name', 'invitation_code',
+    'event_id', 'event_name', 'attending', 'guests', 'notes', 'guest_names', 'status',
+  ];
+  const notes = {
+    timestamp:       'When this RSVP was submitted (server-side UTC ISO time).',
+    submission_name: 'Name of the guest who submitted the RSVP.',
+    invitation_code: 'Invitation code tied to their family in the Guests tab.',
+    event_id:        'Which event this row is for (L, S, A, G, W, B).',
+    event_name:      'Full event name at the time of submission. Purely for readability — event names may change over time.',
+    attending:       'Yes / No for whether the submitter is attending this event.',
+    guests:          'If attending, how many people in their party. Zero if declining.',
+    notes:           'Free-text notes from the guest (unused in the current UI, reserved for future).',
+    guest_names:     'Pipe-separated names of attendees for this event.',
+    status:          'ACTIVE or DELETED.',
+  };
+  const widths = {
+    timestamp: 160, submission_name: 160, invitation_code: 120,
+    event_id: 90, event_name: 160, attending: 90, guests: 80,
+    notes: 200, guest_names: 200, status: 90,
+  };
+
+  _templateWriteHeader(sheet, headers, notes, widths);
+  log.push('RSVPs_by_event: rebuilt with ' + headers.length + ' columns. Data wiped.');
+
+  _templateAddDropdown(sheet, 'F2:F1000', ['Yes', 'No']);      // attending
+  _templateAddDropdown(sheet, 'J2:J1000', ['ACTIVE', 'DELETED']); // status
+
+  _templateAddDeletedRowFade(sheet, headers);
+}
+
 // ── migrateToV2 ──────────────────────────────────────────
 // One-shot migration to add new columns for name capture + seating features.
 // Safe to run multiple times — only adds missing columns, never overwrites.
