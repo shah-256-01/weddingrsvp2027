@@ -1599,12 +1599,25 @@ function openViewGuest(id) {
     '<div style="font-family:\'Cinzel\',serif;font-size:.54rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-bottom:.3rem;">Allocations</div>' +
     allocHtml;
 
-  // Check RSVP status
-  var rsvp = allRSVPs.find(function(r) { return r.invitation_code === g.invitation_code; });
-  if (rsvp) {
+  // RSVP status: use allSubmittedCodes as the single source of truth (same
+  // one the list view uses). Look up allRSVPs only to display submission
+  // details, normalising case/whitespace and skipping DELETED rows.
+  var codeKey = String(g.invitation_code || '').toUpperCase().trim();
+  var isSubmitted = allSubmittedCodes.has(g.invitation_code) || allSubmittedCodes.has(codeKey);
+  if (isSubmitted) {
+    var matches = (allRSVPs || []).filter(function(r) {
+      if (String(r.status || '').toUpperCase() === 'DELETED') return false;
+      return String(r.invitation_code || '').toUpperCase().trim() === codeKey;
+    });
+    matches.sort(function(a, b) { return new Date(b.timestamp || 0) - new Date(a.timestamp || 0); });
+    var rsvp = matches[0] || null;
+    var detail = rsvp
+      ? 'Submitted by: ' + escapeAttr(rsvp.submission_name || '') +
+          (rsvp.timestamp ? ' on ' + escapeAttr(rsvp.timestamp) : '')
+      : 'Response recorded.';
     html += '<div style="margin-top:1rem;padding:.8rem;background:rgba(45,74,62,.06);border-radius:2px;">' +
       '<div style="font-family:\'Cinzel\',serif;font-size:.54rem;letter-spacing:.14em;color:var(--green);text-transform:uppercase;margin-bottom:.3rem;">RSVP Submitted</div>' +
-      '<div style="font-size:.72rem;color:var(--muted);">Submitted by: ' + escapeAttr(rsvp.submission_name || '') + ' on ' + escapeAttr(rsvp.timestamp || '') + '</div></div>';
+      '<div style="font-size:.72rem;color:var(--muted);">' + detail + '</div></div>';
   } else {
     html += '<div style="margin-top:1rem;padding:.8rem;background:rgba(184,146,74,.08);border-radius:2px;font-size:.78rem;color:var(--gold);">RSVP Pending</div>';
   }
