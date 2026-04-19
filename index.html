@@ -120,27 +120,28 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .guest-nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:.85rem 2rem;background:rgba(253,246,239,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
 .guest-nav-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--display-sm);color:var(--wine);}
 .guest-nav-name{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--ui);color:var(--wine);opacity:.75;}
-.guest-hero{text-align:center;padding:3.5rem 2rem 2.5rem;background:linear-gradient(to bottom,var(--blush),var(--cream));border-bottom:1px solid var(--border);}
-.guest-hero-welcome{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:.65rem;}
-.guest-hero-family{font-family:'Cormorant Garamond',serif;font-size:var(--display-lg);font-style:italic;color:var(--wine);margin-bottom:.38rem;}
-.guest-hero-sub{font-size:var(--body);color:var(--muted);letter-spacing:.05em;}
+.guest-hero{text-align:center;padding:clamp(2.6rem,6vw,4.5rem) var(--s4) clamp(2rem,4vw,3rem);position:relative;background:radial-gradient(ellipse 80% 70% at 50% 0%,var(--blush) 0%,transparent 70%),var(--cream);border-bottom:1px solid var(--rule);}
+.guest-hero-welcome{margin-bottom:1rem;}
+.guest-hero-family{font-family:var(--serif);font-size:var(--display-lg);font-weight:300;font-style:italic;color:var(--wine);line-height:1.05;letter-spacing:-.005em;margin-bottom:.5rem;}
+.guest-hero-sub{font-size:var(--body);color:var(--ink-soft);max-width:480px;margin:.6rem auto 0;line-height:1.7;}
+.guest-hero-sub em{font-family:var(--serif);color:var(--wine);font-size:1.08em;font-style:italic;}
 /* ── Welcome Banner ── */
-.welcome-banner{background:var(--gold-pale);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:1.4rem 1.5rem;}
+.welcome-banner{background:var(--cream-deep);border-bottom:1px solid var(--rule);padding:1.4rem 1.5rem;}
 .welcome-banner-inner{max-width:900px;margin:0 auto;}
-.welcome-steps{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;justify-content:center;margin-bottom:1rem;}
-.welcome-step{display:flex;align-items:center;gap:.6rem;flex:1;min-width:140px;max-width:200px;}
-.welcome-step-icon{width:32px;height:32px;border-radius:50%;background:var(--wine);color:var(--gold-soft);font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.welcome-step-text{display:flex;flex-direction:column;gap:.15rem;}
-.welcome-step-text strong{font-family:'Jost',sans-serif;font-weight:400;font-size:var(--ui);color:var(--ink);line-height:1.3;}
+.welcome-steps{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:center;margin-bottom:.9rem;}
+.welcome-step{display:flex;align-items:center;gap:.7rem;flex:1;min-width:180px;max-width:240px;}
+.welcome-step-num{width:28px;height:28px;flex-shrink:0;border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-style:italic;color:var(--gold);font-size:.95rem;background:var(--cream);}
+.welcome-step-text{display:flex;flex-direction:column;gap:.3rem;min-width:0;}
+.welcome-step-text strong{font-family:var(--sans);font-weight:400;font-size:var(--ui);color:var(--ink);line-height:1.35;}
 .welcome-step-text span{font-size:var(--ui-sm);color:var(--muted);}
-.welcome-step-divider{color:var(--gold);font-size:1.1rem;opacity:.6;flex-shrink:0;}
+.welcome-step-divider{color:var(--gold);opacity:.45;font-size:.9rem;flex-shrink:0;}
 @media (max-width:540px){
   .welcome-step-divider{display:none;}
-  .welcome-steps{gap:.6rem;}
+  .welcome-steps{gap:.7rem;}
   .welcome-step{min-width:100%;max-width:100%;}
 }
-.welcome-deadline{text-align:center;font-size:var(--ui);color:var(--muted);line-height:1.6;}
-.welcome-deadline strong{color:var(--wine);}
+.welcome-deadline{text-align:center;font-size:var(--ui);color:var(--ink-soft);line-height:1.6;}
+.welcome-deadline strong{color:var(--wine);font-weight:400;font-family:var(--serif);font-style:italic;font-size:1.1em;}
 /* ── Countdown Strip ── */
 .countdown-strip{background:var(--wine-d, #4a1a25);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:center;gap:1.2rem;flex-wrap:wrap;}
 .countdown-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.18em;color:rgba(255,255,255,.45);text-transform:uppercase;}
@@ -376,39 +377,44 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
     <span class="guest-nav-name" id="display-code"></span>
   </nav>
   <div class="guest-hero">
-    <p class="guest-hero-welcome">Welcome</p>
-    <h2 class="guest-hero-family" id="guest-family-greeting">Dear Valued Guests</h2>
-    <p class="guest-hero-sub">You are invited to the following celebrations — please RSVP for each.</p>
+    <div class="guest-hero-welcome"><span class="label">With joy, we welcome the</span></div>
+    <h2 class="guest-hero-family" id="guest-family-greeting">Shah Family</h2>
+    <div class="ornament" style="margin:1.1rem 0 1.2rem;" aria-hidden="true">
+      <div class="ornament-line rev" style="width:50px"></div>
+      <div class="ornament-diamond"></div>
+      <div class="ornament-line" style="width:50px"></div>
+    </div>
+    <p class="guest-hero-sub">You are cordially invited to join us in our celebrations. Please <em>respond</em> to each event below.</p>
   </div>
   <div class="welcome-banner hidden" id="welcome-banner">
     <div class="welcome-banner-inner">
       <div class="welcome-steps">
         <div class="welcome-step">
-          <div class="welcome-step-icon">1</div>
+          <div class="welcome-step-num">I</div>
           <div class="welcome-step-text">
-            <strong>Open each event card below</strong>
-            <span>Tap any event to expand it</span>
+            <strong>Open each event card</strong>
+            <span>Tap to expand</span>
           </div>
         </div>
-        <div class="welcome-step-divider">&rarr;</div>
+        <div class="welcome-step-divider">&bull;</div>
         <div class="welcome-step">
-          <div class="welcome-step-icon">2</div>
+          <div class="welcome-step-num">II</div>
           <div class="welcome-step-text">
-            <strong>Confirm attending or decline</strong>
-            <span>Set your guest numbers</span>
+            <strong>Confirm attendance</strong>
+            <span>Set your guest count</span>
           </div>
         </div>
-        <div class="welcome-step-divider">&rarr;</div>
+        <div class="welcome-step-divider">&bull;</div>
         <div class="welcome-step">
-          <div class="welcome-step-icon">3</div>
+          <div class="welcome-step-num">III</div>
           <div class="welcome-step-text">
-            <strong>Submit at the bottom</strong>
-            <span>Respond to all events first</span>
+            <strong>Submit your response</strong>
+            <span>One reply for all events</span>
           </div>
         </div>
       </div>
       <p class="welcome-deadline" id="welcome-deadline">
-        &#128197; Please respond by <strong>30th November 2027</strong>
+        Kindly respond by <strong>the thirtieth of November, Two thousand twenty-seven</strong>
       </p>
     </div>
   </div>
@@ -908,7 +914,7 @@ function loadGuestPage() {
   var banner = document.getElementById('welcome-banner');
   if (banner) banner.classList.remove('hidden');
   document.getElementById('guest-family-greeting').textContent =
-    'Dear ' + currentGuest.familyName;
+    currentGuest.familyName + ' Family';
 
   // Show/hide overseas subnav tab
   if (currentGuest.isOverseas) {
