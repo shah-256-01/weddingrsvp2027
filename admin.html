@@ -823,7 +823,7 @@ function loadGuests() {
   }).then(function() {
     renderGuestView();
   }).catch(function(err) {
-    showLoadError('guest-view-container', err.message || 'Failed to load guests', 'loadGuests');
+    showLoadError('guest-view-container', 'Load failed: ' + (err.message || 'Unknown error') + '. Tap Retry.', 'loadGuests');
   });
 }
 
@@ -1487,8 +1487,7 @@ function removeGuest(id) {
   if (!confirm('Remove this guest? They will be moved to the Deleted section and can be restored later.')) return;
   google.script.run
     .withSuccessHandler(function() {
-      loadGuests();
-      loadStats();
+      setTimeout(function() { loadGuests(); loadStats(); }, 1000);
     })
     .withFailureHandler(function(err) {
       alert('Error deleting guest: ' + (err.message || 'Unknown error'));
