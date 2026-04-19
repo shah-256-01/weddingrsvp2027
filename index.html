@@ -117,9 +117,9 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 ════════════════════════════════════════════ */
 #page-guest{background:var(--cream);}
 #page-guest.active{display:block;}
-.guest-nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:.85rem 2rem;background:rgba(253,246,239,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
-.guest-nav-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--display-sm);color:var(--wine);}
-.guest-nav-name{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--ui);color:var(--wine);opacity:.75;}
+.guest-nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:.85rem 2rem;min-height:60px;background:rgba(250,245,236,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--rule);}
+.guest-nav-title{font-family:var(--serif);font-style:italic;font-size:var(--display-sm);color:var(--wine);}
+.guest-nav-name{font-family:var(--serif);font-style:italic;font-size:var(--ui);color:var(--wine);opacity:.75;}
 .guest-hero{text-align:center;padding:clamp(2.6rem,6vw,4.5rem) var(--s4) clamp(2rem,4vw,3rem);position:relative;background:radial-gradient(ellipse 80% 70% at 50% 0%,var(--blush) 0%,transparent 70%),var(--cream);border-bottom:1px solid var(--rule);}
 .guest-hero-welcome{margin-bottom:1rem;}
 .guest-hero-family{font-family:var(--serif);font-size:var(--display-lg);font-weight:300;font-style:italic;color:var(--wine);line-height:1.05;letter-spacing:-.005em;margin-bottom:.5rem;}
@@ -221,10 +221,10 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .family-name-error{font-size:var(--ui);color:var(--red);margin-top:.35rem;min-height:1rem;display:block;}
 
 /* ── Guest Subnav ── */
-.guest-subnav{display:flex;gap:0;background:rgba(253,246,239,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);position:sticky;top:48px;z-index:45;justify-content:center;}
-.subnav-btn{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.18em;text-transform:uppercase;padding:.75rem 1.6rem;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;min-height:48px;display:flex;align-items:center;}
+.guest-subnav{display:flex;gap:0;background:rgba(250,245,236,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);position:sticky;top:62px;z-index:45;justify-content:center;padding:.65rem 1.6rem;min-height:48px;overflow-x:auto;}
+.subnav-btn{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.22em;text-transform:uppercase;padding:.9rem 1.6rem;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:1px solid transparent;transition:all .2s;white-space:nowrap;min-height:48px;display:flex;align-items:center;}
 .subnav-btn:hover{color:var(--wine);}
-.subnav-btn.active{color:var(--wine);border-bottom-color:var(--gold);}
+.subnav-btn.active{color:var(--wine);border-bottom-color:var(--wine);}
 .guest-section{display:none;}
 .guest-section.active{display:block;}
 
@@ -373,7 +373,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 <!-- ████  GUEST RSVP  ████ -->
 <div id="page-guest" class="page">
   <nav class="guest-nav">
-    <span class="guest-nav-title">The Wedding Day</span>
+    <span class="guest-nav-title">Jaini &amp; Shanay</span>
     <span class="guest-nav-name" id="display-code"></span>
   </nav>
   <div class="guest-hero">
