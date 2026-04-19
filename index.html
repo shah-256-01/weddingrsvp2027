@@ -200,6 +200,13 @@ body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font
 .invite-cards-heading{font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.3em;color:var(--gold);text-transform:uppercase;text-align:center;margin-bottom:.3rem;}
 .invite-card{background:#fff;border:1px solid var(--border);border-left:4px solid var(--gold);padding:1.4rem 1.5rem;border-radius:2px;position:relative;box-shadow:0 2px 12px rgba(107,39,55,.05);}
 .invite-card::before{content:'';position:absolute;top:.6rem;right:.6rem;width:10px;height:10px;background:var(--gold);transform:rotate(45deg);opacity:.45;}
+/* Image-backed invite card: the custom invitation artwork fills the card */
+.invite-card--image{padding:0;border-left:none;overflow:hidden;box-shadow:0 4px 20px rgba(107,39,55,.12);}
+.invite-card--image::before{display:none;}
+.invite-card-image{display:block;width:100%;height:auto;background:var(--blush);}
+.invite-card-confirm{display:flex;align-items:center;gap:.55rem;padding:.85rem 1.1rem;background:var(--cream);border-top:1px solid var(--border);font-family:'Cinzel',serif;font-size:var(--text-ui-sm);letter-spacing:.1em;color:var(--green);flex-wrap:wrap;}
+.invite-card-confirm .invite-card-footer-check{margin-right:.15rem;}
+.invite-card-confirm-names{color:var(--muted);font-family:'Jost',sans-serif;letter-spacing:0;font-size:var(--text-body-sm);}
 .invite-card-top{display:flex;align-items:center;gap:1rem;margin-bottom:.9rem;}
 .invite-card-icon{width:54px;height:54px;border-radius:50%;background:var(--gold-pale);color:var(--wine);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;}
 .invite-card-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--text-display-sm);color:var(--wine);line-height:1.2;}
@@ -659,6 +666,15 @@ const RSVP_DEADLINE_BLOCK = '2026-12-01T00:00:00+03:00'; // Block submissions fr
 const CONTACT_INFO = 'couple@example.com'; // ← update with your contact email or phone
 const WEDDING_VENUE = 'Aurora Bustani, Albizzia · Thika';
 
+// Map event IDs to their custom invitation image (optional). When present,
+// the returning-guest screen renders that image as the invitation card.
+// Events without an entry fall back to the text-based invite-card design.
+const INVITE_IMAGES = {
+  S: 'invitations/mehndi-sangeet.jpg',
+  W: 'invitations/wedding-day.jpg',
+  B: 'invitations/black-tie.jpg',
+};
+
 let EVENTS = [];
 let CODES_MAP = {};
 let currentGuest = null;
@@ -1068,8 +1084,15 @@ function showAlreadySubmittedScreen(existingRSVP) {
       var evt = EVENTS.find(function(e) { return e.id === ev.id; }) || {};
       var guests = Number(ev.guests) || 0;
       var names = (ev.names || []).filter(Boolean).map(function(n) { return escapeHtml(n); }).join(', ');
+      var confirmBadge =
+        '<span class="invite-card-footer-check">\u2713</span>' +
+        'Confirmed \u00b7 ' + guests + ' guest' + (guests !== 1 ? 's' : '');
+      var namesBlock = names ? '<span class="invite-card-confirm-names">' + names + '</span>' : '';
+
+      // Text-based invite card built from sheet data. Always produce this HTML
+      // so it can be used as the graceful fallback when an image fails to load.
       var dateLine = [evt.date, evt.time].filter(Boolean).map(escapeHtml).join(' &middot; ');
-      return '<article class="invite-card">' +
+      var textCard = '<article class="invite-card">' +
           '<div class="invite-card-top">' +
             '<div class="invite-card-icon">' + escapeHtml(evt.icon || ev.icon || '') + '</div>' +
             '<div>' +
@@ -1084,11 +1107,24 @@ function showAlreadySubmittedScreen(existingRSVP) {
               '</dl>'
             : '') +
           '<div class="invite-card-footer">' +
-            '<span class="invite-card-footer-check">\u2713</span>' +
-            'Confirmed \u00b7 ' + guests + ' guest' + (guests !== 1 ? 's' : '') +
+            confirmBadge +
             (names ? '<span class="invite-card-names">' + names + '</span>' : '') +
           '</div>' +
         '</article>';
+
+      // If a custom invitation image exists, prefer it. The text card is
+      // stashed as a data attribute so a post-render handler can swap it in
+      // if the image fails to load (file not uploaded yet, 404, etc.).
+      var imagePath = INVITE_IMAGES[ev.id];
+      if (imagePath) {
+        var alt = 'Invitation to ' + (evt.name || ev.name || 'event');
+        return '<article class="invite-card invite-card--image" data-fallback="' + escapeAttr(textCard) + '">' +
+            '<img class="invite-card-image" src="' + escapeAttr(imagePath) + '" alt="' + escapeAttr(alt) + '" loading="lazy"/>' +
+            '<div class="invite-card-confirm">' + confirmBadge + namesBlock + '</div>' +
+          '</article>';
+      }
+
+      return textCard;
     }).join('');
 
   // Compact summary row (attending + declined) for at-a-glance reference
@@ -1129,6 +1165,17 @@ function showAlreadySubmittedScreen(existingRSVP) {
       'If you need to make any changes please get in touch:<br>' +
       '<strong style="color:var(--wine);">' + escapeHtml(CONTACT_INFO) + '</strong>' +
     '</p>';
+
+  // Graceful image fallback: if the custom invitation image can't load,
+  // replace the image-backed card with its text-based equivalent.
+  screen.querySelectorAll('.invite-card--image img').forEach(function(img) {
+    img.addEventListener('error', function() {
+      var card = img.closest('.invite-card');
+      if (!card) return;
+      var fallback = card.getAttribute('data-fallback') || '';
+      if (fallback) card.outerHTML = fallback;
+    });
+  });
 
   screen.classList.remove('hidden');
 }
