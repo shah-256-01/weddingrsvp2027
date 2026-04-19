@@ -2028,16 +2028,31 @@ function renderSettingsTab() {
 
 var messageConfig = null;
 var _msgSaveTimer = null;
+var MSG_LOCAL_KEY = 'weddingAdmin_msgConfigV2';
+
+var DEFAULT_MSG_CONFIG = {
+  settings: { rsvpUrl: '', chaseDeadline: '', inviteDeadline: '', defaultCountryCode: '' },
+  templates: [
+    { id: 't_invite', name: 'Initial Invite', body: 'Hi {{name}},\n\nYou are cordially invited to our wedding celebrations!\n\nYour invitation code: {{code}}\nRSVP here: {{url}}\nPlease respond by: {{deadline}}\n\nWe hope to see you there!' },
+    { id: 't_chase', name: 'Chase-Up', body: 'Hi {{name}},\n\nJust a friendly reminder to RSVP for the wedding!\n\nYour code: {{code}}\nRSVP here: {{url}}\nDeadline: {{deadline}}\n\nLooking forward to hearing from you!' },
+  ],
+  relationshipDefaults: {},
+};
 
 function loadMessageConfigFromServer() {
   google.script.run
     .withSuccessHandler(function(cfg) {
       messageConfig = cfg;
+      try { localStorage.setItem(MSG_LOCAL_KEY, JSON.stringify(cfg)); } catch (e) {}
       migrateLocalStorageMessages();
     })
     .withFailureHandler(function(err) {
-      console.error('Failed to load message config:', err);
-      messageConfig = { settings: {}, templates: [], relationshipDefaults: {} };
+      console.error('Failed to load message config from server, using local fallback:', err);
+      try {
+        var local = JSON.parse(localStorage.getItem(MSG_LOCAL_KEY) || 'null');
+        if (local && local.templates && local.templates.length) { messageConfig = local; return; }
+      } catch (e) {}
+      messageConfig = JSON.parse(JSON.stringify(DEFAULT_MSG_CONFIG));
     })
     .getMessageConfig();
 }
@@ -2071,11 +2086,12 @@ function migrateLocalStorageMessages() {
 
 function saveConfigToServer() {
   if (!messageConfig) return;
+  try { localStorage.setItem(MSG_LOCAL_KEY, JSON.stringify(messageConfig)); } catch (e) {}
   clearTimeout(_msgSaveTimer);
   _msgSaveTimer = setTimeout(function() {
     google.script.run
       .withSuccessHandler(function() {})
-      .withFailureHandler(function(err) { console.error('Failed to save message config:', err); })
+      .withFailureHandler(function(err) { console.error('Failed to save message config to server:', err); })
       .saveMessageConfig(messageConfig);
   }, 500);
 }
