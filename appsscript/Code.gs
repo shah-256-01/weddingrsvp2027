@@ -1485,3 +1485,36 @@ function setupProperties() {
   });
   Logger.log('Properties saved. You can now remove the fallback values from the top of Code.gs.');
 }
+
+// ── Message Config (server-persisted) ───────────────────
+const DEFAULT_MSG_CONFIG = {
+  settings: { rsvpUrl: '', chaseDeadline: '', inviteDeadline: '', defaultCountryCode: '' },
+  templates: [
+    { id: 't_invite', name: 'Initial Invite', body: 'Hi {{name}},\n\nYou are cordially invited to our wedding celebrations!\n\nYour invitation code: {{code}}\nRSVP here: {{url}}\nPlease respond by: {{deadline}}\n\nWe hope to see you there!' },
+    { id: 't_chase', name: 'Chase-Up', body: 'Hi {{name}},\n\nJust a friendly reminder to RSVP for the wedding!\n\nYour code: {{code}}\nRSVP here: {{url}}\nDeadline: {{deadline}}\n\nLooking forward to hearing from you!' },
+  ],
+  relationshipDefaults: {},
+};
+
+function getMessageConfig() {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty('MSG_CONFIG');
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      if (cfg && cfg.templates && cfg.templates.length > 0) return cfg;
+    }
+  } catch (e) { Logger.log('getMessageConfig parse error: ' + e.message); }
+  return JSON.parse(JSON.stringify(DEFAULT_MSG_CONFIG));
+}
+
+function saveMessageConfig(config) {
+  if (!config || typeof config !== 'object') throw new Error('Invalid config');
+  if (!Array.isArray(config.templates)) throw new Error('templates must be an array');
+  config.templates.forEach(function(t, i) {
+    if (!t.id || !t.name || typeof t.body !== 'string') throw new Error('Template ' + i + ' missing id/name/body');
+  });
+  if (!config.settings || typeof config.settings !== 'object') config.settings = {};
+  if (!config.relationshipDefaults || typeof config.relationshipDefaults !== 'object') config.relationshipDefaults = {};
+  PropertiesService.getScriptProperties().setProperty('MSG_CONFIG', JSON.stringify(config));
+  return { saved: true };
+}
