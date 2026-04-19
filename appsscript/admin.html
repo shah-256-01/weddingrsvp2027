@@ -393,47 +393,40 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <p><strong>CSV Upload</strong> allows bulk-adding guests from a template file.</p>
       </div>
     </div>
+
+    <!-- Message Settings (server-persisted) -->
+    <div class="admin-card">
+      <div class="admin-card-title">Message Settings</div>
+      <div id="msg-settings-container"><div class="skeleton-loader"></div></div>
+    </div>
+
+    <!-- Message Templates CRUD -->
+    <div class="admin-card">
+      <div class="admin-card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Message Templates</span>
+        <button class="btn btn-secondary btn-sm" onclick="addNewTemplate()">+ Add Template</button>
+      </div>
+      <div style="font-size:.68rem;color:var(--muted);margin-bottom:.8rem;">
+        Variables: <code>{{name}}</code> <code>{{code}}</code> <code>{{url}}</code> <code>{{deadline}}</code>
+      </div>
+      <div id="msg-templates-list"><div class="skeleton-loader"></div></div>
+    </div>
+
+    <!-- Relationship → Template Defaults -->
+    <div class="admin-card">
+      <div class="admin-card-title">Relationship Defaults</div>
+      <p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">Assign a default message template for each relationship type. This auto-selects the template when sending messages.</p>
+      <div id="rel-defaults-container"><div class="skeleton-loader"></div></div>
+    </div>
   </div>
 
   <!-- ── TAB: MESSAGES ── -->
   <div class="admin-panel" id="tab-messages">
 
-    <!-- Shared config -->
-    <div class="admin-card">
-      <div class="admin-card-title">Message Settings</div>
-      <div class="form-grid-2">
-        <div class="form-row">
-          <label>RSVP Website URL</label>
-          <input type="text" id="msg-rsvp-url" placeholder="https://your-deployed-url.com" oninput="saveMessageConfig()"/>
-        </div>
-        <div class="form-row">
-          <label>Chase-Up Deadline</label>
-          <input type="text" id="msg-chase-deadline" placeholder="e.g. 30 November 2026" oninput="saveMessageConfig()"/>
-        </div>
-        <div class="form-row">
-          <label>Invite Deadline</label>
-          <input type="text" id="msg-invite-deadline" placeholder="e.g. 30 November 2026" oninput="saveMessageConfig()"/>
-        </div>
-        <div class="form-row">
-          <label>Default Country Code</label>
-          <input type="text" id="msg-default-country-code" placeholder="+91" oninput="saveMessageConfig()" style="max-width:100px;"/>
-        </div>
-      </div>
-    </div>
-
     <!-- Chase-Up sub-section -->
     <div class="admin-card">
       <div class="admin-card-title">Chase-Up &mdash; Pending RSVPs</div>
-      <div class="form-grid-2">
-        <div class="form-row form-full">
-          <label>Message Template</label>
-          <textarea id="msg-chase-template" rows="4" oninput="saveChaseTemplate()" placeholder="Hi {{name}}, ..."></textarea>
-        </div>
-      </div>
-      <div style="font-size:.68rem;color:var(--muted);margin-bottom:.8rem;">
-        Variables: <code>{{name}}</code> <code>{{code}}</code> <code>{{url}}</code> <code>{{deadline}}</code>
-      </div>
-      <div class="filter-bar">
+      <div class="filter-bar" style="gap:.5rem;">
         <select id="chase-filter-rel" onchange="renderChaseUpList()">
           <option value="">All Relationships</option>
         </select>
@@ -444,16 +437,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <!-- Invite Generator sub-section -->
     <div class="admin-card">
       <div class="admin-card-title">Initial Invite Generator</div>
-      <div class="form-grid-2">
-        <div class="form-row form-full">
-          <label>Message Template</label>
-          <textarea id="msg-invite-template" rows="4" oninput="saveInviteTemplate()" placeholder="You are invited! ..."></textarea>
-        </div>
-      </div>
-      <div style="font-size:.68rem;color:var(--muted);margin-bottom:.8rem;">
-        Variables: <code>{{name}}</code> <code>{{code}}</code> <code>{{url}}</code> <code>{{deadline}}</code>
-      </div>
-      <div class="filter-bar">
+      <div class="filter-bar" style="gap:.5rem;">
         <select id="invite-filter-rel" onchange="renderInviteList()">
           <option value="">All Relationships</option>
         </select>
@@ -575,7 +559,8 @@ function normalizePhoneForWhatsApp(phone) {
   if (!phone) return '';
   var digits = String(phone).replace(/[^\d]/g, '');
   if (digits.length < 10) return '';
-  var defaultCode = (document.getElementById('msg-default-country-code') || {}).value || '';
+  var el = document.getElementById('msg-default-country-code');
+  var defaultCode = (el ? el.value : '') || (messageConfig && messageConfig.settings ? messageConfig.settings.defaultCountryCode : '') || '';
   var codeDigits = defaultCode.replace(/[^\d]/g, '').replace(/^0+/, '');
   if (codeDigits && codeDigits.length >= 1 && codeDigits.length <= 3 && digits.length === 10) {
     digits = codeDigits + digits;
@@ -689,7 +674,7 @@ function switchTab(name, btn) {
   if (name === 'guests') { currentPage = 1; renderGuestView(); }
   if (name === 'csv') renderCSVTab();
   if (name === 'rsvps') loadRSVPsTab();
-  if (name === 'settings') renderSettingsTab();
+  if (name === 'settings') { renderSettingsTab(); renderMessageSettingsUI(); }
   if (name === 'messages') loadMessagesTab();
 }
 
@@ -702,6 +687,7 @@ function loadDashboard() {
   loadEvents();
   loadStats();
   loadGuests();
+  loadMessageConfigFromServer();
 }
 
 // ── Data Loading Functions ─────────────────
@@ -1919,64 +1905,236 @@ function renderSettingsTab() {
 }
 
 // ══════════════════════════════════════════════
+//   MESSAGE CONFIG (server-persisted)
+// ══════════════════════════════════════════════
+
+var messageConfig = null;
+var _msgSaveTimer = null;
+
+function loadMessageConfigFromServer() {
+  google.script.run
+    .withSuccessHandler(function(cfg) {
+      messageConfig = cfg;
+      migrateLocalStorageMessages();
+    })
+    .withFailureHandler(function(err) {
+      console.error('Failed to load message config:', err);
+      messageConfig = { settings: {}, templates: [], relationshipDefaults: {} };
+    })
+    .getMessageConfig();
+}
+
+function migrateLocalStorageMessages() {
+  try {
+    var oldCfg = JSON.parse(localStorage.getItem('weddingAdmin_msgConfig') || 'null');
+    var oldChase = localStorage.getItem('weddingAdmin_chaseTemplate');
+    var oldInvite = localStorage.getItem('weddingAdmin_inviteTemplate');
+    if (!oldCfg && !oldChase && !oldInvite) return;
+    if (oldCfg) {
+      if (!messageConfig.settings.rsvpUrl && oldCfg.rsvpUrl) messageConfig.settings.rsvpUrl = oldCfg.rsvpUrl;
+      if (!messageConfig.settings.chaseDeadline && oldCfg.chaseDeadline) messageConfig.settings.chaseDeadline = oldCfg.chaseDeadline;
+      if (!messageConfig.settings.inviteDeadline && oldCfg.inviteDeadline) messageConfig.settings.inviteDeadline = oldCfg.inviteDeadline;
+      if (!messageConfig.settings.defaultCountryCode && oldCfg.defaultCountryCode) messageConfig.settings.defaultCountryCode = oldCfg.defaultCountryCode;
+    }
+    if (oldChase) {
+      var chaseT = messageConfig.templates.find(function(t) { return t.id === 't_chase'; });
+      if (chaseT) chaseT.body = oldChase;
+    }
+    if (oldInvite) {
+      var inviteT = messageConfig.templates.find(function(t) { return t.id === 't_invite'; });
+      if (inviteT) inviteT.body = oldInvite;
+    }
+    saveConfigToServer();
+    localStorage.removeItem('weddingAdmin_msgConfig');
+    localStorage.removeItem('weddingAdmin_chaseTemplate');
+    localStorage.removeItem('weddingAdmin_inviteTemplate');
+  } catch (e) {}
+}
+
+function saveConfigToServer() {
+  if (!messageConfig) return;
+  clearTimeout(_msgSaveTimer);
+  _msgSaveTimer = setTimeout(function() {
+    google.script.run
+      .withSuccessHandler(function() {})
+      .withFailureHandler(function(err) { console.error('Failed to save message config:', err); })
+      .saveMessageConfig(messageConfig);
+  }, 500);
+}
+
+// ── Settings tab: Message Settings UI ──────
+function renderMessageSettingsUI() {
+  if (!messageConfig) return;
+  var s = messageConfig.settings || {};
+  var container = document.getElementById('msg-settings-container');
+  container.innerHTML =
+    '<div class="form-grid-2">' +
+      '<div class="form-row">' +
+        '<label>RSVP Website URL</label>' +
+        '<input type="text" id="msg-rsvp-url" value="' + escapeAttr(s.rsvpUrl || '') + '" placeholder="https://your-deployed-url.com" oninput="onMsgSettingChange()"/>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<label>Chase-Up Deadline</label>' +
+        '<input type="text" id="msg-chase-deadline" value="' + escapeAttr(s.chaseDeadline || '') + '" placeholder="e.g. 30 November 2026" oninput="onMsgSettingChange()"/>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<label>Invite Deadline</label>' +
+        '<input type="text" id="msg-invite-deadline" value="' + escapeAttr(s.inviteDeadline || '') + '" placeholder="e.g. 30 November 2026" oninput="onMsgSettingChange()"/>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<label>Default Country Code</label>' +
+        '<input type="text" id="msg-default-country-code" value="' + escapeAttr(s.defaultCountryCode || '') + '" placeholder="+254" oninput="onMsgSettingChange()" style="max-width:100px;"/>' +
+      '</div>' +
+    '</div>';
+  renderTemplateList();
+  renderRelationshipDefaults();
+}
+
+function onMsgSettingChange() {
+  if (!messageConfig) return;
+  messageConfig.settings.rsvpUrl = (document.getElementById('msg-rsvp-url') || {}).value || '';
+  messageConfig.settings.chaseDeadline = (document.getElementById('msg-chase-deadline') || {}).value || '';
+  messageConfig.settings.inviteDeadline = (document.getElementById('msg-invite-deadline') || {}).value || '';
+  messageConfig.settings.defaultCountryCode = (document.getElementById('msg-default-country-code') || {}).value || '';
+  saveConfigToServer();
+}
+
+// ── Settings tab: Template CRUD ────────────
+function renderTemplateList() {
+  if (!messageConfig) return;
+  var container = document.getElementById('msg-templates-list');
+  if (!messageConfig.templates.length) {
+    container.innerHTML = '<div class="empty-state">No templates yet. Click "Add Template" above.</div>';
+    return;
+  }
+  var html = messageConfig.templates.map(function(t) {
+    var preview = escapeAttr((t.body || '').substring(0, 80)) + (t.body.length > 80 ? '...' : '');
+    return '<div id="tpl-row-' + escapeAttr(t.id) + '" style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.06);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:.85rem;font-weight:600;color:var(--ink);">' + escapeAttr(t.name) + '</div>' +
+          '<div style="font-size:.7rem;color:var(--muted);margin-top:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + preview + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:.4rem;flex-shrink:0;">' +
+          '<button class="btn btn-secondary btn-sm" onclick="openTemplateEditor(\'' + escapeAttr(t.id) + '\')">Edit</button>' +
+          '<button class="btn btn-secondary btn-sm" style="color:var(--red);" onclick="deleteTemplate(\'' + escapeAttr(t.id) + '\')">Delete</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="tpl-editor-' + escapeAttr(t.id) + '" class="hidden"></div>' +
+    '</div>';
+  }).join('');
+  container.innerHTML = html;
+}
+
+function addNewTemplate() {
+  if (!messageConfig) return;
+  var id = 't_' + Date.now();
+  messageConfig.templates.push({ id: id, name: 'New Template', body: 'Hi {{name}},\n\n' });
+  saveConfigToServer();
+  renderTemplateList();
+  renderRelationshipDefaults();
+  openTemplateEditor(id);
+}
+
+function openTemplateEditor(templateId) {
+  var t = messageConfig.templates.find(function(x) { return x.id === templateId; });
+  if (!t) return;
+  var editorEl = document.getElementById('tpl-editor-' + templateId);
+  if (!editorEl) return;
+  if (!editorEl.classList.contains('hidden')) { editorEl.classList.add('hidden'); return; }
+  editorEl.classList.remove('hidden');
+  editorEl.innerHTML =
+    '<div style="margin-top:.6rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;">' +
+      '<div class="form-row" style="margin-bottom:.6rem;">' +
+        '<label style="font-size:.72rem;">Template Name</label>' +
+        '<input type="text" id="tpl-name-' + escapeAttr(templateId) + '" value="' + escapeAttr(t.name) + '" style="width:100%;"/>' +
+      '</div>' +
+      '<div class="form-row" style="margin-bottom:.6rem;">' +
+        '<label style="font-size:.72rem;">Message Body</label>' +
+        '<textarea id="tpl-body-' + escapeAttr(templateId) + '" rows="10" style="width:100%;font-family:\'Jost\',sans-serif;font-size:.82rem;resize:vertical;">' + escapeAttr(t.body) + '</textarea>' +
+      '</div>' +
+      '<div style="display:flex;gap:.5rem;justify-content:flex-end;">' +
+        '<button class="btn btn-secondary btn-sm" onclick="closeTemplateEditor(\'' + escapeAttr(templateId) + '\')">Cancel</button>' +
+        '<button class="btn btn-primary btn-sm" onclick="saveTemplateEdit(\'' + escapeAttr(templateId) + '\')">Save</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function closeTemplateEditor(templateId) {
+  var el = document.getElementById('tpl-editor-' + templateId);
+  if (el) { el.classList.add('hidden'); el.innerHTML = ''; }
+}
+
+function saveTemplateEdit(templateId) {
+  var t = messageConfig.templates.find(function(x) { return x.id === templateId; });
+  if (!t) return;
+  var nameEl = document.getElementById('tpl-name-' + templateId);
+  var bodyEl = document.getElementById('tpl-body-' + templateId);
+  if (nameEl) t.name = nameEl.value.trim() || 'Untitled';
+  if (bodyEl) t.body = bodyEl.value;
+  saveConfigToServer();
+  renderTemplateList();
+  renderRelationshipDefaults();
+}
+
+function deleteTemplate(templateId) {
+  if (!confirm('Delete this template?')) return;
+  messageConfig.templates = messageConfig.templates.filter(function(t) { return t.id !== templateId; });
+  Object.keys(messageConfig.relationshipDefaults).forEach(function(rel) {
+    if (messageConfig.relationshipDefaults[rel] === templateId) delete messageConfig.relationshipDefaults[rel];
+  });
+  saveConfigToServer();
+  renderTemplateList();
+  renderRelationshipDefaults();
+}
+
+// ── Settings tab: Relationship Defaults ────
+function renderRelationshipDefaults() {
+  if (!messageConfig) return;
+  var container = document.getElementById('rel-defaults-container');
+  var rels = getUniqueRelationships();
+  if (!rels.length) {
+    container.innerHTML = '<div class="empty-state">No relationships found. Add guests first.</div>';
+    return;
+  }
+  var tplOptions = '<option value="">-- None --</option>' +
+    messageConfig.templates.map(function(t) {
+      return '<option value="' + escapeAttr(t.id) + '">' + escapeAttr(t.name) + '</option>';
+    }).join('');
+
+  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem;align-items:center;">' +
+    '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;">Relationship</div>' +
+    '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;">Default Template</div>';
+  rels.forEach(function(rel) {
+    var currentDefault = messageConfig.relationshipDefaults[rel] || '';
+    var selectHtml = '<select onchange="onRelDefaultChange(\'' + escapeAttr(rel).replace(/'/g, "\\'") + '\', this.value)" style="width:100%;font-size:.78rem;padding:.4rem .5rem;border:1px solid rgba(0,0,0,.11);border-radius:2px;">' +
+      tplOptions.replace('value="' + escapeAttr(currentDefault) + '"', 'value="' + escapeAttr(currentDefault) + '" selected') +
+      '</select>';
+    html += '<div style="font-size:.8rem;color:var(--ink);padding:.3rem 0;">' + escapeAttr(rel) + '</div>' +
+      '<div>' + selectHtml + '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function onRelDefaultChange(rel, templateId) {
+  if (!messageConfig) return;
+  if (templateId) {
+    messageConfig.relationshipDefaults[rel] = templateId;
+  } else {
+    delete messageConfig.relationshipDefaults[rel];
+  }
+  saveConfigToServer();
+}
+
+// ══════════════════════════════════════════════
 //   MESSAGES TAB
 // ══════════════════════════════════════════════
 
-var MSG_CONFIG_KEY      = 'weddingAdmin_msgConfig';
-var CHASE_TEMPLATE_KEY  = 'weddingAdmin_chaseTemplate';
-var INVITE_TEMPLATE_KEY = 'weddingAdmin_inviteTemplate';
-
-var DEFAULT_CHASE_TEMPLATE  = 'Hi {{name}},\n\nJust a friendly reminder to RSVP for the wedding!\n\nYour code: {{code}}\nRSVP here: {{url}}\nDeadline: {{deadline}}\n\nLooking forward to hearing from you!';
-var DEFAULT_INVITE_TEMPLATE = 'Hi {{name}},\n\nYou are cordially invited to our wedding celebrations!\n\nYour invitation code: {{code}}\nRSVP here: {{url}}\nPlease respond by: {{deadline}}\n\nWe hope to see you there!';
-
 function loadMessagesTab() {
-  loadMessageConfig();
-  loadChaseTemplate();
-  loadInviteTemplate();
   populateRelationshipFilters();
   renderChaseUpList();
   renderInviteList();
-}
-
-function loadMessageConfig() {
-  try {
-    var cfg = JSON.parse(localStorage.getItem(MSG_CONFIG_KEY) || '{}');
-    document.getElementById('msg-rsvp-url').value = cfg.rsvpUrl || '';
-    document.getElementById('msg-chase-deadline').value = cfg.chaseDeadline || '';
-    document.getElementById('msg-invite-deadline').value = cfg.inviteDeadline || '';
-    document.getElementById('msg-default-country-code').value = cfg.defaultCountryCode || '';
-  } catch (e) {}
-}
-
-function saveMessageConfig() {
-  try {
-    localStorage.setItem(MSG_CONFIG_KEY, JSON.stringify({
-      rsvpUrl: document.getElementById('msg-rsvp-url').value,
-      chaseDeadline: document.getElementById('msg-chase-deadline').value,
-      inviteDeadline: document.getElementById('msg-invite-deadline').value,
-      defaultCountryCode: document.getElementById('msg-default-country-code').value
-    }));
-  } catch (e) {}
-}
-
-function loadChaseTemplate() {
-  var saved = '';
-  try { saved = localStorage.getItem(CHASE_TEMPLATE_KEY); } catch (e) {}
-  document.getElementById('msg-chase-template').value = saved || DEFAULT_CHASE_TEMPLATE;
-}
-
-function saveChaseTemplate() {
-  try { localStorage.setItem(CHASE_TEMPLATE_KEY, document.getElementById('msg-chase-template').value); } catch (e) {}
-}
-
-function loadInviteTemplate() {
-  var saved = '';
-  try { saved = localStorage.getItem(INVITE_TEMPLATE_KEY); } catch (e) {}
-  document.getElementById('msg-invite-template').value = saved || DEFAULT_INVITE_TEMPLATE;
-}
-
-function saveInviteTemplate() {
-  try { localStorage.setItem(INVITE_TEMPLATE_KEY, document.getElementById('msg-invite-template').value); } catch (e) {}
 }
 
 function getUniqueRelationships() {
@@ -1996,10 +2154,34 @@ function populateRelationshipFilters() {
   document.getElementById('invite-filter-rel').innerHTML = options;
 }
 
+function getDefaultTemplateId(guest) {
+  if (!messageConfig || !messageConfig.templates.length) return '';
+  var rel = (guest.relationship || '').trim();
+  var defaultId = messageConfig.relationshipDefaults[rel] || '';
+  if (defaultId && messageConfig.templates.find(function(t) { return t.id === defaultId; })) return defaultId;
+  return messageConfig.templates[0].id;
+}
+
+function buildTemplateDropdown(guestId, section, selectedId) {
+  if (!messageConfig || !messageConfig.templates.length) return '';
+  var options = messageConfig.templates.map(function(t) {
+    return '<option value="' + escapeAttr(t.id) + '"' + (t.id === selectedId ? ' selected' : '') + '>' + escapeAttr(t.name) + '</option>';
+  }).join('');
+  return '<select id="tpl-sel-' + escapeAttr(section) + '-' + escapeAttr(guestId) + '" style="font-size:.7rem;padding:.25rem .4rem;border:1px solid rgba(0,0,0,.1);border-radius:2px;max-width:130px;">' + options + '</select>';
+}
+
+function getSelectedTemplateBody(guestId, section) {
+  if (!messageConfig || !messageConfig.templates.length) return '';
+  var sel = document.getElementById('tpl-sel-' + section + '-' + guestId);
+  var tplId = sel ? sel.value : '';
+  var t = messageConfig.templates.find(function(x) { return x.id === tplId; });
+  return t ? t.body : (messageConfig.templates[0] || {}).body || '';
+}
+
 function buildMessage(template, guest, deadline) {
   var name = ((guest.first_name || '') + ' ' + (guest.last_name || '')).trim();
   var code = guest.invitation_code || '';
-  var url  = (document.getElementById('msg-rsvp-url').value || '').trim();
+  var url  = (messageConfig && messageConfig.settings && messageConfig.settings.rsvpUrl) || '';
   return template
     .replace(/\{\{name\}\}/g, name)
     .replace(/\{\{code\}\}/g, code)
@@ -2010,14 +2192,9 @@ function buildMessage(template, guest, deadline) {
 function openWhatsApp(guestId, section) {
   var g = allGuests.find(function(x) { return x.id === guestId; });
   if (!g || !g.phone) return;
-  var template, deadline;
-  if (section === 'chase') {
-    template = document.getElementById('msg-chase-template').value;
-    deadline = document.getElementById('msg-chase-deadline').value;
-  } else {
-    template = document.getElementById('msg-invite-template').value;
-    deadline = document.getElementById('msg-invite-deadline').value;
-  }
+  var template = getSelectedTemplateBody(guestId, section);
+  var deadline = (messageConfig && messageConfig.settings) ?
+    (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
   var msg = buildMessage(template, g, deadline);
   var url = buildWhatsAppUrl(g.phone, msg);
   if (url) window.open(url, '_blank');
@@ -2026,14 +2203,9 @@ function openWhatsApp(guestId, section) {
 function copyMessage(flashId, guestId, section) {
   var g = allGuests.find(function(x) { return x.id === guestId; });
   if (!g) return;
-  var template, deadline;
-  if (section === 'chase') {
-    template = document.getElementById('msg-chase-template').value;
-    deadline = document.getElementById('msg-chase-deadline').value;
-  } else {
-    template = document.getElementById('msg-invite-template').value;
-    deadline = document.getElementById('msg-invite-deadline').value;
-  }
+  var template = getSelectedTemplateBody(guestId, section);
+  var deadline = (messageConfig && messageConfig.settings) ?
+    (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
   var msg = buildMessage(template, g, deadline);
   if (navigator.clipboard) {
     navigator.clipboard.writeText(msg).then(function() {
@@ -2083,13 +2255,15 @@ function renderChaseUpList() {
   var rows = pending.map(function(g) {
     var fullName = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
     var flashId = 'flash-cu-' + g.id;
+    var defaultTpl = getDefaultTemplateId(g);
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
-      '<div>' +
+      '<div style="flex:1;min-width:0;">' +
         '<div class="guest-name-cell">' + fullName + '</div>' +
         '<div class="guest-sub">' + phoneWhatsAppHtml(g.phone) + ' &middot; <span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span> &middot; ' + escapeAttr(sanitiseValue(g.relationship)) + '</div>' +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:.5rem;">' +
-        '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
+      '<div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0;">' +
+        buildTemplateDropdown(g.id, 'chase', defaultTpl) +
+        '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;min-width:0;"></span>' +
         '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'chase\')">Copy</button>' +
         (normalizePhoneForWhatsApp(g.phone) ? '<button class="btn btn-secondary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'chase\')" title="Send via WhatsApp">&#128172;</button>' : '') +
       '</div></div>';
@@ -2114,13 +2288,15 @@ function renderInviteList() {
   var rows = guests.map(function(g) {
     var fullName = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
     var flashId = 'flash-inv-' + g.id;
+    var defaultTpl = getDefaultTemplateId(g);
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
-      '<div>' +
+      '<div style="flex:1;min-width:0;">' +
         '<div class="guest-name-cell">' + fullName + '</div>' +
         '<div class="guest-sub"><span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span> &middot; ' + escapeAttr(sanitiseValue(g.relationship)) + '</div>' +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:.5rem;">' +
-        '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;"></span>' +
+      '<div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0;">' +
+        buildTemplateDropdown(g.id, 'invite', defaultTpl) +
+        '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;min-width:0;"></span>' +
         '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'invite\')">Copy</button>' +
         (normalizePhoneForWhatsApp(g.phone) ? '<button class="btn btn-secondary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'invite\')" title="Send via WhatsApp">&#128172;</button>' : '') +
       '</div></div>';
