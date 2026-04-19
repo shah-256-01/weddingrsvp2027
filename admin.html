@@ -274,6 +274,13 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 
 <!-- Dashboard (hidden until auth) -->
 <div id="admin-dashboard" class="hidden">
+  <div id="debug-banner" style="display:none;position:sticky;top:0;z-index:9999;background:#fee;border-bottom:2px solid #c00;padding:.5rem .75rem;font-size:.72rem;font-family:monospace;max-height:30vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+      <strong style="color:#c00;">Debug Log</strong>
+      <button onclick="document.getElementById('debug-banner').style.display='none'" style="background:none;border:none;font-size:1rem;cursor:pointer;">&times;</button>
+    </div>
+    <div id="debug-messages"></div>
+  </div>
   <nav class="admin-nav">
     <span class="admin-nav-title">&#10022; Wedding Admin</span>
     <div style="display:flex;gap:.6rem;align-items:center;">
@@ -529,6 +536,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   </div>
 </div>
 <script>
+window.onerror = function(msg, src, line) {
+  var d = document.getElementById('debug-banner'), c = document.getElementById('debug-messages');
+  if (d && c) { d.style.display = 'block'; var el = document.createElement('div'); el.style.cssText = 'color:#c00;padding:.15rem 0;border-bottom:1px solid #eee;word-break:break-all;'; el.textContent = 'JS ERROR line ' + line + ': ' + msg; c.appendChild(el); }
+};
 /* ══════════════════════════════════════════════
    BACKEND SHIM
    Forwards google.script.run.foo(arg) calls to the
@@ -544,6 +555,19 @@ var ADMIN_PIN_KEY = 'adminAuth';
     try { return sessionStorage.getItem(ADMIN_PIN_KEY) || ''; } catch (e) { return ''; }
   }
 
+  window._showDebug = function(msg, type) {
+    var banner = document.getElementById('debug-banner');
+    var container = document.getElementById('debug-messages');
+    if (!banner || !container) return;
+    banner.style.display = 'block';
+    var color = type === 'error' ? '#c00' : type === 'ok' ? '#080' : '#555';
+    var line = document.createElement('div');
+    line.style.cssText = 'color:' + color + ';padding:.15rem 0;border-bottom:1px solid #eee;word-break:break-all;';
+    line.textContent = new Date().toLocaleTimeString() + ' ' + msg;
+    container.appendChild(line);
+    banner.scrollTop = banner.scrollHeight;
+  };
+
   function invoke(method, arg, state) {
     var body;
     if (method === 'checkPin') {
@@ -551,6 +575,7 @@ var ADMIN_PIN_KEY = 'adminAuth';
     } else {
       body = { action: method, payload: (arg == null ? {} : arg), pin: getPin() };
     }
+    _showDebug('→ ' + method, 'info');
     fetch(SCRIPT_URL, {
       method: 'POST',
       credentials: 'omit',
@@ -561,14 +586,17 @@ var ADMIN_PIN_KEY = 'adminAuth';
       return r.json();
     }).then(function(json) {
       if (json && json.ok) {
+        _showDebug('✓ ' + method + ' OK', 'ok');
         if (state.success) state.success(json.data);
       } else {
         var msg = (json && json.error) || 'Request failed';
+        _showDebug('✗ ' + method + ': ' + msg, 'error');
         var err = new Error(msg);
         if (state.failure) state.failure(err);
         else console.warn('Admin call failed:', method, msg);
       }
     }).catch(function(err) {
+      _showDebug('✗ ' + method + ': ' + err.message, 'error');
       if (state.failure) state.failure(err);
       else console.warn('Admin call error:', method, err);
     });
