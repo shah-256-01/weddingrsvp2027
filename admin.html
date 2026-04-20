@@ -51,8 +51,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .admin-login-err{font-size:.7rem;color:#f87;margin-bottom:.7rem;min-height:1rem;display:block;}
 .admin-nav{background:var(--ink);padding:.9rem 1.8rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:60;}
 .admin-nav-title{font-family:'Cinzel',serif;font-size:var(--fs-xs);letter-spacing:var(--ls-wider);color:var(--gold-lt);}
-.admin-tabs{background:var(--wine-d);display:flex;gap:0;overflow-x:auto;}
-.admin-tab{font-family:'Cinzel',serif;font-size:var(--fs-xs);letter-spacing:var(--ls-wide);text-transform:uppercase;padding:.9rem 1.8rem;color:rgba(255,255,255,.45);cursor:pointer;border:none;background:transparent;white-space:nowrap;transition:all .2s;border-bottom:2px solid transparent;}
+.admin-tabs{background:var(--wine-d);display:flex;gap:0;overflow-x:auto;position:sticky;top:51px;z-index:55;box-shadow:0 2px 8px rgba(0,0,0,.12);}
+.admin-tab{font-family:'Cinzel',serif;font-size:var(--fs-sm);letter-spacing:var(--ls-wide);text-transform:uppercase;padding:1.05rem 1.9rem;color:rgba(255,255,255,.55);cursor:pointer;border:none;background:transparent;white-space:nowrap;transition:all .2s;border-bottom:3px solid transparent;}
 .admin-tab:hover{color:rgba(255,255,255,.75);}
 .admin-tab.active{color:var(--gold-lt);border-bottom-color:var(--gold);}
 .admin-panel{display:none;max-width:1100px;margin:0 auto;padding:2rem 1.5rem;}
@@ -250,8 +250,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-evt-wrap{display:flex;flex-wrap:wrap;gap:.1rem .3rem;}
 /* ── Admin Mobile ── */
 @media(max-width:700px){
-  .admin-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .admin-tab{padding:.7rem 1rem;font-size:var(--fs-2xs);}
+  .admin-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;top:40px;}
+  .admin-tab{padding:.85rem 1rem;font-size:var(--fs-xs);border-bottom-width:2px;}
   .stats-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
   .stat-card{min-width:0;padding:.8rem .6rem;}
   .filter-bar{flex-direction:column;}
@@ -305,7 +305,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   .rsvp-evt-inline{white-space:normal;}
 }
 @media(max-width:400px){
-  .admin-tab{padding:.6rem .65rem;font-size:.5rem;letter-spacing:.1em;}
+  .admin-tab{padding:.75rem .75rem;font-size:var(--fs-2xs);letter-spacing:.12em;}
   .stats-row{grid-template-columns:1fr 1fr;gap:.4rem;}
   .stat-card{padding:.65rem .4rem;}
   .stat-num{font-size:1.4rem;}
