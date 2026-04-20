@@ -358,7 +358,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <div class="ornament-line" style="width:60px"></div>
     </div>
     <p class="landing-meta">
-      <span id="landing-date">The twenty-eighth of December, Two thousand twenty-six</span>
+      <span id="landing-date">28th of December, 2026</span>
       <small id="landing-venue">Park Avenue Grand &#x2002;&#x2022;&#x2002; Kochi</small>
     </p>
     <div id="landing-loader" class="hidden" style="padding:1rem 0;">
@@ -446,7 +446,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         </div>
       </div>
       <p class="welcome-deadline" id="welcome-deadline">
-        Kindly respond by <strong>the thirtieth of November, Two thousand twenty-six</strong>
+        Kindly respond by <strong>30th of November, 2026</strong>
       </p>
     </div>
   </div>
@@ -881,40 +881,25 @@ document.addEventListener('DOMContentLoaded', function() {
   if (dateEl) dateEl.textContent = formatWeddingDate(WEDDING_DATETIME);
 });
 
-var DAY_WORDS = ['', 'first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth',
-  'eleventh','twelfth','thirteenth','fourteenth','fifteenth','sixteenth','seventeenth','eighteenth','nineteenth','twentieth',
-  'twenty-first','twenty-second','twenty-third','twenty-fourth','twenty-fifth','twenty-sixth','twenty-seventh','twenty-eighth','twenty-ninth','thirtieth','thirty-first'];
-function dayToWords(n){ return DAY_WORDS[n] || String(n); }
-function yearToWords(y){
-  if (y >= 2000 && y < 3000) {
-    var tail = y - 2000;
-    var ONES = ['','one','two','three','four','five','six','seven','eight','nine'];
-    var TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
-    var TEENS = ['ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
-    var tailStr;
-    if (tail === 0) tailStr = '';
-    else if (tail < 10) tailStr = ONES[tail];
-    else if (tail < 20) tailStr = TEENS[tail - 10];
-    else {
-      var t = Math.floor(tail / 10), u = tail % 10;
-      tailStr = TENS[t] + (u ? '-' + ONES[u] : '');
-    }
-    return 'Two thousand' + (tailStr ? ' ' + tailStr : '');
-  }
-  return String(y);
+function ordinalSuffix(n){
+  var v = n % 100;
+  if (v >= 11 && v <= 13) return 'th';
+  switch (n % 10) { case 1: return 'st'; case 2: return 'nd'; case 3: return 'rd'; default: return 'th'; }
 }
 
 function formatDeadlineDate(dateStr) {
   var parts = dateStr.split('-');
   var d = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+  var day = d.getUTCDate();
   var month = d.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' });
-  return 'the ' + dayToWords(d.getUTCDate()) + ' of ' + month + ', ' + yearToWords(d.getUTCFullYear());
+  return day + ordinalSuffix(day) + ' of ' + month + ', ' + d.getUTCFullYear();
 }
 
 function formatWeddingDate(isoStr) {
   var d = new Date(isoStr);
+  var day = d.getDate();
   var month = d.toLocaleString('en-GB', { month: 'long' });
-  return 'The ' + dayToWords(d.getDate()) + ' of ' + month + ', ' + yearToWords(d.getFullYear());
+  return day + ordinalSuffix(day) + ' of ' + month + ', ' + d.getFullYear();
 }
 
 async function submitEntry() {
