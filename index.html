@@ -165,14 +165,14 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .event-card-header{display:flex;align-items:center;gap:1.2rem;padding:1.5rem 1.8rem;cursor:pointer;border-bottom:1px solid transparent;transition:border-color .2s;user-select:none;}
 .event-card.expanded .event-card-header{border-bottom-color:var(--rule);}
 /* Image variant: the invitation artwork fills the card top; a slim footer
-   bar carries name/date/badge/chevron so the state is still glanceable
-   and the whole header remains tap-to-expand. */
-.event-card--with-image .event-card-header{flex-direction:column;align-items:stretch;gap:0;padding:0;}
-.event-card--with-image.expanded .event-card-header{border-bottom-color:transparent;}
+   bar carries name/date/badge. There is no chevron and no tap-to-expand
+   — attend/decline + guest counter are always visible below. */
+.event-card--with-image .event-card-header{flex-direction:column;align-items:stretch;gap:0;padding:0;cursor:default;}
+.event-card--with-image .event-card-header{border-bottom-color:transparent;}
 .event-card-image{display:block;width:100%;height:auto;background:var(--blush);}
-.event-card--with-image .event-card-footer{display:flex;align-items:center;gap:1rem;padding:1rem 1.4rem;background:var(--cream);border-top:1px solid var(--rule);}
+.event-card--with-image .event-card-footer{display:flex;align-items:center;gap:1rem;padding:1rem 1.4rem;background:var(--cream);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
 .event-card--with-image .event-card-footer .event-card-meta{flex:1;min-width:0;}
-.event-card--with-image.expanded .event-card-footer{border-bottom:1px solid var(--rule);}
+.event-card--with-image .event-card-body{max-height:none;}
 .event-index{font-family:var(--serif);font-style:italic;color:var(--gold);font-size:1.35rem;min-width:38px;flex-shrink:0;padding-right:.8rem;border-right:1px solid var(--rule);text-align:center;line-height:1;}
 .event-card-meta{flex:1;}
 .event-name{font-family:var(--serif);font-size:var(--display-sm);font-weight:400;color:var(--wine);line-height:1.3;}
@@ -1222,33 +1222,33 @@ function renderEventCards() {
     const imagePath = INVITE_IMAGES[evt.id];
     const hasImage = !!imagePath;
     const el = document.createElement('div');
-    el.className = 'event-card' + (hasImage ? ' event-card--with-image' : '') + (idx === 0 ? ' expanded' : '');
+    // Image cards are always expanded — no chevron, no toggle. Text cards
+    // retain the accordion behaviour with the first one open by default.
+    el.className = 'event-card' + (hasImage ? ' event-card--with-image expanded' : '') + (!hasImage && idx === 0 ? ' expanded' : '');
     el.id = 'ecard-' + id;
 
-    const headerOpen =
-      '<div class="event-card-header" role="button" tabindex="0" onclick="toggleCard(\'' + safeId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleCard(\'' + safeId + '\');}">';
     const badge =
       '<span class="event-status-badge badge-pending" id="badge-' + safeId + '">Pending</span>';
-    const chevron =
-      '<span class="card-chevron" id="chevron-' + safeId + '">&#9662;</span>';
 
     let header;
     if (hasImage) {
       const alt = 'Invitation to ' + (evt.name || 'event');
-      // Image fills the card top; a slim footer bar carries name/date/badge/chevron
-      // so the guest can still read state at a glance and tap to expand.
-      header = headerOpen +
+      // Image fills the card top; a slim footer bar carries name/date/badge.
+      // No chevron — the attend controls below are always visible.
+      header = '<div class="event-card-header">' +
         '<img class="event-card-image" src="' + escapeAttr(imagePath) + '" alt="' + escapeAttr(alt) + '" loading="lazy"/>' +
         '<div class="event-card-footer">' +
           '<div class="event-card-meta">' +
             '<div class="event-name">' + escapeHtml(evt.name) + '</div>' +
             '<div class="event-datetime">' + escapeHtml(evt.date) + ' &nbsp;&middot;&nbsp; ' + escapeHtml(evt.time) + '</div>' +
           '</div>' +
-          badge + chevron +
+          badge +
         '</div>' +
       '</div>';
     } else {
-      header = headerOpen +
+      const chevron =
+        '<span class="card-chevron" id="chevron-' + safeId + '">&#9662;</span>';
+      header = '<div class="event-card-header" role="button" tabindex="0" onclick="toggleCard(\'' + safeId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleCard(\'' + safeId + '\');}">' +
         '<div class="event-index">' + numeral + '</div>' +
         '<div class="event-card-meta">' +
           '<div class="event-name">' + escapeHtml(evt.name) + '</div>' +
