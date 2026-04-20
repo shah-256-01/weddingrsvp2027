@@ -299,7 +299,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
       <div class="view-switcher">
         <button class="view-btn active" onclick="setGuestView('list')" id="vbtn-list">&#9776; List</button>
-        <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; By Code</button>
+        <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; Cards</button>
         <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">&#10003; RSVP Status</button>
         <button class="view-btn" onclick="setGuestView('event')" id="vbtn-event">&#128197; By Event</button>
       </div>
@@ -1065,7 +1065,7 @@ function selectEventFilter(eventId) {
   var content = document.getElementById('event-view-content');
   content.innerHTML =
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:1rem 0;">' +
-    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Families Invited</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Invitations</div></div>' +
     '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedHeadcount || 0) + '</div><div class="stat-lbl">Guests Invited</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingGuests || 0) + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--gold);">' + (evtStats.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
