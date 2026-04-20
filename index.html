@@ -1734,7 +1734,7 @@ function startCountdown(){
   ['#c97b84','#e8c87a','#b8924a','#6b2737','#4a7c74'].forEach(c=>{
     for(let i=0;i<3;i++){
       const p=document.createElement('div'); p.className='petal';
-      const sz=Math.random()*10+10;
+      const sz=Math.random()*7+7;
       p.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz*1.4}px;background:${c};animation-duration:${8+Math.random()*7}s;animation-delay:${-Math.random()*10}s;`;
       host.appendChild(p);
     }
