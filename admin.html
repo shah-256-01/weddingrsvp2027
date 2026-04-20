@@ -2759,7 +2759,7 @@ function openWhatsApp(guestId, section) {
       .withFailureHandler(function(err) {
         console.warn('markInviteSent failed:', err && err.message);
       })
-      .markInviteSent(guestId);
+      .markInviteSent({ guestId: guestId });
   }
 }
 
@@ -2779,7 +2779,7 @@ function clearInviteSent(guestId) {
       renderInviteList();
     })
     .withFailureHandler(function(err) { alert('Could not clear: ' + (err && err.message)); })
-    .markInviteSent(guestId, true);
+    .markInviteSent({ guestId: guestId, clear: true });
 }
 
 function copyMessage(flashId, guestId, section) {

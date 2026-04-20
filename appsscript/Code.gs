@@ -33,13 +33,10 @@ const EVENT_IDS = ['Lg','MS','Ma','MG','We','BT'];
 
 // ── Routing ──────────────────────────────────────────────
 function doGet(e) {
-  // Serve admin panel
-  if (e && e.parameter && e.parameter.page === 'admin') {
-    return HtmlService
-      .createHtmlOutputFromFile('admin')
-      .setTitle('Wedding Admin')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
-  }
+  // The admin UI now lives at admin.html on GitHub Pages and talks to this
+  // Apps Script as an API via doPost. We no longer serve admin.html from
+  // Apps Script itself.
+  //
   // Validate guest — ?action=validate&code=LW2026&firstName=John&lastName=Smith
   if (e && e.parameter && e.parameter.action === 'validate') {
     try {
@@ -86,7 +83,7 @@ function doPost(e) {
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
-      'generateCode',
+      'generateCode', 'markInviteSent',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -120,6 +117,7 @@ function doPost(e) {
     else if (action === 'getEvents')        result = getEvents();
     else if (action === 'getRSVPsByFamily') result = getRSVPsByFamily();
     else if (action === 'generateCode')     result = generateCode();
+    else if (action === 'markInviteSent')   result = markInviteSent(payload.guestId, !!payload.clear);
     else if (action === 'getMessageConfig') result = getMessageConfig();
     else if (action === 'saveMessageConfig') result = saveMessageConfig(payload);
     else if (action === 'checkPin')         result = { ok: true };
