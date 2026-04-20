@@ -134,6 +134,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .invite-row__nameline{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;}
 .invite-row__nameline .guest-name-cell{font-size:var(--fs-lg);line-height:1.2;}
 .invite-row__meta{font-size:.82rem;color:var(--muted);display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;}
+.msg-row__headline{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.3rem;}
+.msg-row__headline .guest-status-dot{margin-top:0;}
+.msg-row__headline .guest-name-cell{font-size:var(--fs-lg);line-height:1.2;}
+.msg-row__contact{display:flex;flex-wrap:wrap;gap:.2rem .55rem;align-items:center;font-size:var(--fs-md);color:var(--muted);line-height:1.4;margin-bottom:.3rem;}
+.msg-row__contact > span + span::before{content:'·';color:rgba(0,0,0,.2);margin-right:.55rem;}
+.msg-tag{display:inline-block;font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:.08em;padding:.18rem .55rem;border-radius:10px;white-space:nowrap;text-transform:uppercase;}
+.msg-tag--next{background:rgba(184,146,74,.25);color:var(--wine);}
+.msg-tag--skipped{background:rgba(139,32,32,.08);color:var(--red);}
+.msg-tag--sent{background:rgba(45,74,62,.12);color:var(--green);letter-spacing:.04em;text-transform:none;font-family:'Jost',sans-serif;}
 .invite-row__controls{grid-column:1 / -1;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;}
 .invite-row__controls select{font-size:var(--fs-md);padding:.45rem .6rem;min-width:130px;max-width:180px;}
 .invite-row__controls .btn{padding:.55rem 1rem;}
@@ -556,6 +565,12 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <option value="unsent" selected>Not sent yet</option>
           <option value="sent">Already sent</option>
         </select>
+      </div>
+
+      <div class="guest-status-legend" style="margin-top:.2rem;">
+        <span><span class="guest-status-dot guest-status-dot--red"></span>Invite not sent</span>
+        <span><span class="guest-status-dot guest-status-dot--orange"></span>Awaiting RSVP</span>
+        <span><span class="guest-status-dot guest-status-dot--green"></span>RSVP&rsquo;d</span>
       </div>
 
       <div id="msg-progress"></div>
@@ -3136,20 +3151,14 @@ function buildMsgRow(g, mode, skips, nextUp) {
   var isSkipped  = skips.has(g.id);
   var isNext     = nextUp && nextUp.id === g.id;
 
-  // Badge depends on mode. Chase mode ignores invite_sent_at since a guest
-  // can have been invited and still not responded — the chase queue is
-  // defined by RSVP state, not invite-sent state.
-  var badge;
-  if (mode === 'invite') {
-    if (sentAt)         badge = '<span class="sent-badge" title="' + escapeAttr(sentAt) + '">&#10003; Sent ' + escapeAttr(formatSentAt(sentAt)) + '</span>';
-    else if (isSkipped) badge = '<span class="sent-badge sent-badge--skipped">Skipped</span>';
-    else if (isNext)    badge = '<span class="sent-badge sent-badge--next">Up next</span>';
-    else                badge = '<span class="sent-badge sent-badge--pending">Not sent</span>';
-  } else {
-    if (isSkipped)      badge = '<span class="sent-badge sent-badge--skipped">Skipped</span>';
-    else if (isNext)    badge = '<span class="sent-badge sent-badge--next">Up next</span>';
-    else                badge = '<span class="sent-badge sent-badge--pending">Pending RSVP</span>';
-  }
+  // Session tag (separate from the RSVP traffic-light dot) — "Up next" and
+  // "Skipped" are per-session concepts, not invite/RSVP state. In invite
+  // mode we also surface the sent date so the admin sees when they last
+  // reached out.
+  var sessionTag = '';
+  if (isSkipped)       sessionTag = '<span class="msg-tag msg-tag--skipped">Skipped</span>';
+  else if (isNext)     sessionTag = '<span class="msg-tag msg-tag--next">Up next</span>';
+  else if (mode === 'invite' && sentAt) sessionTag = '<span class="msg-tag msg-tag--sent" title="' + escapeAttr(sentAt) + '">&#10003; Sent ' + escapeAttr(formatSentAt(sentAt)) + '</span>';
 
   var sendBtnLabel = (mode === 'invite' && sentAt) ? 'Resend' : 'Send';
 
@@ -3165,22 +3174,27 @@ function buildMsgRow(g, mode, skips, nextUp) {
       : '<button class="btn btn-ghost btn-sm" onclick="skipMessage(\'' + escapeAttr(g.id) + '\')" title="Skip for this session">Skip</button>';
   }
 
-  var phoneLine = g.phone
-    ? '<span>' + phoneWhatsAppHtml(g.phone) + '</span><span>&middot;</span>'
+  // Contact line — relationship · phone · email, dot separators via CSS.
+  var rel   = escapeAttr(g.relationship || '');
+  var phone = phoneWhatsAppHtml(g.phone);
+  var email = escapeAttr(g.email || '');
+  var contactSpans = [];
+  if (rel)   contactSpans.push('<span>' + rel + '</span>');
+  if (phone) contactSpans.push('<span>' + phone + '</span>');
+  if (email) contactSpans.push('<span>' + email + '</span>');
+  var contactLine = contactSpans.length
+    ? '<div class="msg-row__contact">' + contactSpans.join('') + '</div>'
     : '';
 
   return '<div id="msg-row-' + escapeAttr(g.id) + '" class="invite-row' + (isNext ? ' invite-row--next' : '') + (isSkipped ? ' invite-row--skipped' : '') + '">' +
     '<div class="invite-row__identity">' +
-      '<div class="invite-row__nameline">' +
+      '<div class="msg-row__headline">' +
+        guestStatusDot(g) +
         '<span class="guest-name-cell">' + fullName + '</span>' +
-        badge +
+        sessionTag +
       '</div>' +
-      '<div class="invite-row__meta">' +
-        phoneLine +
-        '<span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span>' +
-        '<span>&middot;</span>' +
-        '<span>' + escapeAttr(sanitiseValue(g.relationship)) + '</span>' +
-      '</div>' +
+      contactLine +
+      (g.invitation_code ? '<div><span class="code-pill">' + escapeAttr(g.invitation_code) + '</span></div>' : '') +
     '</div>' +
     '<div class="invite-row__controls">' +
       buildTemplateDropdown(g.id, mode, defaultTpl) +
