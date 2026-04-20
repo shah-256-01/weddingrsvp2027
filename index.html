@@ -1120,15 +1120,18 @@ function showAlreadySubmittedScreen(existingRSVP) {
   var summary = existingRSVP.eventSummary || [];
 
   // Build invitation cards for events the guest is attending — each card is their keepsake invite
+  var attendingIndex = 0;
   var attendingCards = summary
     .filter(function(ev) { return ev.attending; })
     .map(function(ev) {
       var evt = EVENTS.find(function(e) { return e.id === ev.id; }) || {};
       var guests = Number(ev.guests) || 0;
       var names = (ev.names || []).filter(Boolean).map(function(n) { return escapeHtml(n); }).join(', ');
+      var numeral = ROMAN[attendingIndex] || String(attendingIndex + 1);
+      attendingIndex++;
       var confirmBadge =
         '<span class="invite-card-footer-check">\u2713</span>' +
-        'Confirmed \u00b7 ' + guests + ' guest' + (guests !== 1 ? 's' : '');
+        'Confirmed &middot; ' + guests + ' guest' + (guests !== 1 ? 's' : '');
       var namesBlock = names ? '<span class="invite-card-confirm-names">' + names + '</span>' : '';
 
       // Text-based invite card built from sheet data. Always produce this HTML
@@ -1136,9 +1139,9 @@ function showAlreadySubmittedScreen(existingRSVP) {
       var dateLine = [evt.date, evt.time].filter(Boolean).map(escapeHtml).join(' &middot; ');
       var textCard = '<article class="invite-card">' +
           '<div class="invite-card-top">' +
-            '<div class="invite-card-icon">' + escapeHtml(evt.icon || ev.icon || '') + '</div>' +
+            '<div class="invite-card-numeral">' + numeral + '</div>' +
             '<div>' +
-              '<div class="invite-card-eyebrow">You\u2019re invited</div>' +
+              '<div class="invite-card-eyebrow">You are invited to</div>' +
               '<div class="invite-card-title">' + escapeHtml(evt.name || ev.name || '') + '</div>' +
             '</div>' +
           '</div>' +
@@ -1169,42 +1172,41 @@ function showAlreadySubmittedScreen(existingRSVP) {
       return textCard;
     }).join('');
 
-  // Compact summary row (attending + declined) for at-a-glance reference
+  // Compact "All responses" row (attending + regrets) for at-a-glance reference
   var eventRows = summary.map(function(ev) {
-    var detail = ev.attending
-      ? ((ev.guests || 0) + ' guest' + ((ev.guests || 0) !== 1 ? 's' : '') +
-        (function() {
-          var ns = (ev.names || []).filter(Boolean);
-          return ns.length ? ' (' + ns.map(function(n) { return escapeHtml(n); }).join(', ') + ')' : '';
-        })())
-      : 'Declined';
     var statusClass = ev.attending ? 'status-attending' : 'status-declined';
+    var statusText  = ev.attending ? 'Attending' : 'Regrets';
     return '<div class="summary-row">' +
-      '<span>' + escapeHtml(ev.icon) + ' ' + escapeHtml(ev.name) + '</span>' +
-      '<span class="summary-status ' + statusClass + '">' + escapeHtml(detail) + '</span>' +
+      '<span class="summary-name">' + escapeHtml(ev.name) + '</span>' +
+      '<span class="summary-status ' + statusClass + '">' + statusText + '</span>' +
     '</div>';
   }).join('');
 
   var screen = document.getElementById('already-submitted-screen');
   screen.innerHTML =
-    '<div class="success-icon">\u2709\uFE0F</div>' +
-    '<h2 class="success-title">We have your RSVP</h2>' +
+    '<div class="already-seal">' +
+      '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
+        '<path d="M6 10 L16 19 L26 10"/>' +
+        '<path d="M6 10 L6 23 L26 23 L26 10"/>' +
+        '<path d="M6 10 L16 3 L26 10"/>' +
+      '</svg>' +
+    '</div>' +
+    '<h2 class="success-title">Your response is received</h2>' +
     '<p class="success-sub" style="margin-bottom:1.5rem;">' +
-      'We received a response for <strong>' + escapeHtml(existingRSVP.submissionName || 'your family') + '</strong> ' +
-      'on ' + submittedDate + '.' +
+      'A reply for <strong>' + escapeHtml(existingRSVP.submissionName || 'your family') + '</strong> ' +
+      'was noted on ' + submittedDate + '. Below, a keepsake of the events you\'ll be joining us for.' +
     '</p>' +
     (attendingCards
-      ? '<div class="invite-cards-heading">Your invitations</div>' +
-        '<div class="invite-cards-wrap">' + attendingCards + '</div>'
+      ? '<div class="invite-cards-wrap">' + attendingCards + '</div>'
       : '') +
     (eventRows
-      ? '<div class="summary-card" style="max-width:480px;margin:0 auto 1.5rem;text-align:left;">' +
-          '<div class="summary-title">Your responses</div>' +
+      ? '<div class="summary-card" style="max-width:520px;margin:0 auto 1.8rem;text-align:left;">' +
+          '<div class="summary-title">All responses</div>' +
           eventRows +
         '</div>'
       : '') +
-    '<p style="font-size:var(--ui);color:var(--muted);line-height:1.9;max-width:420px;margin:0 auto;">' +
-      'If you need to make any changes please get in touch:<br>' +
+    '<p style="font-size:var(--ui);color:var(--ink-soft);line-height:1.9;max-width:420px;margin:0 auto;">' +
+      'Need to make changes? Please write to us at<br>' +
       '<strong style="color:var(--wine);">' + escapeHtml(CONTACT_INFO) + '</strong>' +
     '</p>';
 
