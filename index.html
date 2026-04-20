@@ -145,13 +145,13 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .welcome-deadline{text-align:center;font-size:var(--ui);color:var(--ink-soft);line-height:1.6;}
 .welcome-deadline strong{color:var(--wine);font-weight:400;font-family:var(--serif);font-style:italic;font-size:1.1em;}
 /* ── Countdown Strip ── */
-.countdown-strip{background:var(--wine-d, #4a1a25);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:center;gap:1.2rem;flex-wrap:wrap;}
-.countdown-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.18em;color:rgba(255,255,255,.45);text-transform:uppercase;}
-.countdown-inline{display:flex;align-items:center;gap:.7rem;}
-.cd-block{text-align:center;}
-.cd-num{font-family:var(--serif);font-size:1.4rem;font-weight:300;color:var(--gold-soft);line-height:1;display:block;}
-.cd-lbl{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.15em;color:rgba(255,255,255,.38);text-transform:uppercase;}
-.cd-dot{color:var(--gold);opacity:.35;font-size:1rem;}
+.countdown-strip{background:var(--wine-deep);color:var(--cream);padding:1.1rem var(--s4);display:flex;align-items:center;justify-content:center;gap:clamp(1rem,4vw,2.5rem);flex-wrap:wrap;}
+.countdown-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.3em;color:var(--gold-soft);text-transform:uppercase;}
+.countdown-inline{display:flex;align-items:baseline;gap:1.2rem;}
+.cd-block{text-align:center;display:flex;flex-direction:column;align-items:center;}
+.cd-num{font-family:var(--serif);font-size:1.75rem;font-weight:300;color:var(--cream);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.02em;display:block;}
+.cd-lbl{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.18em;color:rgba(255,255,255,.5);text-transform:uppercase;margin-top:.25rem;}
+.cd-dot{width:3px;height:3px;background:var(--gold-soft);border-radius:50%;opacity:.5;align-self:center;}
 .events-section{max-width:900px;margin:0 auto;padding:2.8rem 2rem 1.2rem;}
 .events-section-header{text-align:center;margin-bottom:2rem;}
 .section-tag{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.35em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.45rem;}
@@ -253,10 +253,10 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .family-name-error{font-size:var(--ui);color:var(--red);margin-top:.35rem;min-height:1rem;display:block;}
 
 /* ── Guest Subnav ── */
-.guest-subnav{display:flex;gap:0;background:rgba(253,246,239,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);position:sticky;top:48px;z-index:45;justify-content:center;}
-.subnav-btn{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.18em;text-transform:uppercase;padding:.75rem 1.6rem;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;min-height:48px;display:flex;align-items:center;}
+.guest-subnav{display:flex;gap:0;background:rgba(250,245,236,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);position:sticky;top:62px;z-index:45;justify-content:center;padding:.65rem 1.6rem;min-height:48px;overflow-x:auto;}
+.subnav-btn{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.22em;text-transform:uppercase;padding:.9rem 1.6rem;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:1px solid transparent;transition:all .2s;white-space:nowrap;min-height:48px;display:flex;align-items:center;}
 .subnav-btn:hover{color:var(--wine);}
-.subnav-btn.active{color:var(--wine);border-bottom-color:var(--gold);}
+.subnav-btn.active{color:var(--wine);border-bottom-color:var(--wine);}
 .guest-section{display:none;}
 .guest-section.active{display:block;}
 
@@ -405,7 +405,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 <!-- ████  GUEST RSVP  ████ -->
 <div id="page-guest" class="page">
   <nav class="guest-nav">
-    <span class="guest-nav-title">Jaini & Shanay's Wedding</span>
+    <span class="guest-nav-title">Jaini &amp; Shanay</span>
     <span class="guest-nav-name" id="display-code"></span>
   </nav>
   <div class="guest-hero">
@@ -451,23 +451,23 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
     </div>
   </div>
   <div class="countdown-strip">
-    <span class="countdown-label">Time until the wedding</span>
+    <span class="countdown-label">Until the wedding day</span>
     <div class="countdown-inline">
       <div class="cd-block">
         <span class="cd-num" id="cd-d">&mdash;</span>
         <span class="cd-lbl">Days</span>
       </div>
-      <div class="cd-dot">&middot;</div>
+      <div class="cd-dot"></div>
       <div class="cd-block">
         <span class="cd-num" id="cd-h">&mdash;</span>
         <span class="cd-lbl">Hrs</span>
       </div>
-      <div class="cd-dot">&middot;</div>
+      <div class="cd-dot"></div>
       <div class="cd-block">
         <span class="cd-num" id="cd-m">&mdash;</span>
         <span class="cd-lbl">Min</span>
       </div>
-      <div class="cd-dot">&middot;</div>
+      <div class="cd-dot"></div>
       <div class="cd-block">
         <span class="cd-num" id="cd-s">&mdash;</span>
         <span class="cd-lbl">Sec</span>
@@ -479,7 +479,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
   <div class="guest-subnav" id="guest-subnav">
     <button class="subnav-btn active" onclick="showGuestSection('rsvp',this)">RSVP</button>
     <button class="subnav-btn" onclick="showGuestSection('faq',this)">FAQ</button>
-    <button class="subnav-btn hidden" id="subnav-overseas" onclick="showGuestSection('overseas',this)">&#9992; Overseas Info</button>
+    <button class="subnav-btn hidden" id="subnav-overseas" onclick="showGuestSection('overseas',this)">Travel</button>
   </div>
 
   <!-- ═══ RSVP Section ═══ -->
@@ -1672,7 +1672,7 @@ function startCountdown(){
           m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
     var cdD=document.getElementById('cd-d'), cdH=document.getElementById('cd-h'),
         cdM=document.getElementById('cd-m'), cdS=document.getElementById('cd-s');
-    if(cdD) cdD.textContent=String(d).padStart(3,'0');
+    if(cdD) cdD.textContent=String(d);
     if(cdH) cdH.textContent=String(h).padStart(2,'0');
     if(cdM) cdM.textContent=String(m).padStart(2,'0');
     if(cdS) cdS.textContent=String(s).padStart(2,'0');
