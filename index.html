@@ -741,9 +741,9 @@ const WELCOME_IMAGES = {
 };
 
 // Determine which side of the wedding a guest belongs to, based on their
-// `relationship` string (e.g. "Bride's Family", "Groom's Friend"). Returns
-// 'brides', 'grooms', or null when the relationship doesn't clearly signal
-// a side (Colleague, Other, empty).
+// `relationship` string ("Bride's Family", "Groom's Family", "Bride's
+// Friend", "Groom's Friend"). Returns 'brides', 'grooms', or null as a
+// defensive fallback (empty string, typos, pre-migration data).
 function getGuestSide(relationship) {
   var r = String(relationship || '').toLowerCase();
   if (r.indexOf('bride') > -1) return 'brides';
@@ -1218,8 +1218,19 @@ function showAlreadySubmittedScreen(existingRSVP) {
     '</div>';
   }).join('');
 
+  // Side-specific welcome image — same art shown on the pre-RSVP screen.
+  var welcomeSrc = side ? WELCOME_IMAGES[side] : '';
+  var welcomeBlock = welcomeSrc
+    ? '<figure class="welcome-image welcome-image--submitted">' +
+        '<img src="' + escapeAttr(welcomeSrc) + '" alt="' +
+        escapeAttr('Welcome from the ' + (side === 'brides' ? "Bride" : "Groom") + "'s side") +
+        '" loading="lazy" onerror="this.closest(\'figure\').classList.add(\'hidden\')"/>' +
+      '</figure>'
+    : '';
+
   var screen = document.getElementById('already-submitted-screen');
   screen.innerHTML =
+    welcomeBlock +
     '<div class="already-seal">' +
       '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
         '<path d="M6 10 L16 19 L26 10"/>' +
@@ -1263,7 +1274,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
 var ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 
 // Show the side-specific opening image above the RSVP list. Hidden if we
-// can't resolve a side (Colleague/Other guests) or the image fails to load.
+// can't resolve a side (missing/typo in relationship) or the image fails to load.
 function renderWelcomeImage() {
   var wrap = document.getElementById('welcome-image');
   var img = document.getElementById('welcome-image-img');

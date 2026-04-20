@@ -1568,7 +1568,7 @@ function _templateRebuildGuestsTab(ss, log) {
     last_name:       'Guest last name. Must match what the guest enters on the RSVP site.',
     phone:           'Phone number with country code (e.g. +254 700 000 000). Used to open WhatsApp from the admin.',
     email:           'Contact email. Used for invitation confirmations and any follow-ups.',
-    relationship:    'Which side of the wedding this guest is from. One of: Bride\u2019s Family, Groom\u2019s Family, Bride\u2019s Friend, Groom\u2019s Friend, Colleague, Other.',
+    relationship:    'Which side of the wedding this guest is from. One of: Bride\u2019s Family, Groom\u2019s Family, Bride\u2019s Friend, Groom\u2019s Friend.',
     is_overseas:     'TRUE if the guest is travelling internationally. Shown as an "Overseas" badge in the admin and guest UI.',
     notes:           'Free-text notes visible only to the admin.',
     invitation_code: 'The code the guest enters to RSVP (shared by their whole family). Auto-generated from the events they are invited to.',
@@ -1599,7 +1599,6 @@ function _templateRebuildGuestsTab(ss, log) {
   _templateAddDropdown(sheet, relCol + '2:' + relCol + '1000', [
     "Bride\u2019s Family", "Groom\u2019s Family",
     "Bride\u2019s Friend", "Groom\u2019s Friend",
-    'Colleague', 'Other',
   ]);
 
   _templateAddDeletedRowFade(sheet, headers);
