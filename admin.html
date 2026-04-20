@@ -1953,7 +1953,11 @@ function parseCSV(text) {
       var validIds = new Set(allEvents.map(function(e) { return e.id; }));
       var evIds = obj.events.split(',').map(function(s) { return s.trim(); })
         .filter(function(id) { return id && validIds.has(id); });
-      evIds.sort(function(a, b) { return a.localeCompare(b); });
+      evIds.sort(function(a, b) {
+        var ia = allEvents.findIndex(function(e) { return e.id === a; });
+        var ib = allEvents.findIndex(function(e) { return e.id === b; });
+        return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
+      });
       obj.events = evIds.join(',');
     }
     obj.invitation_code = String(obj.invitation_code || '').toUpperCase().trim();

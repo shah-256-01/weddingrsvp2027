@@ -309,7 +309,7 @@ function getEvents() {
   }
   return sheetToObjects(sheet)
     .filter(r => String(r.active).toUpperCase() === 'TRUE')
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    .sort((a, b) => EVENT_IDS.indexOf(String(a.id)) - EVENT_IDS.indexOf(String(b.id)));
 }
 
 // ── Name normalisation ───────────────────────────────────
@@ -387,7 +387,7 @@ function validateGuest(code, firstName, lastName) {
   const eventIds = String(match.events || '').split(',')
     .map(function(s) { return s.trim(); })
     .filter(function(id) { return id && EVENT_IDS.includes(id); })
-    .sort(function(a, b) { return a.localeCompare(b); });
+    .sort(function(a, b) { return EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b); });
 
   const allocations = {};
   eventIds.forEach(function(id) {

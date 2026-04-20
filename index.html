@@ -967,7 +967,11 @@ async function submitEntry() {
   try {
     currentGuest    = await validateGuest(firstName, lastName, code);
     currentCode     = currentGuest.invitationCode;
-    currentEventIds = [...(currentGuest.events || [])].sort((a, b) => a.localeCompare(b));
+    currentEventIds = [...(currentGuest.events || [])].sort((a, b) => {
+      const ia = EVENTS.findIndex(e => e.id === a);
+      const ib = EVENTS.findIndex(e => e.id === b);
+      return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
+    });
     loadGuestPage();
   } catch (err) {
     errEl.textContent = err.message || 'Invalid details. Please check and try again.';
