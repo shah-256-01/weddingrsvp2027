@@ -86,6 +86,7 @@ function doPost(e) {
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
+      'generateCode',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -118,6 +119,7 @@ function doPost(e) {
     else if (action === 'updateSeating')    result = updateSeating(payload);
     else if (action === 'getEvents')        result = getEvents();
     else if (action === 'getRSVPsByFamily') result = getRSVPsByFamily();
+    else if (action === 'generateCode')     result = generateCode();
     else if (action === 'getMessageConfig') result = getMessageConfig();
     else if (action === 'saveMessageConfig') result = saveMessageConfig(payload);
     else if (action === 'checkPin')         result = { ok: true };
@@ -208,6 +210,52 @@ function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
   const alloc = EVENT_IDS.flatMap(id => [id + '_guests', id + '_table']);
   return [...fixed, ...alloc];
+}
+
+// ── Invitation code generator ────────────────────────────
+// 6-char uppercase alphanumeric, excluding lookalikes 0/O/1/I/L.
+// 31^6 ≈ 887M combinations — collision risk is trivial at 500+ codes.
+const CODE_CHARSET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const CODE_CHARSET_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
+const CODE_LENGTH = 6;
+
+function generateCandidateCode() {
+  var out = '';
+  for (var i = 0; i < CODE_LENGTH; i++) {
+    out += CODE_CHARSET.charAt(Math.floor(Math.random() * CODE_CHARSET.length));
+  }
+  return out;
+}
+
+// Set of all currently-used codes (including DELETED — codes aren't recycled).
+function collectExistingCodes() {
+  const sheet = getSheet(TABS.guests);
+  if (sheet.getLastRow() < 2) return {};
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const codeIdx = headers.indexOf('invitation_code');
+  if (codeIdx === -1) return {};
+  const data = sheet.getRange(2, codeIdx + 1, sheet.getLastRow() - 1, 1).getValues();
+  const used = {};
+  for (var i = 0; i < data.length; i++) {
+    const code = String(data[i][0] || '').toUpperCase().trim();
+    if (code) used[code] = true;
+  }
+  return used;
+}
+
+function validateCodeFormat(code) {
+  return CODE_CHARSET_RE.test(String(code || '').toUpperCase());
+}
+
+// Generates a new code not already in the guest sheet. Caller is responsible
+// for holding a script lock if serialising against concurrent writers.
+function generateUniqueCode(usedCodes) {
+  const used = usedCodes || collectExistingCodes();
+  for (var attempt = 0; attempt < 20; attempt++) {
+    const candidate = generateCandidateCode();
+    if (!used[candidate]) return candidate;
+  }
+  throw new Error('Could not generate a unique invitation code after 20 attempts.');
 }
 
 // ── updateGuestContact ───────────────────────────────────
@@ -368,6 +416,8 @@ function validateGuest(code, firstName, lastName) {
 
 // ── getExistingRSVP ───────────────────────────────────────
 // Returns the most recent submission for a specific name + code combination.
+// With unique per-guest codes, the (code, name) filter is effectively just
+// (code) — the name is kept as belt-and-braces against any data anomalies.
 // Returns null if no matching submission exists.
 // Fails open — returns null on any error so guest flow is never blocked by a check failure.
 function getExistingRSVP(code, familyName) {
@@ -448,36 +498,83 @@ function addGuest(payload) {
     sheet.appendRow(guestHeaders());
   }
 
-  // Generate invitation_code from sorted event IDs
   const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
     .map(s => s.trim()).filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
-  payload.invitation_code = sortedIds.join('') + '2026';
 
-  const id = 'g-' + Utilities.getUuid();
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const row = headers.map(h => {
-    if (h === 'id') return id;
-    if (h === 'events') return sortedIds.join(',');
-    return sanitizeForSheet(payload[h] !== undefined ? payload[h] : '');
-  });
-  sheet.appendRow(row);
-  return { ...payload, id };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const used = collectExistingCodes();
+    // Honour caller-provided code (e.g. admin-typed) if valid and unique; otherwise generate.
+    const requested = String(payload.invitation_code || '').toUpperCase().trim();
+    if (requested) {
+      if (!validateCodeFormat(requested)) {
+        throw new Error('Invalid invitation code format. Use 6 characters, excluding 0/O/1/I/L.');
+      }
+      if (used[requested]) {
+        throw new Error('Invitation code "' + requested + '" is already in use.');
+      }
+      payload.invitation_code = requested;
+    } else {
+      payload.invitation_code = generateUniqueCode(used);
+    }
+
+    const id = 'g-' + Utilities.getUuid();
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const row = headers.map(h => {
+      if (h === 'id') return id;
+      if (h === 'events') return sortedIds.join(',');
+      return sanitizeForSheet(payload[h] !== undefined ? payload[h] : '');
+    });
+    sheet.appendRow(row);
+    return { ...payload, id };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── updateGuest ───────────────────────────────────────────
+// Note: invitation_code is immutable per guest. Changing events does NOT
+// regenerate the code. Callers wishing to rotate a code should do so
+// explicitly via payload.invitation_code (validated for uniqueness).
 function updateGuest(payload) {
   const sheet  = getSheet(TABS.guests);
   const rowNum = findRowById(sheet, payload.id);
   if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
 
-  // Regenerate invitation_code from sorted event IDs
+  // Normalise events to sorted, comma-separated — same shape as before,
+  // just without regenerating the code.
   if (payload.events !== undefined) {
     const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
       .map(s => s.trim()).filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
     payload.events = sortedIds.join(',');
-    payload.invitation_code = sortedIds.join('') + '2026';
+  }
+
+  // If the caller is explicitly rotating the code, validate it.
+  if (payload.invitation_code !== undefined) {
+    const headers0 = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const codeIdx  = headers0.indexOf('invitation_code');
+    const currentCode = codeIdx > -1
+      ? String(sheet.getRange(rowNum, codeIdx + 1).getValue() || '').toUpperCase().trim()
+      : '';
+    const requested = String(payload.invitation_code || '').toUpperCase().trim();
+    if (!requested) {
+      // Treat blank as "keep existing"
+      delete payload.invitation_code;
+    } else if (requested !== currentCode) {
+      if (!validateCodeFormat(requested)) {
+        throw new Error('Invalid invitation code format. Use 6 characters, excluding 0/O/1/I/L.');
+      }
+      const used = collectExistingCodes();
+      if (used[requested]) {
+        throw new Error('Invitation code "' + requested + '" is already in use.');
+      }
+      payload.invitation_code = requested;
+    } else {
+      payload.invitation_code = currentCode;
+    }
   }
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -534,6 +631,8 @@ function deleteGuest(payload) {
   return { deleted: true, id: payload.id };
 }
 
+// Marks all RSVP rows for a single guest's code as DELETED. Since invitation
+// codes are unique per guest, this only ever touches that one guest's rows.
 function markRSVPRowsDeleted(invitationCode) {
   const normCode = String(invitationCode).toUpperCase().trim();
   const lock = LockService.getScriptLock();
@@ -577,6 +676,7 @@ function restoreGuest(payload) {
   return { restored: true, id: payload.id };
 }
 
+// Inverse of markRSVPRowsDeleted. Same uniqueness note applies.
 function restoreRSVPRows(invitationCode) {
   const normCode = String(invitationCode).toUpperCase().trim();
   const lock = LockService.getScriptLock();
@@ -614,34 +714,68 @@ function bulkAddGuests(payload) {
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const results = { added: 0, skipped: 0, errors: [] };
-  (payload.guests || []).forEach((g, idx) => {
-    try {
-      if (!g.first_name || !g.last_name) {
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    // Snapshot existing codes once; mutate the map as we add so CSV-internal
+    // duplicates (and newly-generated ones) are detected.
+    const used = collectExistingCodes();
+
+    (payload.guests || []).forEach((g, idx) => {
+      try {
+        if (!g.first_name || !g.last_name) {
+          results.skipped++;
+          results.errors.push('Row ' + (idx + 2) + ': missing first_name or last_name');
+          return;
+        }
+        const id  = 'g-' + Utilities.getUuid();
+        const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
+          .map(s => s.trim()).filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+
+        const requested = String(g.invitation_code || '').toUpperCase().trim();
+        if (requested) {
+          if (!validateCodeFormat(requested)) {
+            results.skipped++;
+            results.errors.push('Row ' + (idx + 2) + ': invalid invitation_code "' + requested + '" (6 chars, no 0/O/1/I/L)');
+            return;
+          }
+          if (used[requested]) {
+            results.skipped++;
+            results.errors.push('Row ' + (idx + 2) + ': invitation_code "' + requested + '" is already in use');
+            return;
+          }
+          g.invitation_code = requested;
+        } else {
+          g.invitation_code = generateUniqueCode(used);
+        }
+        used[g.invitation_code] = true;
+
+        const row = headers.map(h => {
+          if (h === 'id') return id;
+          if (h === 'events') return sortedEvIds.join(',');
+          return sanitizeForSheet(g[h] !== undefined ? g[h] : '');
+        });
+        sheet.appendRow(row);
+        results.added++;
+        // Small pause to avoid quota limits on large uploads
+        if (idx > 0 && idx % 50 === 0) Utilities.sleep(500);
+      } catch (err) {
         results.skipped++;
-        results.errors.push('Row ' + (idx + 2) + ': missing first_name or last_name');
-        return;
+        results.errors.push('Row ' + (idx + 2) + ': ' + err.message);
       }
-      const id  = 'g-' + Utilities.getUuid();
-      // Generate invitation_code from sorted event IDs
-      const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
-        .map(s => s.trim()).filter(Boolean)
-        .sort((a, b) => a.localeCompare(b));
-      g.invitation_code = sortedEvIds.join('') + '2026';
-      const row = headers.map(h => {
-        if (h === 'id') return id;
-        if (h === 'events') return sortedEvIds.join(',');
-        return sanitizeForSheet(g[h] !== undefined ? g[h] : '');
-      });
-      sheet.appendRow(row);
-      results.added++;
-      // Small pause to avoid quota limits on large uploads
-      if (idx > 0 && idx % 50 === 0) Utilities.sleep(500);
-    } catch (err) {
-      results.skipped++;
-      results.errors.push('Row ' + (idx + 2) + ': ' + err.message);
-    }
-  });
+    });
+  } finally {
+    lock.releaseLock();
+  }
+
   return results;
+}
+
+// Admin utility: return a freshly-generated unique code for the add-guest modal.
+function generateCode() {
+  return { code: generateUniqueCode() };
 }
 
 // ── submitRSVP ────────────────────────────────────────────
@@ -1120,6 +1254,10 @@ function getStats() {
 }
 
 // ── getDuplicates ─────────────────────────────────────────
+// With unique per-guest codes, a duplicate means the same guest submitted
+// the RSVP form more than once (e.g. they hit Submit twice). The shape of
+// this report stays the same; the label in the admin UI reads "Duplicate
+// submissions" rather than "Families with multiple submissions".
 function getDuplicates() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
