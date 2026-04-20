@@ -96,6 +96,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .guest-status-dot--green{background:var(--green);}
 .guest-status-legend{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;font-size:var(--fs-2xs);color:var(--muted);margin-bottom:.7rem;padding:0 .25rem;}
 .guest-status-legend .guest-status-dot{margin-top:0;width:10px;height:10px;vertical-align:middle;margin-right:.4rem;}
+/* By-Event view table — bigger name block, inline status dot, numeric count */
+.event-guest-table td{padding:.9rem .75rem;}
+.event-guest-table th{padding:.7rem .75rem;}
+.event-guest-name{display:flex;align-items:flex-start;gap:.65rem;min-width:0;}
+.event-guest-name .guest-status-dot{margin-top:.55rem;}
+.event-guest-name .guest-name-cell{font-size:var(--fs-lg);line-height:1.25;}
+.event-guest-sub{display:flex;flex-wrap:wrap;gap:.2rem .55rem;align-items:center;font-size:var(--fs-md);color:var(--muted);margin-top:.15rem;line-height:1.4;}
+.event-guest-sub > span + span::before{content:'·';color:rgba(0,0,0,.25);margin-right:.55rem;}
+.event-guest-count{text-align:center;font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--wine);font-weight:400;}
 .guest-meta-col{display:flex;flex-direction:column;gap:.35rem;font-size:var(--fs-md);min-width:0;}
 .guest-meta-contact{color:var(--muted);display:flex;flex-wrap:wrap;gap:.2rem .55rem;align-items:center;line-height:1.4;}
 .guest-meta-contact > span + span::before{content:'·';color:rgba(0,0,0,.2);margin-right:.55rem;}
@@ -254,8 +263,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 /* ── RSVP Status view ── */
 .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;}
 @media(max-width:640px){.status-grid{grid-template-columns:1fr;}}
-.status-col-title{font-family:'Cinzel',serif;font-size:var(--fs-xs);letter-spacing:var(--ls-wide);text-transform:uppercase;margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem;}
-.status-guest-row{display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);gap:.5rem;}
+.status-col-title{font-family:'Cinzel',serif;font-size:var(--fs-sm);letter-spacing:var(--ls-wide);text-transform:uppercase;margin-bottom:.9rem;display:flex;align-items:center;gap:.55rem;}
+.status-col-title .status-col-count{font-size:var(--fs-xs);opacity:.5;}
+.status-guest-row{display:flex;align-items:flex-start;gap:.7rem;padding:.75rem 0;border-bottom:1px solid rgba(0,0,0,.05);}
+.status-guest-row:last-child{border-bottom:none;}
+.status-guest-row .guest-status-dot{margin-top:.5rem;}
+.status-guest-row__body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.25rem;}
+.status-guest-row__body .guest-name-cell{font-size:var(--fs-lg);line-height:1.2;}
+.status-guest-row__meta{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center;font-size:var(--fs-md);color:var(--muted);line-height:1.4;}
+.status-dup-flag{font-size:var(--fs-2xs);color:var(--red);margin-left:.3rem;white-space:nowrap;}
 .guest-name-cell{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);}
 .guest-sub{font-size:.68rem;color:var(--muted);}
 /* ── Duplicate section ── */
@@ -339,7 +355,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   .session-warning{left:.75rem;right:.75rem;bottom:.75rem;flex-direction:column;text-align:center;gap:.6rem;}
   .group-card-header{padding:.7rem .8rem;flex-direction:column;align-items:flex-start;gap:.4rem;}
   .group-guest-row{flex-direction:column;align-items:flex-start;gap:.3rem;padding:.55rem 0;}
-  .status-guest-row{flex-direction:column;align-items:flex-start;gap:.25rem;}
+  .status-guest-row{align-items:flex-start;padding:.7rem 0;}
   .guest-name-cell{font-size:.92rem;}
   .overseas-badge{white-space:normal;display:inline-block;}
   .csv-drop-zone{padding:1.2rem .8rem;}
@@ -1221,18 +1237,22 @@ function renderRSVPStatusView(guests, container) {
   var pending = guests.filter(function(g) { return !allSubmittedCodes.has(g.invitation_code); });
 
   function guestRow(g) {
-    var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
+    var fullName = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
     var code = escapeAttr(g.invitation_code || '');
     var isDup = !!duplicateCodes[g.invitation_code || ''];
+    var rel  = escapeAttr(sanitiseValue(g.relationship));
     return '<div class="status-guest-row">' +
-      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:.95rem;color:var(--wine);">' +
-      fullName +
-      (isDup ? '<span style="font-size:.6rem;color:var(--red);margin-left:.4rem;">\u26A0 duplicate</span>' : '') +
+      guestStatusDot(g) +
+      '<div class="status-guest-row__body">' +
+        '<div class="guest-name-cell">' + fullName +
+          (isDup ? ' <span class="status-dup-flag" title="Duplicate submission detected">&#9888; duplicate</span>' : '') +
+        '</div>' +
+        '<div class="status-guest-row__meta">' +
+          (rel ? '<span>' + rel + '</span>' : '') +
+          (code ? '<span class="code-pill">' + code + '</span>' : '') +
+        '</div>' +
       '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(sanitiseValue(g.relationship)) + ' \u00B7 ' + code + '</div>' +
-      '</div>' +
-      '<span class="code-pill">' + code + '</span>' +
-      '</div>';
+    '</div>';
   }
 
   var dupHtml = '';
@@ -1253,12 +1273,15 @@ function renderRSVPStatusView(guests, container) {
       dupItems + '</div>';
   }
 
+  var emptyState = '<div class="empty-state" style="padding:1.5rem 1rem;">None yet</div>';
+  var emptyDone  = '<div class="empty-state" style="padding:1.5rem 1rem;">All responded!</div>';
+
   container.innerHTML =
     '<div class="status-grid">' +
-    '<div class="admin-card"><div class="status-col-title" style="color:var(--green);">\u2713 Submitted <span style="opacity:.5;font-size:.8em;">(' + submitted.length + ')</span></div>' +
-    (submitted.length ? submitted.map(guestRow).join('') : '<div class="empty-state">None yet</div>') + '</div>' +
-    '<div class="admin-card"><div class="status-col-title" style="color:var(--gold);">\u23F3 Pending <span style="opacity:.5;font-size:.8em;">(' + pending.length + ')</span></div>' +
-    (pending.length ? pending.map(guestRow).join('') : '<div class="empty-state">All responded!</div>') + '</div></div>' + dupHtml;
+    '<div class="admin-card"><div class="status-col-title" style="color:var(--green);">\u2713 Submitted <span class="status-col-count">(' + submitted.length + ')</span></div>' +
+    (submitted.length ? submitted.map(guestRow).join('') : emptyState) + '</div>' +
+    '<div class="admin-card"><div class="status-col-title" style="color:var(--gold);">\u23F3 Pending <span class="status-col-count">(' + pending.length + ')</span></div>' +
+    (pending.length ? pending.map(guestRow).join('') : emptyDone) + '</div></div>' + dupHtml;
 }
 
 // ── By Event View ─────────────────────────────
@@ -1313,11 +1336,18 @@ function selectEventFilter(eventId) {
       }
     }
     return '<tr>' +
-      '<td><div class="guest-name-cell">' + escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')) + overseasBadge + '</div>' +
-      '<div class="guest-sub">' + phoneWhatsAppHtml(g.phone) + '</div></td>' +
-      '<td class="col-rel">' + escapeAttr(sanitiseValue(g.relationship)) + '</td>' +
-      '<td style="text-align:center;">' + (Number(g[eventId + '_guests']) || 0) + '</td>' +
-      '<td><span class="rsvp-pill ' + status.cls + '">' + status.label + '</span></td>' +
+      '<td>' +
+        '<div class="event-guest-name">' + guestStatusDot(g) +
+          '<div>' +
+            '<div class="guest-name-cell">' + escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')) + overseasBadge + '</div>' +
+            '<div class="event-guest-sub">' +
+              (g.relationship ? '<span>' + escapeAttr(sanitiseValue(g.relationship)) + '</span>' : '') +
+              (g.phone ? '<span>' + phoneWhatsAppHtml(g.phone) + '</span>' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      '<td class="event-guest-count">' + (Number(g[eventId + '_guests']) || 0) + '</td>' +
       tableCol +
       '</tr>';
   }).join('');
@@ -1348,8 +1378,13 @@ function selectEventFilter(eventId) {
     '<div class="stat-card"><div class="stat-num" style="color:var(--red);">' + (evtStats.declined || 0) + '</div><div class="stat-lbl">Declined</div></div>' +
     '</div>' + seatingStatsHtml +
     '<div class="admin-card"><div class="admin-card-title">' + escapeAttr(evtConfig.icon || '') + ' ' + escapeAttr(evtConfig.name || eventId) + ' — Guest List</div>' +
-    '<div class="guest-table-wrap"><table class="guest-table"><thead><tr>' +
-    '<th>Name</th><th class="col-rel">Relationship</th><th>Guests</th><th>RSVP</th>' +
+    '<div class="guest-status-legend" style="margin-top:-.2rem;margin-bottom:.9rem;">' +
+      '<span><span class="guest-status-dot guest-status-dot--red"></span>Invite not sent</span>' +
+      '<span><span class="guest-status-dot guest-status-dot--orange"></span>Awaiting RSVP</span>' +
+      '<span><span class="guest-status-dot guest-status-dot--green"></span>RSVP&rsquo;d</span>' +
+    '</div>' +
+    '<div class="guest-table-wrap"><table class="guest-table event-guest-table"><thead><tr>' +
+    '<th>Name</th><th style="text-align:center;">Guests</th>' +
     (seatingEnabled ? '<th>Table</th>' : '') +
     '</tr></thead><tbody>' + guestRows + '</tbody></table></div>' +
     (seatingEnabled ? '<div style="text-align:right;margin-top:.5rem;"><button class="btn btn-secondary btn-sm" onclick="exportSeatingCSV(\'' + escapeAttr(eventId) + '\')">Export Seating CSV</button></div>' : '') +
