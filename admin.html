@@ -88,6 +88,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .guest-mobile-meta{display:none;margin-top:.25rem;font-size:var(--fs-2xs);}
 /* Guests list table — 3-column redesign */
 .guest-identity{display:flex;align-items:flex-start;gap:.65rem;min-width:0;}
+.guest-identity__rel{font-size:var(--fs-md);color:var(--muted);margin-top:.15rem;}
+.guest-identity__code{margin-top:.35rem;}
 .guest-status-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:.5rem;box-shadow:0 0 0 2px rgba(0,0,0,.04);}
 .guest-status-dot--red{background:var(--red);}
 .guest-status-dot--orange{background:var(--gold);}
@@ -137,8 +139,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .msg-row__headline{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.3rem;}
 .msg-row__headline .guest-status-dot{margin-top:0;}
 .msg-row__headline .guest-name-cell{font-size:var(--fs-lg);line-height:1.2;}
-.msg-row__contact{display:flex;flex-wrap:wrap;gap:.2rem .55rem;align-items:center;font-size:var(--fs-md);color:var(--muted);line-height:1.4;margin-bottom:.3rem;}
-.msg-row__contact > span + span::before{content:'·';color:rgba(0,0,0,.2);margin-right:.55rem;}
+.msg-row__rel{font-size:var(--fs-md);color:var(--muted);margin-bottom:.3rem;line-height:1.4;}
+.msg-row__code{margin-bottom:.35rem;}
+.msg-row__phone{font-size:var(--fs-md);color:var(--muted);}
 .msg-tag{display:inline-block;font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:.08em;padding:.18rem .55rem;border-radius:10px;white-space:nowrap;text-transform:uppercase;}
 .msg-tag--next{background:rgba(184,146,74,.25);color:var(--wine);}
 .msg-tag--skipped{background:rgba(139,32,32,.08);color:var(--red);}
@@ -1031,26 +1034,24 @@ function renderTableView(guests, container) {
     var dots       = buildEventDots(g);
     var rel        = escapeAttr(g.relationship || '');
     var phone      = phoneWhatsAppHtml(g.phone);
-    var email      = escapeAttr(g.email || '');
 
-    // Middle column — stacked relationship/contact/code/events. Each item
-    // becomes its own span so the dot-separator pseudo rule lays them out.
-    var contactSpans = [];
-    if (rel)   contactSpans.push('<span>' + rel + '</span>');
-    if (phone) contactSpans.push('<span>' + phone + '</span>');
-    if (email) contactSpans.push('<span>' + email + '</span>');
+    // Col 1 — identity: dot + name + overseas, then relationship, then code.
+    // Col 2 — contact: phone (if any), then event icons. Email dropped by design.
+    var identityBlock =
+      '<div class="guest-name">' + fullName + overseasBadge + '</div>' +
+      (rel  ? '<div class="guest-identity__rel">' + rel + '</div>' : '') +
+      (code ? '<div class="guest-identity__code"><span class="code-pill">' + code + '</span></div>' : '');
 
     return '<tr>' +
       '<td>' +
         '<div class="guest-identity">' + guestStatusDot(g) +
-          '<div><div class="guest-name">' + fullName + overseasBadge + '</div></div>' +
+          '<div>' + identityBlock + '</div>' +
         '</div>' +
       '</td>' +
       '<td>' +
         '<div class="guest-meta-col">' +
-          (contactSpans.length ? '<div class="guest-meta-contact">' + contactSpans.join('') + '</div>' : '') +
-          (code ? '<div><span class="code-pill">' + code + '</span></div>' : '') +
-          (dots ? '<div class="guest-meta-events">' + dots + '</div>' : '') +
+          (phone ? '<div>' + phone + '</div>' : '') +
+          (dots  ? '<div class="guest-meta-events">' + dots + '</div>' : '') +
         '</div>' +
       '</td>' +
       '<td>' +
@@ -3174,17 +3175,10 @@ function buildMsgRow(g, mode, skips, nextUp) {
       : '<button class="btn btn-ghost btn-sm" onclick="skipMessage(\'' + escapeAttr(g.id) + '\')" title="Skip for this session">Skip</button>';
   }
 
-  // Contact line — relationship · phone · email, dot separators via CSS.
+  // Relationship + code live with the name now; phone gets its own muted
+  // line below. Email is intentionally omitted from this view.
   var rel   = escapeAttr(g.relationship || '');
   var phone = phoneWhatsAppHtml(g.phone);
-  var email = escapeAttr(g.email || '');
-  var contactSpans = [];
-  if (rel)   contactSpans.push('<span>' + rel + '</span>');
-  if (phone) contactSpans.push('<span>' + phone + '</span>');
-  if (email) contactSpans.push('<span>' + email + '</span>');
-  var contactLine = contactSpans.length
-    ? '<div class="msg-row__contact">' + contactSpans.join('') + '</div>'
-    : '';
 
   return '<div id="msg-row-' + escapeAttr(g.id) + '" class="invite-row' + (isNext ? ' invite-row--next' : '') + (isSkipped ? ' invite-row--skipped' : '') + '">' +
     '<div class="invite-row__identity">' +
@@ -3193,8 +3187,9 @@ function buildMsgRow(g, mode, skips, nextUp) {
         '<span class="guest-name-cell">' + fullName + '</span>' +
         sessionTag +
       '</div>' +
-      contactLine +
-      (g.invitation_code ? '<div><span class="code-pill">' + escapeAttr(g.invitation_code) + '</span></div>' : '') +
+      (rel ? '<div class="msg-row__rel">' + rel + '</div>' : '') +
+      (g.invitation_code ? '<div class="msg-row__code"><span class="code-pill">' + escapeAttr(g.invitation_code) + '</span></div>' : '') +
+      (phone ? '<div class="msg-row__phone">' + phone + '</div>' : '') +
     '</div>' +
     '<div class="invite-row__controls">' +
       buildTemplateDropdown(g.id, mode, defaultTpl) +
