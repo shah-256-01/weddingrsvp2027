@@ -161,6 +161,12 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-pill{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:.1em;padding:.25rem .7rem;border-radius:20px;white-space:nowrap;}
 .rsvp-submitted{background:rgba(45,74,62,.12);color:var(--green);}
 .rsvp-pending{background:rgba(184,146,74,.1);color:var(--gold);}
+.rsvp-evt-pill{display:inline-flex;align-items:center;gap:.35rem;font-family:'Jost',sans-serif;font-size:var(--fs-2xs);padding:.22rem .6rem;border-radius:12px;white-space:nowrap;line-height:1.3;}
+.rsvp-evt-pill__icon{font-size:.95rem;line-height:1;}
+.rsvp-evt-pill--yes{background:rgba(45,74,62,.12);color:var(--green);}
+.rsvp-evt-pill--no{background:rgba(139,32,32,.08);color:var(--red);}
+.rsvp-evt-pill--tbc{background:rgba(184,146,74,.15);color:var(--gold);}
+.rsvp-evt-pills{display:flex;flex-wrap:wrap;gap:.35rem;}
 .row-actions{display:flex;gap:.35rem;justify-content:flex-end;}
 .view-switcher{display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center;}
 .view-btn{display:inline-flex;align-items:center;gap:.5rem;font-family:'Cinzel',serif;font-size:var(--fs-sm);letter-spacing:var(--ls-wide);text-transform:uppercase;padding:.8rem 1.35rem;border:1px solid var(--border);background:#faf8f5;cursor:pointer;border-radius:3px;color:var(--muted);transition:all .18s;min-height:44px;white-space:nowrap;}
@@ -180,11 +186,11 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-breakdown{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;}
 .event-rsvp-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);border-radius:2px;overflow:hidden;}
 .event-rsvp-header{padding:.7rem .9rem;display:flex;align-items:center;gap:.5rem;}
-.event-rsvp-title{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--wine);}
+.event-rsvp-title{font-family:'Cormorant Garamond',serif;font-size:var(--fs-lg);color:var(--wine);}
 .event-rsvp-stats{padding:.6rem .9rem;display:flex;gap:.5rem;border-top:1px solid rgba(0,0,0,.05);}
 .ersvp-stat{flex:1;text-align:center;}
 .ersvp-num{font-family:'Cormorant Garamond',serif;font-size:1.55rem;color:var(--wine);line-height:1;}
-.ersvp-lbl{font-size:.58rem;color:var(--muted);}
+.ersvp-lbl{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);text-transform:uppercase;color:var(--muted);margin-top:.2rem;}
 .modal-overlay{position:fixed;inset:0;background:rgba(42,31,26,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:lbFade .25s ease;}
 @keyframes lbFade{from{opacity:0}to{opacity:1}}
 .modal{background:var(--card-bg);width:100%;max-width:640px;max-height:88vh;max-height:88svh;overflow-y:auto;border-radius:2px;animation:modalUp .3s cubic-bezier(0.23,1,0.32,1);}
@@ -500,7 +506,14 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 
     <!-- View container -->
     <div class="admin-card">
-      <div class="admin-card-title" id="rsvp-view-title">Submissions</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:.7rem;">
+        <div class="admin-card-title" id="rsvp-view-title" style="margin-bottom:0;">Submissions</div>
+        <div class="guest-status-legend" style="margin-bottom:0;">
+          <span><span class="rsvp-evt-pill rsvp-evt-pill--yes" style="padding:.1rem .45rem;">Yes</span></span>
+          <span><span class="rsvp-evt-pill rsvp-evt-pill--tbc" style="padding:.1rem .45rem;">TBC</span></span>
+          <span><span class="rsvp-evt-pill rsvp-evt-pill--no" style="padding:.1rem .45rem;">No</span></span>
+        </div>
+      </div>
       <div id="rsvp-view-container"><div class="skeleton-loader"></div></div>
     </div>
   </div>
@@ -2402,23 +2415,34 @@ function renderRSVPEventBreakdown(filtered) {
 function renderRSVPSubmissionsView(filtered) {
   var byCode = _rsvpGuestsByCode();
   return filtered.map(function(r) {
-    var evDetails = allEvents.map(function(ev) {
+    var evPills = allEvents.map(function(ev) {
       var att = r[ev.id + ' Attending'];
       if (!att) return '';
-      var cls = att === 'Yes' ? 'color:var(--green);' : 'color:var(--red);';
-      return '<span class="rsvp-evt-inline" style="' + cls + '">' + escapeAttr(ev.icon) + ' ' + escapeAttr(att) +
-        (att === 'Yes' ? ' (' + (r[ev.id + ' Guests'] || 0) + ' guests)' : '') + '</span>';
+      var kind = att === 'Yes' ? 'yes' : att === 'No' ? 'no' : 'tbc';
+      var countSuffix = att === 'Yes' ? ' &middot; ' + (Number(r[ev.id + ' Guests']) || 0) : '';
+      return '<span class="rsvp-evt-pill rsvp-evt-pill--' + kind + '" title="' + escapeAttr(ev.name) + ' &mdash; ' + escapeAttr(att) + '">' +
+        '<span class="rsvp-evt-pill__icon">' + escapeAttr(ev.icon) + '</span>' +
+        escapeAttr(att) + countSuffix +
+      '</span>';
     }).join('');
 
     var code = String(r.invitation_code || '').toUpperCase().trim();
     var family = byCode[code] || [];
     var rel = family.length ? escapeAttr(family[0].relationship || '') : '';
-    var relPart = rel ? ' &middot; ' + rel : '';
 
-    return '<div style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">' +
-      '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:1rem;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(r.timestamp || '') + ' &middot; <span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span>' + relPart + '</div></div>' +
-      '<div class="rsvp-evt-wrap">' + evDetails + '</div></div>';
+    return '<div class="invite-row">' +
+      '<div class="invite-row__identity">' +
+        '<div class="msg-row__headline">' +
+          '<span class="guest-name-cell">' + escapeAttr(r.submission_name || '') + '</span>' +
+        '</div>' +
+        (rel ? '<div class="msg-row__rel">' + rel + '</div>' : '') +
+        (r.invitation_code ? '<div class="msg-row__code"><span class="code-pill">' + escapeAttr(r.invitation_code) + '</span></div>' : '') +
+        (r.timestamp ? '<div class="msg-row__phone" style="font-size:var(--fs-2xs);">' + escapeAttr(r.timestamp) + '</div>' : '') +
+      '</div>' +
+      '<div class="invite-row__controls" style="align-self:center;">' +
+        '<div class="rsvp-evt-pills">' + evPills + '</div>' +
+      '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -2432,27 +2456,27 @@ function renderRSVPByEventView(filtered) {
     });
     var row = function(r) {
       var g = Number(r[ev.id + ' Guests']) || 0;
-      return '<div class="summary-row" style="border-bottom:1px solid rgba(0,0,0,.05);padding:.4rem 0;font-size:.78rem;">' +
+      return '<div class="summary-row" style="border-bottom:1px solid rgba(0,0,0,.05);padding:.45rem 0;font-size:var(--fs-md);display:flex;justify-content:space-between;gap:.6rem;">' +
         '<span>' + escapeAttr(r.submission_name || '') + '</span>' +
         '<span class="summary-status" style="color:var(--muted);">' + (g ? g + ' guest' + (g !== 1 ? 's' : '') : '') + '</span>' +
       '</div>';
     };
-    var block = function(title, arr, cls) {
+    var block = function(title, arr, color) {
       if (!arr.length) return '';
-      return '<div style="margin-top:.6rem;">' +
-        '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.14em;color:' + cls + ';text-transform:uppercase;margin-bottom:.3rem;">' + title + ' (' + arr.length + ')</div>' +
+      return '<div style="margin-top:.8rem;">' +
+        '<div style="font-family:\'Cinzel\',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);color:' + color + ';text-transform:uppercase;margin-bottom:.4rem;">' + title + ' (' + arr.length + ')</div>' +
         arr.map(row).join('') +
       '</div>';
     };
-    return '<div class="admin-card" style="margin-bottom:1rem;padding:1rem;">' +
-      '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">' +
-        '<span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
-        '<span style="font-family:\'Cormorant Garamond\',serif;font-size:1.1rem;color:var(--wine);">' + escapeAttr(ev.name) + '</span>' +
+    return '<div class="admin-card" style="margin-bottom:1rem;padding:1.2rem;">' +
+      '<div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.4rem;">' +
+        '<span style="font-size:1.35rem;">' + escapeAttr(ev.icon) + '</span>' +
+        '<span style="font-family:\'Cormorant Garamond\',serif;font-size:var(--fs-xl);color:var(--wine);">' + escapeAttr(ev.name) + '</span>' +
       '</div>' +
       block('Attending', attending, 'var(--green)') +
       block('Declined',  declining, 'var(--red)') +
       (!attending.length && !declining.length
-        ? '<div class="empty-state" style="padding:.5rem;">No responses for this event.</div>'
+        ? '<div class="empty-state" style="padding:.8rem;">No responses for this event.</div>'
         : '') +
     '</div>';
   }).join('');
@@ -2461,16 +2485,16 @@ function renderRSVPByEventView(filtered) {
 function renderRSVPMatrixView(filtered) {
   var header = '<tr><th style="text-align:left;">Guest</th>' +
     allEvents.map(function(ev) {
-      return '<th title="' + escapeAttr(ev.name) + '" style="text-align:center;">' + escapeAttr(ev.icon) + '</th>';
+      return '<th title="' + escapeAttr(ev.name) + '" style="text-align:center;font-size:1.2rem;">' + escapeAttr(ev.icon) + '</th>';
     }).join('') +
-    '<th style="text-align:right;">Total guests</th></tr>';
+    '<th style="text-align:right;">Total</th></tr>';
 
   var rows = filtered.map(function(r) {
     var cells = allEvents.map(function(ev) {
       var a = r[ev.id + ' Attending'];
       var g = Number(r[ev.id + ' Guests']) || 0;
-      if (a === 'Yes') return '<td style="text-align:center;color:var(--green);font-weight:600;" title="Attending' + (g ? ' &middot; ' + g + ' guests' : '') + '">\u2713' + (g ? ' ' + g : '') + '</td>';
-      if (a === 'No')  return '<td style="text-align:center;color:var(--red);"   title="Declined">\u2715</td>';
+      if (a === 'Yes') return '<td style="text-align:center;"><span class="rsvp-evt-pill rsvp-evt-pill--yes" title="Attending' + (g ? ' &middot; ' + g + ' guests' : '') + '">\u2713' + (g ? ' ' + g : '') + '</span></td>';
+      if (a === 'No')  return '<td style="text-align:center;"><span class="rsvp-evt-pill rsvp-evt-pill--no" title="Declined">\u2715</span></td>';
       return '<td style="text-align:center;color:var(--muted);">&mdash;</td>';
     }).join('');
     var total = allEvents.reduce(function(s, ev) {
@@ -2478,10 +2502,10 @@ function renderRSVPMatrixView(filtered) {
     }, 0);
     return '<tr>' +
       '<td style="text-align:left;">' +
-        '<div style="font-family:\'Cormorant Garamond\',serif;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
-        '<div style="font-size:.6rem;color:var(--muted);"><span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div>' +
+        '<div style="font-family:\'Cormorant Garamond\',serif;color:var(--wine);font-size:var(--fs-lg);">' + escapeAttr(r.submission_name || '') + '</div>' +
+        '<div style="margin-top:.2rem;"><span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div>' +
       '</td>' + cells +
-      '<td style="text-align:right;font-weight:600;">' + total + '</td>' +
+      '<td style="text-align:right;font-weight:600;color:var(--wine);">' + total + '</td>' +
     '</tr>';
   }).join('');
 
