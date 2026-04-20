@@ -150,7 +150,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .msg-mode-btn + .msg-mode-btn{border-left:1px solid var(--border);}
 .msg-mode-btn:hover:not(.active){background:var(--blush);color:var(--wine);}
 .msg-mode-btn.active{background:var(--wine);color:var(--gold-lt);}
-.invite-row{display:grid;grid-template-columns:1fr auto;column-gap:1rem;row-gap:.55rem;padding:.9rem .35rem;border-bottom:1px solid rgba(0,0,0,.05);transition:background .2s;}
+.invite-row{display:grid;grid-template-columns:1fr auto;column-gap:1rem;row-gap:.45rem;padding:.65rem .35rem;border-bottom:1px solid rgba(0,0,0,.05);transition:background .2s;}
 .invite-row--next{background:rgba(184,146,74,.07);}
 .invite-row--skipped{opacity:.55;}
 .invite-row--flash{animation:inviteFlash 1.4s ease;}
@@ -159,12 +159,12 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .invite-row__nameline{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;}
 .invite-row__nameline .guest-name-cell{font-size:var(--fs-lg);line-height:1.2;}
 .invite-row__meta{font-size:.82rem;color:var(--muted);display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;}
-.msg-row__headline{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.3rem;}
+.msg-row__headline{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.2rem;}
+.msg-row__headline-left{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;min-width:0;}
 .msg-row__headline .guest-status-dot{margin-top:0;}
 .msg-row__headline .guest-name-cell{font-size:var(--fs-lg);line-height:1.2;}
-.msg-row__rel{font-size:var(--fs-md);color:var(--muted);margin-bottom:.3rem;line-height:1.4;}
-.msg-row__code{margin-bottom:.35rem;}
-.msg-row__phone{font-size:var(--fs-md);color:var(--muted);}
+.msg-row__meta{display:flex;flex-wrap:wrap;gap:.15rem .6rem;align-items:center;font-size:var(--fs-md);color:var(--muted);line-height:1.4;}
+.msg-row__meta > span + span::before{content:'·';color:rgba(0,0,0,.25);margin-right:.6rem;}
 .msg-tag{display:inline-block;font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:.08em;padding:.18rem .55rem;border-radius:10px;white-space:nowrap;text-transform:uppercase;}
 .msg-tag--next{background:rgba(184,146,74,.25);color:var(--wine);}
 .msg-tag--skipped{background:rgba(139,32,32,.08);color:var(--red);}
@@ -3298,21 +3298,26 @@ function buildMsgRow(g, mode, skips, nextUp) {
       : '<button class="btn btn-ghost btn-sm" onclick="skipMessage(\'' + escapeAttr(g.id) + '\')" title="Skip for this session">Skip</button>';
   }
 
-  // Relationship + code live with the name now; phone gets its own muted
-  // line below. Email is intentionally omitted from this view.
+  // Compact identity — headline row (dot + name + tag | code pill) with a
+  // single meta line under it (relationship · phone) so the row stays two
+  // text-lines tall rather than four. Email is intentionally omitted.
   var rel   = escapeAttr(g.relationship || '');
   var phone = phoneWhatsAppHtml(g.phone);
+  var metaSpans = [];
+  if (rel)   metaSpans.push('<span>' + rel + '</span>');
+  if (phone) metaSpans.push('<span>' + phone + '</span>');
 
   return '<div id="msg-row-' + escapeAttr(g.id) + '" class="invite-row' + (isNext ? ' invite-row--next' : '') + (isSkipped ? ' invite-row--skipped' : '') + '">' +
     '<div class="invite-row__identity">' +
       '<div class="msg-row__headline">' +
-        guestStatusDot(g) +
-        '<span class="guest-name-cell">' + fullName + '</span>' +
-        sessionTag +
+        '<div class="msg-row__headline-left">' +
+          guestStatusDot(g) +
+          '<span class="guest-name-cell">' + fullName + '</span>' +
+          sessionTag +
+        '</div>' +
+        (g.invitation_code ? '<span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>' : '') +
       '</div>' +
-      (rel ? '<div class="msg-row__rel">' + rel + '</div>' : '') +
-      (g.invitation_code ? '<div class="msg-row__code"><span class="code-pill">' + escapeAttr(g.invitation_code) + '</span></div>' : '') +
-      (phone ? '<div class="msg-row__phone">' + phone + '</div>' : '') +
+      (metaSpans.length ? '<div class="msg-row__meta">' + metaSpans.join('') + '</div>' : '') +
     '</div>' +
     '<div class="invite-row__controls">' +
       buildTemplateDropdown(g.id, mode, defaultTpl) +
