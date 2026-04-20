@@ -220,7 +220,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   .pagination{flex-direction:column;align-items:stretch;text-align:center;}
   .pagination-controls{justify-content:center;flex-wrap:wrap;}
   .event-tick-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
-  .alloc-grid{grid-template-columns:1fr 68px 68px;gap:.4rem .5rem;}
+  .alloc-grid{grid-template-columns:1fr 72px;gap:.4rem .6rem;}
   .alloc-grid input[type="number"]{font-size:16px;padding:.5rem .4rem;}
   .alloc-grid .alloc-hdr{font-size:.55rem;}
   .event-filter-bar{gap:.3rem;}
@@ -250,7 +250,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   .form-row label{font-size:.52rem;}
   .admin-panel{padding:.75rem .5rem;}
   .event-tick-grid{grid-template-columns:1fr 1fr;}
-  .alloc-grid{grid-template-columns:1fr 60px 60px;gap:.3rem .35rem;}
+  .alloc-grid{grid-template-columns:1fr 64px;gap:.35rem .5rem;}
   .btn{padding:.65rem .9rem;font-size:.56rem;}
   .admin-card{padding:.75rem .65rem;}
   .guest-table th,.guest-table td{padding-left:.35rem;padding-right:.35rem;}
@@ -299,7 +299,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
       <div class="view-switcher">
         <button class="view-btn active" onclick="setGuestView('list')" id="vbtn-list">&#9776; List</button>
-        <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; Cards</button>
+        <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; By Code</button>
         <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">&#10003; RSVP Status</button>
         <button class="view-btn" onclick="setGuestView('event')" id="vbtn-event">&#128197; By Event</button>
       </div>
@@ -354,28 +354,64 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     </div>
     <div class="admin-card" style="margin-top:1.2rem;">
       <div class="admin-card-title">Generate Invitation Code</div>
-      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Codes are unique per guest. Click Generate for a fresh one, then copy it onto a physical invite or into your message template.</p>
+      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Select events to generate a code:</p>
+      <div class="event-tick-grid" id="code-gen-ticks" style="margin-bottom:.9rem;"></div>
       <div style="background:var(--gold-pale);border:1px solid rgba(184,146,74,.3);padding:1rem;text-align:center;border-radius:2px;margin:.7rem 0;">
         <div style="font-family:'Cinzel',serif;font-size:1.55rem;letter-spacing:.3em;color:var(--wine);" id="gen-code-out">&mdash;</div>
-        <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Click Generate</div>
+        <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Select events above</div>
       </div>
-      <div style="display:flex;gap:.5rem;">
-        <button class="btn btn-secondary btn-sm" onclick="generateStandaloneCode()" style="flex:1;">Generate</button>
-        <button class="btn btn-primary btn-sm" onclick="copyGenCode()" style="flex:1;">Copy</button>
-      </div>
+      <button class="btn btn-primary btn-sm" onclick="copyGenCode()">Copy Code</button>
     </div>
   </div>
 
   <!-- ── TAB: RSVPs ── -->
   <div class="admin-panel" id="tab-rsvps">
+    <!-- Filters -->
+    <div class="filter-bar" id="rsvp-filter-bar">
+      <input type="text" id="rsvp-search" placeholder="Search name or code..." oninput="applyRSVPFilters()"/>
+      <select id="rsvp-event-filter" onchange="applyRSVPFilters()">
+        <option value="">All events</option>
+      </select>
+      <select id="rsvp-response-filter" onchange="applyRSVPFilters()">
+        <option value="">All responses</option>
+        <option value="attending">Attending any</option>
+        <option value="declined">Declined all</option>
+        <option value="mixed">Mixed (some yes, some no)</option>
+      </select>
+      <select id="rsvp-relationship-filter" onchange="applyRSVPFilters()">
+        <option value="">All relationships</option>
+      </select>
+      <select id="rsvp-sort" onchange="applyRSVPFilters()">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="name">Name A&rarr;Z</option>
+      </select>
+    </div>
+
+    <!-- View switcher + export -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
+      <div class="view-switcher">
+        <button class="view-btn active" onclick="setRSVPView('submissions')" id="rvbtn-submissions">&#9776; Submissions</button>
+        <button class="view-btn" onclick="setRSVPView('event')" id="rvbtn-event">&#128197; By Event</button>
+        <button class="view-btn" onclick="setRSVPView('matrix')" id="rvbtn-matrix">&#8862; Matrix</button>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="clearRSVPFilters()">Clear filters</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportFilteredRSVPsCSV()">&#8595; Export CSV</button>
+      </div>
+    </div>
+
+    <!-- Event breakdown (reflects current filter) -->
     <div style="margin-bottom:1.2rem;">
       <div class="rsvp-breakdown" id="rsvp-event-breakdown">
         <div class="skeleton-loader"></div>
       </div>
     </div>
+
+    <!-- View container -->
     <div class="admin-card">
-      <div class="admin-card-title">Submitted RSVPs</div>
-      <div id="rsvp-responses-list"><div class="skeleton-loader"></div></div>
+      <div class="admin-card-title" id="rsvp-view-title">Submissions</div>
+      <div id="rsvp-view-container"><div class="skeleton-loader"></div></div>
     </div>
   </div>
 
@@ -508,15 +544,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <label style="font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.35rem;">Guest Allocations Per Event</label>
         <div class="alloc-grid" id="modal-alloc-grid"></div>
       </div>
-      <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;" id="modal-code-preview">
-        <label style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.35rem;text-align:center;">Invitation Code</label>
-        <div style="display:flex;gap:.5rem;align-items:center;">
-          <input id="modal-code-input" type="text" maxlength="6" autocomplete="off" spellcheck="false"
-            style="flex:1;font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:.25em;color:var(--wine);text-transform:uppercase;text-align:center;padding:.45rem;border:1px solid var(--border);background:#fff;border-radius:2px;min-height:40px;"
-            oninput="onModalCodeInput()" onblur="onModalCodeInput()"/>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="requestGeneratedCode()" id="modal-code-generate-btn" title="Generate a fresh unique code">Generate</button>
-        </div>
-        <div id="modal-code-status" style="font-family:'Jost',sans-serif;font-size:.7rem;margin-top:.4rem;min-height:1em;text-align:center;color:var(--muted);"></div>
+      <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;text-align:center;" id="modal-code-preview">
+        <span style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.3rem;">Invitation Code</span>
+        <span style="font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:.25em;color:var(--wine);" id="modal-code-out">&mdash;</span>
       </div>
     </div>
     <div class="modal-footer">
@@ -537,6 +567,74 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   </div>
 </div>
 <script>
+/* ══════════════════════════════════════════════
+   BACKEND SHIM
+   Forwards google.script.run.foo(arg) calls to the
+   Apps Script /exec endpoint via fetch POST. The PIN
+   entered at login is stored in sessionStorage and
+   attached to every admin request.
+══════════════════════════════════════════════ */
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCizmsdUmVG0eqnVkOn326gmAzbPfD5chvV__A6FuTTCl2LFIwvQuwcdxPe_Z2GFwNiw/exec';
+var ADMIN_PIN_KEY = 'adminAuth';
+
+(function installBackendShim() {
+  function getPin() {
+    try { return sessionStorage.getItem(ADMIN_PIN_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function invoke(method, arg, state) {
+    var body;
+    if (method === 'checkPin') {
+      body = { action: 'checkPin', payload: { pin: String(arg == null ? '' : arg) } };
+    } else {
+      body = { action: method, payload: (arg == null ? {} : arg), pin: getPin() };
+    }
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+    }).then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(json) {
+      if (json && json.ok) {
+        if (state.success) state.success(json.data);
+      } else {
+        var msg = (json && json.error) || 'Request failed';
+        var err = new Error(msg);
+        if (state.failure) state.failure(err);
+        else console.warn('Admin call failed:', method, msg);
+      }
+    }).catch(function(err) {
+      if (state.failure) state.failure(err);
+      else console.warn('Admin call error:', method, err);
+    });
+  }
+
+  function makeChain(state) {
+    return new Proxy({}, {
+      get: function(_, prop) {
+        if (prop === 'withSuccessHandler') return function(fn){ state.success = fn; return makeChain(state); };
+        if (prop === 'withFailureHandler') return function(fn){ state.failure = fn; return makeChain(state); };
+        return function(arg) { invoke(prop, arg, state); };
+      }
+    });
+  }
+
+  window.google = window.google || {};
+  window.google.script = {
+    run: new Proxy({}, {
+      get: function(_, prop) {
+        var state = { success: null, failure: null };
+        if (prop === 'withSuccessHandler') return function(fn){ state.success = fn; return makeChain(state); };
+        if (prop === 'withFailureHandler') return function(fn){ state.failure = fn; return makeChain(state); };
+        return function(arg) { invoke(prop, arg, state); };
+      }
+    })
+  };
+})();
+
 /* ══════════════════════════════════════════════
    WEDDING ADMIN — JavaScript Part A
    State, Auth, Data Loading, Guest Views
@@ -607,6 +705,12 @@ let   sessionTimer       = null;
 let   warningTimer       = null;
 
 // ── Helpers ────────────────────────────────
+function codeForIds(ids) {
+  if (!ids || !ids.length) return '';
+  var sorted = ids.filter(Boolean).sort(function(a, b) { return a.localeCompare(b); });
+  return sorted.join('') + '2026';
+}
+
 function buildEventDots(g) {
   var evIds = String(g.events || '').split(',').map(s => s.trim()).filter(Boolean);
   return evIds.map(function(id) {
@@ -646,7 +750,7 @@ function checkLogin() {
   google.script.run
     .withSuccessHandler(function(ok) {
       if (ok) {
-        try { sessionStorage.setItem('adminAuth', '1'); } catch (e) {}
+        try { sessionStorage.setItem(ADMIN_PIN_KEY, pin); } catch (e) {}
         loadDashboard();
       } else {
         document.getElementById('pin-error').textContent = 'Incorrect PIN. Please try again.';
@@ -658,12 +762,15 @@ function checkLogin() {
     .checkPin(pin);
 }
 
-// Auto-login on page load
+// Auto-login on page load — verify stored PIN with server before showing dashboard
 (function() {
   try {
-    if (sessionStorage.getItem('adminAuth')) {
-      loadDashboard();
-    }
+    var storedPin = sessionStorage.getItem(ADMIN_PIN_KEY);
+    if (!storedPin) return;
+    google.script.run
+      .withSuccessHandler(function(ok) { if (ok) loadDashboard(); else sessionStorage.removeItem(ADMIN_PIN_KEY); })
+      .withFailureHandler(function() { sessionStorage.removeItem(ADMIN_PIN_KEY); })
+      .checkPin(storedPin);
   } catch (e) {}
 })();
 
@@ -695,17 +802,19 @@ function loadDashboard() {
 // ── Data Loading Functions ─────────────────
 
 function loadEvents() {
-  google.script.run
-    .withSuccessHandler(function(data) {
-      allEvents = data || [];
-      renderCSVTab();
-      renderSettingsTab();
-      if (allGuests.length) renderGuestView();
+  fetch(SCRIPT_URL, { credentials: 'omit' })
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (json && json.ok) {
+        allEvents = json.data || [];
+        renderCSVTab();
+        renderSettingsTab();
+        if (allGuests.length) renderGuestView();
+      }
     })
-    .withFailureHandler(function(err) {
+    .catch(function(err) {
       console.error('Failed to load events:', err);
-    })
-    .getEvents();
+    });
 }
 
 function loadStats() {
@@ -752,7 +861,7 @@ function loadGuests() {
   }).then(function() {
     renderGuestView();
   }).catch(function(err) {
-    showLoadError('guest-view-container', err.message || 'Failed to load guests', 'loadGuests');
+    showLoadError('guest-view-container', 'Load failed: ' + (err.message || 'Unknown error') + '. Tap Retry.', 'loadGuests');
   });
 }
 
@@ -1059,7 +1168,7 @@ function selectEventFilter(eventId) {
   var content = document.getElementById('event-view-content');
   content.innerHTML =
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:1rem 0;">' +
-    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Invitations</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Families Invited</div></div>' +
     '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedHeadcount || 0) + '</div><div class="stat-lbl">Guests Invited</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingGuests || 0) + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--gold);">' + (evtStats.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
@@ -1246,12 +1355,8 @@ function openAddGuest() {
   document.getElementById('m-overseas').checked = false;
   buildModalEventTicks([]);
   updateModalAllocations();
-  var codeInput = document.getElementById('modal-code-input');
-  codeInput.value = '';
-  codeInput.readOnly = false;
-  setModalCodeStatus('', '');
+  document.getElementById('modal-code-out').textContent = '\u2014';
   document.getElementById('guest-modal-overlay').classList.remove('hidden');
-  requestGeneratedCode(); // auto-prefill a fresh unique code for new guests
 }
 
 function openEditGuest(id) {
@@ -1270,10 +1375,7 @@ function openEditGuest(id) {
   var gEvents = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   buildModalEventTicks(gEvents);
   updateModalAllocations(g);
-  var codeInput = document.getElementById('modal-code-input');
-  codeInput.value = String(g.invitation_code || '').toUpperCase();
-  codeInput.readOnly = false; // admins can rotate a code if they need to
-  setModalCodeStatus('Code is assigned. Click Generate to rotate \u2014 old links will stop working.', 'muted');
+  updateModalCode();
   document.getElementById('guest-modal-overlay').classList.remove('hidden');
 }
 
@@ -1291,76 +1393,16 @@ function buildModalEventTicks(selected) {
 function onModalTickChange(el) {
   el.closest('.event-tick').classList.toggle('selected', el.checked);
   updateModalAllocations();
-  // Note: invitation codes are now independent of which events a guest is
-  // invited to. Changing event ticks no longer mutates the code.
+  updateModalCode();
 }
 
-// ── Invitation-code UI helpers ──────────────────────────
-var CODE_CHARSET_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
-
-function setModalCodeStatus(text, kind) {
-  var el = document.getElementById('modal-code-status');
-  if (!el) return;
-  el.textContent = text || '';
-  var color = 'var(--muted)';
-  if (kind === 'ok')    color = 'var(--green)';
-  if (kind === 'error') color = 'var(--red)';
-  if (kind === 'muted') color = 'var(--muted)';
-  el.style.color = color;
-}
-
-function onModalCodeInput() {
-  var input = document.getElementById('modal-code-input');
-  if (!input) return;
-  var raw = String(input.value || '').toUpperCase();
-  // Strip whitespace + disallowed chars as the user types, so they see a clean code.
-  var cleaned = raw.replace(/[^23456789ABCDEFGHJKMNPQRSTUVWXYZ]/g, '').slice(0, 6);
-  if (cleaned !== raw) input.value = cleaned;
-  if (!cleaned) {
-    setModalCodeStatus('Click Generate or type a 6-character code.', 'muted');
-    return;
-  }
-  if (!CODE_CHARSET_RE.test(cleaned)) {
-    setModalCodeStatus('Must be 6 characters, excluding 0, O, 1, I and L.', 'error');
-    return;
-  }
-  // Local uniqueness check against currently-loaded guests (server re-validates on save).
-  var currentId = document.getElementById('m-id').value;
-  var clash = allGuests.some(function(g) {
-    return String(g.invitation_code || '').toUpperCase() === cleaned && g.id !== currentId;
-  });
-  if (clash) {
-    setModalCodeStatus('Code is already in use.', 'error');
-  } else {
-    setModalCodeStatus('Code available.', 'ok');
-  }
-}
-
-function requestGeneratedCode() {
-  var btn = document.getElementById('modal-code-generate-btn');
-  var input = document.getElementById('modal-code-input');
-  if (!btn || !input) return;
-  var prevLabel = btn.textContent;
-  btn.textContent = '\u2026';
-  btn.disabled = true;
-  setModalCodeStatus('Generating\u2026', 'muted');
-  google.script.run
-    .withSuccessHandler(function(res) {
-      btn.textContent = prevLabel;
-      btn.disabled = false;
-      if (!res || !res.code) {
-        setModalCodeStatus('Could not generate a code. Try again.', 'error');
-        return;
-      }
-      input.value = res.code;
-      onModalCodeInput();
-    })
-    .withFailureHandler(function(err) {
-      btn.textContent = prevLabel;
-      btn.disabled = false;
-      setModalCodeStatus((err && err.message) || 'Could not generate a code. Try again.', 'error');
-    })
-    .generateCode();
+function updateModalCode() {
+  var ticks = document.querySelectorAll('#modal-event-ticks input:checked');
+  var ids = [];
+  ticks.forEach(function(cb) { ids.push(cb.value); });
+  ids.sort(function(a, b) { return a.localeCompare(b); });
+  var code = ids.length ? ids.join('') + '2026' : '\u2014';
+  document.getElementById('modal-code-out').textContent = code;
 }
 
 function updateModalAllocations(existingGuest) {
@@ -1414,20 +1456,6 @@ function saveGuest() {
   ticks.forEach(function(cb) { eventIds.push(cb.value); });
   if (!eventIds.length) { alert('Select at least one event.'); return; }
 
-  var codeVal = String(document.getElementById('modal-code-input').value || '').toUpperCase().trim();
-  if (!CODE_CHARSET_RE.test(codeVal)) {
-    alert('Invitation code must be 6 characters (no 0/O/1/I/L). Click Generate to get a fresh one.');
-    return;
-  }
-  var currentId = document.getElementById('m-id').value;
-  var clash = allGuests.some(function(g) {
-    return String(g.invitation_code || '').toUpperCase() === codeVal && g.id !== currentId;
-  });
-  if (clash) {
-    alert('Invitation code "' + codeVal + '" is already in use by another guest.');
-    return;
-  }
-
   var payload = {
     first_name: firstName,
     last_name: lastName,
@@ -1437,7 +1465,7 @@ function saveGuest() {
     notes: document.getElementById('m-notes').value.trim(),
     is_overseas: document.getElementById('m-overseas').checked ? 'TRUE' : 'FALSE',
     events: eventIds.join(','),
-    invitation_code: codeVal
+    invitation_code: [...eventIds].sort(function(a, b) { return a.localeCompare(b); }).join('') + '2026'
   };
 
   // Allocation columns
@@ -1497,8 +1525,7 @@ function removeGuest(id) {
   if (!confirm('Remove this guest? They will be moved to the Deleted section and can be restored later.')) return;
   google.script.run
     .withSuccessHandler(function() {
-      loadGuests();
-      loadStats();
+      setTimeout(function() { loadGuests(); loadStats(); }, 1000);
     })
     .withFailureHandler(function(err) {
       alert('Error deleting guest: ' + (err.message || 'Unknown error'));
@@ -1707,6 +1734,16 @@ function exportGuestListCSV() {
 // ══════════════════════════════════════════════
 
 function renderCSVTab() {
+  // Render code generator event ticks
+  var grid = document.getElementById('code-gen-ticks');
+  if (grid && allEvents.length) {
+    grid.innerHTML = allEvents.map(function(ev) {
+      return '<label class="event-tick">' +
+        '<input type="checkbox" value="' + escapeAttr(ev.id) + '" onchange="updateGenCode()"/>' +
+        '<span>' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</span></label>';
+    }).join('');
+  }
+
   // Setup drag-and-drop
   var zone = document.getElementById('csv-drop-zone');
   if (zone && !zone._dragSetup) {
@@ -1721,32 +1758,27 @@ function renderCSVTab() {
   }
 }
 
-// Fetch a fresh unique code for the standalone generator panel.
-function generateStandaloneCode() {
-  var out = document.getElementById('gen-code-out');
-  var lbl = document.getElementById('gen-code-events');
-  if (!out) return;
-  lbl.textContent = 'Generating\u2026';
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res && res.code) {
-        out.textContent = res.code;
-        lbl.textContent = 'Unique code ready \u2014 click Copy';
-      } else {
-        out.textContent = '\u2014';
-        lbl.textContent = 'Could not generate a code. Try again.';
-      }
-    })
-    .withFailureHandler(function(err) {
-      out.textContent = '\u2014';
-      lbl.textContent = (err && err.message) || 'Could not generate a code. Try again.';
-    })
-    .generateCode();
+function updateGenCode() {
+  var ticks = document.querySelectorAll('#code-gen-ticks input:checked');
+  var ids = [];
+  ticks.forEach(function(cb) { ids.push(cb.value); });
+  ids.sort(function(a, b) { return a.localeCompare(b); });
+  var code = ids.length ? ids.join('') + '2026' : '\u2014';
+  document.getElementById('gen-code-out').textContent = code;
+  if (ids.length) {
+    var names = ids.map(function(id) {
+      var ev = allEvents.find(function(e) { return e.id === id; });
+      return ev ? ev.name : id;
+    });
+    document.getElementById('gen-code-events').textContent = names.join(', ');
+  } else {
+    document.getElementById('gen-code-events').textContent = 'Select events above';
+  }
 }
 
 function copyGenCode() {
   var code = document.getElementById('gen-code-out').textContent;
-  if (!code || code === '\u2014') { alert('Click Generate first.'); return; }
+  if (!code || code === '\u2014') { alert('Select events first.'); return; }
   if (navigator.clipboard) {
     navigator.clipboard.writeText(code).then(function() { alert('Copied: ' + code); });
   } else {
@@ -1755,25 +1787,34 @@ function copyGenCode() {
 }
 
 function downloadCSVTemplate() {
-  // invitation_code is optional: leave blank to auto-generate a unique 6-char
-  // code per guest. Populate only when you want to set a specific code (must
-  // be 6 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ — excludes 0/O/1/I/L).
-  var headers = [
-    'first_name','last_name','phone','email','relationship',
-    'notes','is_overseas','events','invitation_code',
-    'L_guests',
-    'S_guests',
-    'A_guests',
-    'G_guests',
-    'W_guests',
-    'B_guests'
+  // Column order mirrors the Guests tab after rebuildSheetToTemplate(): all
+  // fixed identity/contact columns first, then one _guests column per event,
+  // then one _table column per event. Invitation code and events list can be
+  // left blank on import — the server auto-generates them from the
+  // per-event guest allocations.
+  var eventIds = (allEvents || []).map(function(e) { return e.id; });
+  if (!eventIds.length) eventIds = ['L', 'S', 'A', 'G', 'W', 'B'];
+
+  var fixed = [
+    'first_name', 'last_name', 'phone', 'email', 'relationship',
+    'is_overseas', 'notes', 'events',
   ];
-  var exampleRow = [
-    'Priya','Sharma','+447700000000','priya@email.com',
-    "Bride's Family",'Any notes here','FALSE','"L,S,W"','',
-    '6','6','0','4','6','0'
+  var guestCols = eventIds.map(function(id) { return id + '_guests'; });
+  var tableCols = eventIds.map(function(id) { return id + '_table'; });
+  var headers = fixed.concat(guestCols).concat(tableCols);
+
+  // Example row — family of 2 invited to Mehndi & Sangeet, Wedding, Black Tie
+  var fixedRow = [
+    'Priya', 'Sharma', '+254700000000', 'priya@email.com',
+    "Bride's Family", 'FALSE', 'Vegetarian', '"S,W,B"',
   ];
-  var csv  = [headers.join(','), exampleRow.join(',')].join('\n');
+  var guestRow = eventIds.map(function(id) {
+    return (['S', 'W', 'B'].indexOf(id) >= 0) ? '2' : '0';
+  });
+  var tableRow = eventIds.map(function() { return ''; });
+  var row = fixedRow.concat(guestRow).concat(tableRow);
+
+  var csv  = [headers.join(','), row.join(',')].join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
@@ -1919,26 +1960,179 @@ function clearCSV() {
 //   RSVPs TAB
 // ══════════════════════════════════════════════
 
+// ── RSVPs tab state ───────────────────────────────────────
+var rsvpFilters = { search: '', eventId: '', response: '', relationship: '', sort: 'newest' };
+var rsvpView = 'submissions';
+var _rsvpFilterOptionsPopulated = false;
+
 function loadRSVPsTab() {
-  // Event breakdown cards
-  var breakdownEl = document.getElementById('rsvp-event-breakdown');
-  if (!allEvents.length || !allRSVPs.length) {
-    breakdownEl.innerHTML = '<div class="empty-state">No RSVP data yet.</div>';
-    document.getElementById('rsvp-responses-list').innerHTML = '<div class="empty-state">No RSVPs submitted yet.</div>';
+  populateRSVPFilterOptions();
+  renderRSVPsTab();
+}
+
+function populateRSVPFilterOptions() {
+  if (_rsvpFilterOptionsPopulated) return;
+  _rsvpFilterOptionsPopulated = true;
+
+  var evSel = document.getElementById('rsvp-event-filter');
+  if (evSel && allEvents.length) {
+    evSel.innerHTML = '<option value="">All events</option>' +
+      allEvents.map(function(ev) {
+        return '<option value="' + escapeAttr(ev.id) + '">' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</option>';
+      }).join('');
+  }
+
+  var relSel = document.getElementById('rsvp-relationship-filter');
+  if (relSel) {
+    var rels = {};
+    allGuests.forEach(function(g) {
+      var r = (g.relationship || '').trim();
+      if (r) rels[r] = true;
+    });
+    relSel.innerHTML = '<option value="">All relationships</option>' +
+      Object.keys(rels).sort().map(function(r) {
+        return '<option value="' + escapeAttr(r) + '">' + escapeAttr(r) + '</option>';
+      }).join('');
+  }
+}
+
+function applyRSVPFilters() {
+  rsvpFilters.search       = (document.getElementById('rsvp-search').value || '').toLowerCase().trim();
+  rsvpFilters.eventId      = document.getElementById('rsvp-event-filter').value;
+  rsvpFilters.response     = document.getElementById('rsvp-response-filter').value;
+  rsvpFilters.relationship = document.getElementById('rsvp-relationship-filter').value;
+  rsvpFilters.sort         = document.getElementById('rsvp-sort').value;
+  renderRSVPsTab();
+}
+
+function clearRSVPFilters() {
+  document.getElementById('rsvp-search').value = '';
+  document.getElementById('rsvp-event-filter').value = '';
+  document.getElementById('rsvp-response-filter').value = '';
+  document.getElementById('rsvp-relationship-filter').value = '';
+  document.getElementById('rsvp-sort').value = 'newest';
+  applyRSVPFilters();
+}
+
+function setRSVPView(v) {
+  rsvpView = v;
+  document.querySelectorAll('#tab-rsvps .view-switcher .view-btn').forEach(function(b) { b.classList.remove('active'); });
+  var btn = document.getElementById('rvbtn-' + v);
+  if (btn) btn.classList.add('active');
+  renderRSVPsTab();
+}
+
+function _rsvpGuestsByCode() {
+  var map = {};
+  allGuests.forEach(function(g) {
+    var c = String(g.invitation_code || '').toUpperCase().trim();
+    if (!c) return;
+    if (!map[c]) map[c] = [];
+    map[c].push(g);
+  });
+  return map;
+}
+
+function getFilteredRSVPs() {
+  var byCode = _rsvpGuestsByCode();
+
+  var filtered = (allRSVPs || []).filter(function(r) {
+    if (String(r.status || '').toUpperCase() === 'DELETED') return false;
+
+    // Search: submission name or invitation code
+    if (rsvpFilters.search) {
+      var hay = ((r.submission_name || '') + ' ' + (r.invitation_code || '')).toLowerCase();
+      if (hay.indexOf(rsvpFilters.search) < 0) return false;
+    }
+
+    // Event + response filter
+    if (rsvpFilters.eventId) {
+      var att = r[rsvpFilters.eventId + ' Attending'];
+      if (!att) return false;
+      if (rsvpFilters.response === 'attending' && att !== 'Yes') return false;
+      if (rsvpFilters.response === 'declined'  && att !== 'No')  return false;
+      if (rsvpFilters.response === 'mixed') {
+        // "mixed" with a specific event selected doesn't make sense; treat as no-op.
+      }
+    } else if (rsvpFilters.response) {
+      var hasYes = false, hasNo = false;
+      (allEvents || []).forEach(function(ev) {
+        var a = r[ev.id + ' Attending'];
+        if (a === 'Yes') hasYes = true;
+        else if (a === 'No') hasNo = true;
+      });
+      if (rsvpFilters.response === 'attending' && !hasYes) return false;
+      if (rsvpFilters.response === 'declined'  && (hasYes || !hasNo)) return false;
+      if (rsvpFilters.response === 'mixed'     && !(hasYes && hasNo)) return false;
+    }
+
+    // Relationship filter (via the guest family)
+    if (rsvpFilters.relationship) {
+      var code = String(r.invitation_code || '').toUpperCase().trim();
+      var family = byCode[code] || [];
+      var hasRel = family.some(function(g) { return g.relationship === rsvpFilters.relationship; });
+      if (!hasRel) return false;
+    }
+
+    return true;
+  });
+
+  filtered.sort(function(a, b) {
+    if (rsvpFilters.sort === 'oldest') return new Date(a.timestamp || 0) - new Date(b.timestamp || 0);
+    if (rsvpFilters.sort === 'name')   return String(a.submission_name || '').localeCompare(String(b.submission_name || ''));
+    return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+  });
+
+  return filtered;
+}
+
+function renderRSVPsTab() {
+  if (!allEvents.length) {
+    document.getElementById('rsvp-event-breakdown').innerHTML = '<div class="empty-state">Loading events...</div>';
+    document.getElementById('rsvp-view-container').innerHTML = '';
     return;
   }
 
-  var eventCards = allEvents.map(function(ev) {
+  var filtered = getFilteredRSVPs();
+  renderRSVPEventBreakdown(filtered);
+
+  var container = document.getElementById('rsvp-view-container');
+  var titleEl = document.getElementById('rsvp-view-title');
+
+  if (!filtered.length) {
+    var empty = (allRSVPs || []).length
+      ? 'No RSVPs match the current filters.'
+      : 'No RSVPs submitted yet.';
+    container.innerHTML = '<div class="empty-state">' + empty + '</div>';
+    if (titleEl) titleEl.textContent = 'No results';
+    return;
+  }
+
+  if (rsvpView === 'event') {
+    titleEl.textContent = 'By Event';
+    container.innerHTML = renderRSVPByEventView(filtered);
+  } else if (rsvpView === 'matrix') {
+    titleEl.textContent = 'Attendance Matrix (' + filtered.length + ')';
+    container.innerHTML = renderRSVPMatrixView(filtered);
+  } else {
+    titleEl.textContent = 'Submissions (' + filtered.length + ')';
+    container.innerHTML = renderRSVPSubmissionsView(filtered);
+  }
+}
+
+function renderRSVPEventBreakdown(filtered) {
+  var breakdownEl = document.getElementById('rsvp-event-breakdown');
+  if (!filtered.length) {
+    breakdownEl.innerHTML = '<div class="empty-state" style="padding:1rem;">No matches.</div>';
+    return;
+  }
+  breakdownEl.innerHTML = allEvents.map(function(ev) {
     var attKey = ev.id + ' Attending';
     var gKey = ev.id + ' Guests';
     var yes = 0, no = 0, totalGuests = 0;
-    allRSVPs.forEach(function(r) {
-      if (r[attKey] === 'Yes') {
-        yes++;
-        totalGuests += Number(r[gKey]) || 0;
-      } else if (r[attKey] === 'No') {
-        no++;
-      }
+    filtered.forEach(function(r) {
+      if (r[attKey] === 'Yes') { yes++; totalGuests += Number(r[gKey]) || 0; }
+      else if (r[attKey] === 'No') { no++; }
     });
     return '<div class="event-rsvp-card">' +
       '<div class="event-rsvp-header"><span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
@@ -1949,11 +2143,11 @@ function loadRSVPsTab() {
       '<div class="ersvp-stat"><div class="ersvp-num">' + totalGuests + '</div><div class="ersvp-lbl">Guests</div></div>' +
       '</div></div>';
   }).join('');
-  breakdownEl.innerHTML = eventCards;
+}
 
-  // Response list
-  var listEl = document.getElementById('rsvp-responses-list');
-  var html = allRSVPs.map(function(r) {
+function renderRSVPSubmissionsView(filtered) {
+  var byCode = _rsvpGuestsByCode();
+  return filtered.map(function(r) {
     var evDetails = allEvents.map(function(ev) {
       var att = r[ev.id + ' Attending'];
       if (!att) return '';
@@ -1962,12 +2156,123 @@ function loadRSVPsTab() {
         (att === 'Yes' ? ' (' + (r[ev.id + ' Guests'] || 0) + ' guests)' : '') + '</span>';
     }).join('');
 
+    var code = String(r.invitation_code || '').toUpperCase().trim();
+    var family = byCode[code] || [];
+    var rel = family.length ? escapeAttr(family[0].relationship || '') : '';
+    var relPart = rel ? ' &middot; ' + rel : '';
+
     return '<div style="padding:.7rem 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">' +
       '<div><div style="font-family:\'Cormorant Garamond\',serif;font-size:1rem;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(r.timestamp || '') + ' &middot; <span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div></div>' +
+      '<div style="font-size:.68rem;color:var(--muted);">' + escapeAttr(r.timestamp || '') + ' &middot; <span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span>' + relPart + '</div></div>' +
       '<div class="rsvp-evt-wrap">' + evDetails + '</div></div>';
   }).join('');
-  listEl.innerHTML = html || '<div class="empty-state">No responses yet.</div>';
+}
+
+function renderRSVPByEventView(filtered) {
+  return allEvents.map(function(ev) {
+    var attending = [], declining = [];
+    filtered.forEach(function(r) {
+      var a = r[ev.id + ' Attending'];
+      if (a === 'Yes') attending.push(r);
+      else if (a === 'No') declining.push(r);
+    });
+    var row = function(r) {
+      var g = Number(r[ev.id + ' Guests']) || 0;
+      return '<div class="summary-row" style="border-bottom:1px solid rgba(0,0,0,.05);padding:.4rem 0;font-size:.78rem;">' +
+        '<span>' + escapeAttr(r.submission_name || '') + '</span>' +
+        '<span class="summary-status" style="color:var(--muted);">' + (g ? g + ' guest' + (g !== 1 ? 's' : '') : '') + '</span>' +
+      '</div>';
+    };
+    var block = function(title, arr, cls) {
+      if (!arr.length) return '';
+      return '<div style="margin-top:.6rem;">' +
+        '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.14em;color:' + cls + ';text-transform:uppercase;margin-bottom:.3rem;">' + title + ' (' + arr.length + ')</div>' +
+        arr.map(row).join('') +
+      '</div>';
+    };
+    return '<div class="admin-card" style="margin-bottom:1rem;padding:1rem;">' +
+      '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">' +
+        '<span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
+        '<span style="font-family:\'Cormorant Garamond\',serif;font-size:1.1rem;color:var(--wine);">' + escapeAttr(ev.name) + '</span>' +
+      '</div>' +
+      block('Attending', attending, 'var(--green)') +
+      block('Declined',  declining, 'var(--red)') +
+      (!attending.length && !declining.length
+        ? '<div class="empty-state" style="padding:.5rem;">No responses for this event.</div>'
+        : '') +
+    '</div>';
+  }).join('');
+}
+
+function renderRSVPMatrixView(filtered) {
+  var header = '<tr><th style="text-align:left;">Guest</th>' +
+    allEvents.map(function(ev) {
+      return '<th title="' + escapeAttr(ev.name) + '" style="text-align:center;">' + escapeAttr(ev.icon) + '</th>';
+    }).join('') +
+    '<th style="text-align:right;">Total guests</th></tr>';
+
+  var rows = filtered.map(function(r) {
+    var cells = allEvents.map(function(ev) {
+      var a = r[ev.id + ' Attending'];
+      var g = Number(r[ev.id + ' Guests']) || 0;
+      if (a === 'Yes') return '<td style="text-align:center;color:var(--green);font-weight:600;" title="Attending' + (g ? ' &middot; ' + g + ' guests' : '') + '">\u2713' + (g ? ' ' + g : '') + '</td>';
+      if (a === 'No')  return '<td style="text-align:center;color:var(--red);"   title="Declined">\u2715</td>';
+      return '<td style="text-align:center;color:var(--muted);">&mdash;</td>';
+    }).join('');
+    var total = allEvents.reduce(function(s, ev) {
+      return s + (r[ev.id + ' Attending'] === 'Yes' ? (Number(r[ev.id + ' Guests']) || 0) : 0);
+    }, 0);
+    return '<tr>' +
+      '<td style="text-align:left;">' +
+        '<div style="font-family:\'Cormorant Garamond\',serif;color:var(--wine);">' + escapeAttr(r.submission_name || '') + '</div>' +
+        '<div style="font-size:.6rem;color:var(--muted);"><span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div>' +
+      '</td>' + cells +
+      '<td style="text-align:right;font-weight:600;">' + total + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="guest-table-wrap"><table class="guest-table">' +
+    '<thead>' + header + '</thead>' +
+    '<tbody>' + rows + '</tbody>' +
+  '</table></div>';
+}
+
+function exportFilteredRSVPsCSV() {
+  var filtered = getFilteredRSVPs();
+  if (!filtered.length) { alert('No RSVPs to export.'); return; }
+  var byCode = _rsvpGuestsByCode();
+
+  var esc = function(v) {
+    var s = v == null ? '' : String(v);
+    // Guard against CSV formula injection (=, +, -, @, tab, CR)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+
+  var headers = ['timestamp', 'submission_name', 'invitation_code', 'relationship'];
+  allEvents.forEach(function(ev) {
+    headers.push(ev.id + '_attending', ev.id + '_guests');
+  });
+  var rows = filtered.map(function(r) {
+    var code = String(r.invitation_code || '').toUpperCase().trim();
+    var fam  = byCode[code] || [];
+    var rel  = fam.length ? (fam[0].relationship || '') : '';
+    var base = [r.timestamp || '', r.submission_name || '', r.invitation_code || '', rel];
+    allEvents.forEach(function(ev) {
+      base.push(r[ev.id + ' Attending'] || '');
+      base.push(r[ev.id + ' Guests'] || '');
+    });
+    return base.map(esc).join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'rsvps-filtered.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ══════════════════════════════════════════════
@@ -2004,16 +2309,31 @@ function renderSettingsTab() {
 
 var messageConfig = null;
 var _msgSaveTimer = null;
+var MSG_LOCAL_KEY = 'weddingAdmin_msgConfigV2';
+
+var DEFAULT_MSG_CONFIG = {
+  settings: { rsvpUrl: '', chaseDeadline: '', inviteDeadline: '', defaultCountryCode: '' },
+  templates: [
+    { id: 't_invite', name: 'Initial Invite', body: 'Hi {{name}},\n\nYou are cordially invited to our wedding celebrations!\n\nYour invitation code: {{code}}\nRSVP here: {{url}}\nPlease respond by: {{deadline}}\n\nWe hope to see you there!' },
+    { id: 't_chase', name: 'Chase-Up', body: 'Hi {{name}},\n\nJust a friendly reminder to RSVP for the wedding!\n\nYour code: {{code}}\nRSVP here: {{url}}\nDeadline: {{deadline}}\n\nLooking forward to hearing from you!' },
+  ],
+  relationshipDefaults: {},
+};
 
 function loadMessageConfigFromServer() {
   google.script.run
     .withSuccessHandler(function(cfg) {
       messageConfig = cfg;
+      try { localStorage.setItem(MSG_LOCAL_KEY, JSON.stringify(cfg)); } catch (e) {}
       migrateLocalStorageMessages();
     })
     .withFailureHandler(function(err) {
-      console.error('Failed to load message config:', err);
-      messageConfig = { settings: {}, templates: [], relationshipDefaults: {} };
+      console.error('Failed to load message config from server, using local fallback:', err);
+      try {
+        var local = JSON.parse(localStorage.getItem(MSG_LOCAL_KEY) || 'null');
+        if (local && local.templates && local.templates.length) { messageConfig = local; return; }
+      } catch (e) {}
+      messageConfig = JSON.parse(JSON.stringify(DEFAULT_MSG_CONFIG));
     })
     .getMessageConfig();
 }
@@ -2047,11 +2367,12 @@ function migrateLocalStorageMessages() {
 
 function saveConfigToServer() {
   if (!messageConfig) return;
+  try { localStorage.setItem(MSG_LOCAL_KEY, JSON.stringify(messageConfig)); } catch (e) {}
   clearTimeout(_msgSaveTimer);
   _msgSaveTimer = setTimeout(function() {
     google.script.run
       .withSuccessHandler(function() {})
-      .withFailureHandler(function(err) { console.error('Failed to save message config:', err); })
+      .withFailureHandler(function(err) { console.error('Failed to save message config to server:', err); })
       .saveMessageConfig(messageConfig);
   }, 500);
 }
