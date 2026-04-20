@@ -2342,7 +2342,19 @@ function openWhatsApp(guestId, section) {
     (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
   var msg = buildMessage(template, g, deadline);
   var url = buildWhatsAppUrl(g.phone, msg);
-  if (url) window.open(url, '_blank');
+  if (!url) return;
+  window.open(url, '_blank');
+  if (section === 'invite') {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        g.invite_sent_at = res.invite_sent_at;
+        if (typeof renderInviteList === 'function') renderInviteList();
+      })
+      .withFailureHandler(function(err) {
+        console.warn('markInviteSent failed:', err && err.message);
+      })
+      .markInviteSent(guestId);
+  }
 }
 
 function copyMessage(flashId, guestId, section) {

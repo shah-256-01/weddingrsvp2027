@@ -207,7 +207,7 @@ function sanitiseSheetValue(val) {
 }
 
 function guestHeaders() {
-  const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
+  const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status','invite_sent_at'];
   const alloc = EVENT_IDS.flatMap(id => [id + '_guests', id + '_table']);
   return [...fixed, ...alloc];
 }
@@ -780,6 +780,30 @@ function bulkAddGuests(payload) {
 // Admin utility: return a freshly-generated unique code for the add-guest modal.
 function generateCode() {
   return { code: generateUniqueCode() };
+}
+
+// Admin utility: stamp invite_sent_at with the current ISO timestamp for the
+// given guest id. Clients call this after opening the WhatsApp deep link so
+// the admin list can distinguish "sent" from "unsent". Pass `clear: true` to
+// reset the timestamp (e.g. to resend from scratch).
+function markInviteSent(guestId, clear) {
+  if (!guestId) throw new Error('guestId required');
+  const sheet = getSheet(TABS.guests);
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) throw new Error('Guest not found');
+  const headers = data[0];
+  const idCol   = headers.indexOf('id');
+  const sentCol = headers.indexOf('invite_sent_at');
+  if (idCol < 0) throw new Error('id column missing');
+  if (sentCol < 0) throw new Error('invite_sent_at column missing — run rebuildSheetToTemplate()');
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][idCol]) === String(guestId)) {
+      const ts = clear ? '' : new Date().toISOString();
+      sheet.getRange(r + 1, sentCol + 1).setValue(ts);
+      return { ok: true, guestId, invite_sent_at: ts };
+    }
+  }
+  throw new Error('Guest not found: ' + guestId);
 }
 
 // ── submitRSVP ────────────────────────────────────────────
@@ -1574,6 +1598,7 @@ function _templateRebuildGuestsTab(ss, log) {
     invitation_code: 'The code the guest enters to RSVP (shared by their whole family). Auto-generated from the events they are invited to.',
     events:          'Comma-separated event IDs the guest is invited to (e.g. Lg,MS,Ma,MG,We,BT). Drives which event cards they see on the site.',
     status:          'ACTIVE or DELETED. DELETED rows are kept for audit but hidden from the site and admin list by default.',
+    invite_sent_at:  'ISO timestamp set when the admin opens the WhatsApp invite for this guest. Blank = not yet sent. Clear this cell to resend from scratch.',
   };
   EVENT_IDS.forEach(function(id) {
     notes[id + '_guests'] = 'Number of seats reserved for this guest\u2019s family at event "' + id + '". This is the maximum they can RSVP for.';
@@ -1583,7 +1608,7 @@ function _templateRebuildGuestsTab(ss, log) {
   const widths = {
     id: 110, first_name: 110, last_name: 110, phone: 140, email: 190,
     relationship: 140, is_overseas: 90, notes: 200, invitation_code: 120,
-    events: 120, status: 90,
+    events: 120, status: 90, invite_sent_at: 160,
   };
   EVENT_IDS.forEach(function(id) { widths[id + '_guests'] = 75; widths[id + '_table'] = 75; });
 
