@@ -187,7 +187,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .ersvp-lbl{font-size:.58rem;color:var(--muted);}
 .modal-overlay{position:fixed;inset:0;background:rgba(42,31,26,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem;animation:lbFade .25s ease;}
 @keyframes lbFade{from{opacity:0}to{opacity:1}}
-.modal{background:var(--card-bg);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:2px;animation:modalUp .3s cubic-bezier(0.23,1,0.32,1);}
+.modal{background:var(--card-bg);width:100%;max-width:640px;max-height:88vh;max-height:88svh;overflow-y:auto;border-radius:2px;animation:modalUp .3s cubic-bezier(0.23,1,0.32,1);}
 @keyframes modalUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-header{padding:1.3rem 1.5rem;border-bottom:1px solid rgba(0,0,0,.07);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--card-bg);z-index:1;}
 .modal-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:var(--fs-xl);color:var(--wine);}
@@ -276,8 +276,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   .guest-mobile-meta{display:block;}
   .form-grid-2{grid-template-columns:1fr;}
   .form-full{grid-column:auto;}
-  .modal-overlay{padding:.4rem;align-items:flex-start;padding-top:1rem;}
-  .modal{max-width:100%;margin:0;max-height:calc(100vh - 2rem);}
+  .modal-overlay{padding:.4rem;align-items:flex-start;padding-top:.6rem;}
+  .modal{max-width:100%;margin:0;max-height:calc(100vh - 1.2rem);max-height:calc(100svh - 1.2rem);}
+  .modal-footer{padding-bottom:calc(.75rem + env(safe-area-inset-bottom,0px));}
   .modal-header{padding:.9rem 1rem;}
   .modal-body{padding:1rem;}
   .modal-footer{padding:.75rem 1rem;flex-wrap:wrap;}
@@ -640,14 +641,14 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <div class="alloc-grid" id="modal-alloc-grid"></div>
       </div>
       <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;" id="modal-code-preview">
-        <label style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.35rem;text-align:center;">Invitation Code</label>
-        <div style="display:flex;gap:.5rem;align-items:center;">
+        <label style="font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.5rem;text-align:center;">Invitation Code</label>
+        <div style="display:flex;gap:.4rem;align-items:stretch;">
           <input id="modal-code-input" type="text" maxlength="6" autocomplete="off" spellcheck="false"
-            style="flex:1;font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:.25em;color:var(--wine);text-transform:uppercase;text-align:center;padding:.45rem;border:1px solid var(--border);background:#fff;border-radius:2px;min-height:40px;"
+            style="flex:1;min-width:0;font-family:'Cinzel',serif;font-size:1.2rem;letter-spacing:.22em;color:var(--wine);text-transform:uppercase;text-align:center;padding:.45rem;border:1px solid var(--border);background:#fff;border-radius:2px;min-height:42px;"
             oninput="onModalCodeInput()" onblur="onModalCodeInput()"/>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="requestGeneratedCode()" id="modal-code-generate-btn" title="Generate a fresh unique code">Generate</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="requestGeneratedCode()" id="modal-code-generate-btn" title="Generate a fresh unique code" style="flex-shrink:0;">&#8634; Generate</button>
         </div>
-        <div id="modal-code-status" style="font-family:'Jost',sans-serif;font-size:.7rem;margin-top:.4rem;min-height:1em;text-align:center;color:var(--muted);"></div>
+        <div id="modal-code-status" style="font-family:'Jost',sans-serif;font-size:var(--fs-2xs);margin-top:.5rem;min-height:1em;text-align:center;color:var(--muted);"></div>
       </div>
     </div>
     <div class="modal-footer">
