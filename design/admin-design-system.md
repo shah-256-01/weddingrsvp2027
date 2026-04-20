@@ -166,7 +166,130 @@ shows Yes / TBC / No chips so the color map carries.
 
 ---
 
-## 5. Responsive breakpoints
+## 5. Layout patterns
+
+### 5.1 App chrome (top of every page)
+
+```
+┌─────────────────────────────────────────────────┐ ink bg, sticky top:0
+│ ✦ WEDDING ADMIN                   [ LOGOUT ]    │
+├─────────────────────────────────────────────────┤ wine-d bg, sticky top:51
+│ 👥 GUESTS  ✉ MESSAGES  📋 RSVPS  ⚙ SETTINGS  📤 CSV │
+└─────────────────────────────────────────────────┘
+```
+
+- `.admin-nav` — sticky `top:0`, z-index 60. Dark ink background, gold Cinzel
+  nav title, inline logout (danger button).
+- `.admin-tabs` — sticky `top:51px` on desktop / `40px` on mobile, z-index 55.
+  Wine-d background with overflow-x:auto so tab labels scroll horizontally on
+  narrow screens. Active tab: `--gold-lt` text + 3px gold bottom border.
+  Soft shadow below bar to float over scrolling content.
+
+Mobile note: the `svh` unit + a 40px nav/tab offset keep the tab bar anchored
+even when the iOS URL chrome collapses.
+
+### 5.2 Panel & card
+
+Each tab renders into `.admin-panel` (max-width 1100px, `2rem 1.5rem` padding,
+centered). Content inside lives in `.admin-card` blocks:
+
+- White surface, hairline `rgba(0,0,0,.07)` border, `1.7rem` padding, `2px`
+  radius.
+- `.admin-card-title` — Cinzel `--fs-sm` wine all-caps, with a flex:1 gold
+  pseudo-rule trailing it (`::after{content:'';flex:1;height:1px;background:rgba(184,146,74,.17)}`)
+  so every section reads as `TITLE ───────`.
+
+Stats row: `.stats-row` is a flex-wrap of `.stat-card` cells (Cormorant
+`2rem` number + Cinzel eyebrow label). Used on Dashboard/Overview.
+
+### 5.3 Data rows — unified `.invite-row` pattern
+
+A CSS-grid row used across Messages and the RSVPs Submissions view. Two
+logical columns: identity on the left, controls on the right.
+
+```
+.invite-row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  column-gap:1rem; row-gap:.45rem;
+  padding:.65rem .35rem;
+  border-bottom:1px solid rgba(0,0,0,.05);
+}
+```
+
+- Below 780px the controls drop to a full-width row under the identity.
+- Modifier classes: `.invite-row--next` (gold tint), `.invite-row--skipped`
+  (55% opacity), `.invite-row--flash` (1.4s green flash when Send-next fires).
+
+### 5.4 Guest list table — 3-col desktop, 2-col mobile card
+
+Desktop (`>640px`): a proper `<table class="guest-table guest-list-table">`
+with three cells:
+
+1. Identity: status dot + Cormorant `--fs-lg` name + overseas badge /
+   relationship line / code pill.
+2. Contact & Events: phone (Jost md) + inline event icons.
+3. Actions: `.guest-actions-col` — three buttons **stacked vertically**
+   (View, Edit, Delete), stretch-aligned, `120px` min-width.
+
+Mobile (`<=640px, >360px`): the table rows become CSS-grid cards —
+`tbody/tr` become block, `thead` hidden, each `tr` a 2-col grid:
+
+```
+[dot] Shanah Shah         +254748502536
+      Groom's Family       🎶 🎩 🥂 🪔 🌿
+      [B5RHWZ]
+
+[👁 VIEW] [✎ EDIT] [✕ DELETE]         ← row 2, full width, flex:1 each
+```
+
+Very-narrow fallback (`<=360px`): single-column stack.
+
+Rationale: 3 stacked 40px buttons would have forced the actions column wide
+enough to overflow on narrow phones; stacking the row + making actions
+horizontal solves it without shrinking the button size.
+
+### 5.5 Modals
+
+`.modal-overlay` — fixed fullscreen dim `rgba(42,31,26,.7)`, flexbox
+center, `1.5rem` padding. `.modal` — white card, `640px` max-width, scrolls
+internally (`overflow-y:auto`) up to `88svh`. `.modal-header` sticky at top,
+`.modal-footer` sticky at bottom with `safe-area-inset-bottom` padding.
+
+Header uses a Cormorant italic `--fs-xl` title. Body `1.5rem` padding. Footer
+flex-end, gap `.6rem`; on mobile footer buttons get `flex:1` to fill width.
+
+### 5.6 View-Guest detail layout (inside a modal)
+
+```
+┌─ hero ────────────────────────────────┐
+│ [ B5RHWZ ]  🌐 Overseas               │
+└───────────────────────────────────────┘
+
+Phone         +254748502536  💬
+Email         shanays94@gmail.com
+Relationship  Groom's Family
+Notes         …
+
+ALLOCATIONS ─────────────────────
+🎶  Mandvo                     2 guests
+🎩  Black Tie                  2 guests
+…
+
+┌─ status ──────────────────────────────┐
+│ ● Awaiting RSVP                       │
+│   Invite sent 20 Apr — no response yet│
+└───────────────────────────────────────┘
+```
+
+Dedicated classes: `.view-guest-hero`, `.view-guest-meta` (a `<dl>` grid),
+`.view-guest-section-title` (Cinzel eyebrow + trailing gold rule),
+`.view-guest-alloc-list` / `.view-guest-alloc` (per-event rows with
+icon + Cormorant count), `.view-guest-status` (traffic-light block).
+
+---
+
+## 6. Responsive breakpoints
 
 ```css
 @media (max-width: 700px)  { /* phones + small tablets */ }
