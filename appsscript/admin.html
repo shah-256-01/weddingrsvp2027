@@ -299,7 +299,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
       <div class="view-switcher">
         <button class="view-btn active" onclick="setGuestView('list')" id="vbtn-list">&#9776; List</button>
-        <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; By Code</button>
+        <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; Cards</button>
         <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">&#10003; RSVP Status</button>
         <button class="view-btn" onclick="setGuestView('event')" id="vbtn-event">&#128197; By Event</button>
       </div>
@@ -354,13 +354,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     </div>
     <div class="admin-card" style="margin-top:1.2rem;">
       <div class="admin-card-title">Generate Invitation Code</div>
-      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Select events to generate a code:</p>
-      <div class="event-tick-grid" id="code-gen-ticks" style="margin-bottom:.9rem;"></div>
+      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Codes are unique per guest. Click Generate for a fresh one, then copy it onto a physical invite or into your message template.</p>
       <div style="background:var(--gold-pale);border:1px solid rgba(184,146,74,.3);padding:1rem;text-align:center;border-radius:2px;margin:.7rem 0;">
         <div style="font-family:'Cinzel',serif;font-size:1.55rem;letter-spacing:.3em;color:var(--wine);" id="gen-code-out">&mdash;</div>
-        <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Select events above</div>
+        <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Click Generate</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="copyGenCode()">Copy Code</button>
+      <div style="display:flex;gap:.5rem;">
+        <button class="btn btn-secondary btn-sm" onclick="generateStandaloneCode()" style="flex:1;">Generate</button>
+        <button class="btn btn-primary btn-sm" onclick="copyGenCode()" style="flex:1;">Copy</button>
+      </div>
     </div>
   </div>
 
@@ -506,9 +508,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <label style="font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.35rem;">Guest Allocations Per Event</label>
         <div class="alloc-grid" id="modal-alloc-grid"></div>
       </div>
-      <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;text-align:center;" id="modal-code-preview">
-        <span style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.3rem;">Invitation Code</span>
-        <span style="font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:.25em;color:var(--wine);" id="modal-code-out">&mdash;</span>
+      <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;" id="modal-code-preview">
+        <label style="font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.35rem;text-align:center;">Invitation Code</label>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+          <input id="modal-code-input" type="text" maxlength="6" autocomplete="off" spellcheck="false"
+            style="flex:1;font-family:'Cinzel',serif;font-size:1.3rem;letter-spacing:.25em;color:var(--wine);text-transform:uppercase;text-align:center;padding:.45rem;border:1px solid var(--border);background:#fff;border-radius:2px;min-height:40px;"
+            oninput="onModalCodeInput()" onblur="onModalCodeInput()"/>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="requestGeneratedCode()" id="modal-code-generate-btn" title="Generate a fresh unique code">Generate</button>
+        </div>
+        <div id="modal-code-status" style="font-family:'Jost',sans-serif;font-size:.7rem;margin-top:.4rem;min-height:1em;text-align:center;color:var(--muted);"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -599,12 +607,6 @@ let   sessionTimer       = null;
 let   warningTimer       = null;
 
 // ── Helpers ────────────────────────────────
-function codeForIds(ids) {
-  if (!ids || !ids.length) return '';
-  var sorted = ids.filter(Boolean).sort(function(a, b) { return a.localeCompare(b); });
-  return sorted.join('') + '2026';
-}
-
 function buildEventDots(g) {
   var evIds = String(g.events || '').split(',').map(s => s.trim()).filter(Boolean);
   return evIds.map(function(id) {
@@ -1057,7 +1059,7 @@ function selectEventFilter(eventId) {
   var content = document.getElementById('event-view-content');
   content.innerHTML =
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:1rem 0;">' +
-    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Families Invited</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedGuests || 0) + '</div><div class="stat-lbl">Invitations</div></div>' +
     '<div class="stat-card"><div class="stat-num">' + (evtStats.invitedHeadcount || 0) + '</div><div class="stat-lbl">Guests Invited</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + (evtStats.attendingGuests || 0) + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
     '<div class="stat-card"><div class="stat-num" style="color:var(--gold);">' + (evtStats.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
@@ -1244,8 +1246,12 @@ function openAddGuest() {
   document.getElementById('m-overseas').checked = false;
   buildModalEventTicks([]);
   updateModalAllocations();
-  document.getElementById('modal-code-out').textContent = '\u2014';
+  var codeInput = document.getElementById('modal-code-input');
+  codeInput.value = '';
+  codeInput.readOnly = false;
+  setModalCodeStatus('', '');
   document.getElementById('guest-modal-overlay').classList.remove('hidden');
+  requestGeneratedCode(); // auto-prefill a fresh unique code for new guests
 }
 
 function openEditGuest(id) {
@@ -1264,7 +1270,10 @@ function openEditGuest(id) {
   var gEvents = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   buildModalEventTicks(gEvents);
   updateModalAllocations(g);
-  updateModalCode();
+  var codeInput = document.getElementById('modal-code-input');
+  codeInput.value = String(g.invitation_code || '').toUpperCase();
+  codeInput.readOnly = false; // admins can rotate a code if they need to
+  setModalCodeStatus('Code is assigned. Click Generate to rotate \u2014 old links will stop working.', 'muted');
   document.getElementById('guest-modal-overlay').classList.remove('hidden');
 }
 
@@ -1282,16 +1291,76 @@ function buildModalEventTicks(selected) {
 function onModalTickChange(el) {
   el.closest('.event-tick').classList.toggle('selected', el.checked);
   updateModalAllocations();
-  updateModalCode();
+  // Note: invitation codes are now independent of which events a guest is
+  // invited to. Changing event ticks no longer mutates the code.
 }
 
-function updateModalCode() {
-  var ticks = document.querySelectorAll('#modal-event-ticks input:checked');
-  var ids = [];
-  ticks.forEach(function(cb) { ids.push(cb.value); });
-  ids.sort(function(a, b) { return a.localeCompare(b); });
-  var code = ids.length ? ids.join('') + '2026' : '\u2014';
-  document.getElementById('modal-code-out').textContent = code;
+// ── Invitation-code UI helpers ──────────────────────────
+var CODE_CHARSET_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
+
+function setModalCodeStatus(text, kind) {
+  var el = document.getElementById('modal-code-status');
+  if (!el) return;
+  el.textContent = text || '';
+  var color = 'var(--muted)';
+  if (kind === 'ok')    color = 'var(--green)';
+  if (kind === 'error') color = 'var(--red)';
+  if (kind === 'muted') color = 'var(--muted)';
+  el.style.color = color;
+}
+
+function onModalCodeInput() {
+  var input = document.getElementById('modal-code-input');
+  if (!input) return;
+  var raw = String(input.value || '').toUpperCase();
+  // Strip whitespace + disallowed chars as the user types, so they see a clean code.
+  var cleaned = raw.replace(/[^23456789ABCDEFGHJKMNPQRSTUVWXYZ]/g, '').slice(0, 6);
+  if (cleaned !== raw) input.value = cleaned;
+  if (!cleaned) {
+    setModalCodeStatus('Click Generate or type a 6-character code.', 'muted');
+    return;
+  }
+  if (!CODE_CHARSET_RE.test(cleaned)) {
+    setModalCodeStatus('Must be 6 characters, excluding 0, O, 1, I and L.', 'error');
+    return;
+  }
+  // Local uniqueness check against currently-loaded guests (server re-validates on save).
+  var currentId = document.getElementById('m-id').value;
+  var clash = allGuests.some(function(g) {
+    return String(g.invitation_code || '').toUpperCase() === cleaned && g.id !== currentId;
+  });
+  if (clash) {
+    setModalCodeStatus('Code is already in use.', 'error');
+  } else {
+    setModalCodeStatus('Code available.', 'ok');
+  }
+}
+
+function requestGeneratedCode() {
+  var btn = document.getElementById('modal-code-generate-btn');
+  var input = document.getElementById('modal-code-input');
+  if (!btn || !input) return;
+  var prevLabel = btn.textContent;
+  btn.textContent = '\u2026';
+  btn.disabled = true;
+  setModalCodeStatus('Generating\u2026', 'muted');
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.textContent = prevLabel;
+      btn.disabled = false;
+      if (!res || !res.code) {
+        setModalCodeStatus('Could not generate a code. Try again.', 'error');
+        return;
+      }
+      input.value = res.code;
+      onModalCodeInput();
+    })
+    .withFailureHandler(function(err) {
+      btn.textContent = prevLabel;
+      btn.disabled = false;
+      setModalCodeStatus((err && err.message) || 'Could not generate a code. Try again.', 'error');
+    })
+    .generateCode();
 }
 
 function updateModalAllocations(existingGuest) {
@@ -1345,6 +1414,20 @@ function saveGuest() {
   ticks.forEach(function(cb) { eventIds.push(cb.value); });
   if (!eventIds.length) { alert('Select at least one event.'); return; }
 
+  var codeVal = String(document.getElementById('modal-code-input').value || '').toUpperCase().trim();
+  if (!CODE_CHARSET_RE.test(codeVal)) {
+    alert('Invitation code must be 6 characters (no 0/O/1/I/L). Click Generate to get a fresh one.');
+    return;
+  }
+  var currentId = document.getElementById('m-id').value;
+  var clash = allGuests.some(function(g) {
+    return String(g.invitation_code || '').toUpperCase() === codeVal && g.id !== currentId;
+  });
+  if (clash) {
+    alert('Invitation code "' + codeVal + '" is already in use by another guest.');
+    return;
+  }
+
   var payload = {
     first_name: firstName,
     last_name: lastName,
@@ -1354,7 +1437,7 @@ function saveGuest() {
     notes: document.getElementById('m-notes').value.trim(),
     is_overseas: document.getElementById('m-overseas').checked ? 'TRUE' : 'FALSE',
     events: eventIds.join(','),
-    invitation_code: [...eventIds].sort(function(a, b) { return a.localeCompare(b); }).join('') + '2026'
+    invitation_code: codeVal
   };
 
   // Allocation columns
@@ -1624,16 +1707,6 @@ function exportGuestListCSV() {
 // ══════════════════════════════════════════════
 
 function renderCSVTab() {
-  // Render code generator event ticks
-  var grid = document.getElementById('code-gen-ticks');
-  if (grid && allEvents.length) {
-    grid.innerHTML = allEvents.map(function(ev) {
-      return '<label class="event-tick">' +
-        '<input type="checkbox" value="' + escapeAttr(ev.id) + '" onchange="updateGenCode()"/>' +
-        '<span>' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</span></label>';
-    }).join('');
-  }
-
   // Setup drag-and-drop
   var zone = document.getElementById('csv-drop-zone');
   if (zone && !zone._dragSetup) {
@@ -1648,27 +1721,32 @@ function renderCSVTab() {
   }
 }
 
-function updateGenCode() {
-  var ticks = document.querySelectorAll('#code-gen-ticks input:checked');
-  var ids = [];
-  ticks.forEach(function(cb) { ids.push(cb.value); });
-  ids.sort(function(a, b) { return a.localeCompare(b); });
-  var code = ids.length ? ids.join('') + '2026' : '\u2014';
-  document.getElementById('gen-code-out').textContent = code;
-  if (ids.length) {
-    var names = ids.map(function(id) {
-      var ev = allEvents.find(function(e) { return e.id === id; });
-      return ev ? ev.name : id;
-    });
-    document.getElementById('gen-code-events').textContent = names.join(', ');
-  } else {
-    document.getElementById('gen-code-events').textContent = 'Select events above';
-  }
+// Fetch a fresh unique code for the standalone generator panel.
+function generateStandaloneCode() {
+  var out = document.getElementById('gen-code-out');
+  var lbl = document.getElementById('gen-code-events');
+  if (!out) return;
+  lbl.textContent = 'Generating\u2026';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.code) {
+        out.textContent = res.code;
+        lbl.textContent = 'Unique code ready \u2014 click Copy';
+      } else {
+        out.textContent = '\u2014';
+        lbl.textContent = 'Could not generate a code. Try again.';
+      }
+    })
+    .withFailureHandler(function(err) {
+      out.textContent = '\u2014';
+      lbl.textContent = (err && err.message) || 'Could not generate a code. Try again.';
+    })
+    .generateCode();
 }
 
 function copyGenCode() {
   var code = document.getElementById('gen-code-out').textContent;
-  if (!code || code === '\u2014') { alert('Select events first.'); return; }
+  if (!code || code === '\u2014') { alert('Click Generate first.'); return; }
   if (navigator.clipboard) {
     navigator.clipboard.writeText(code).then(function() { alert('Copied: ' + code); });
   } else {
@@ -1677,9 +1755,12 @@ function copyGenCode() {
 }
 
 function downloadCSVTemplate() {
+  // invitation_code is optional: leave blank to auto-generate a unique 6-char
+  // code per guest. Populate only when you want to set a specific code (must
+  // be 6 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ — excludes 0/O/1/I/L).
   var headers = [
     'first_name','last_name','phone','email','relationship',
-    'notes','is_overseas','events',
+    'notes','is_overseas','events','invitation_code',
     'L_guests',
     'S_guests',
     'A_guests',
@@ -1689,7 +1770,7 @@ function downloadCSVTemplate() {
   ];
   var exampleRow = [
     'Priya','Sharma','+447700000000','priya@email.com',
-    "Bride's Family",'Any notes here','FALSE','"L,S,W"',
+    "Bride's Family",'Any notes here','FALSE','"L,S,W"','',
     '6','6','0','4','6','0'
   ];
   var csv  = [headers.join(','), exampleRow.join(',')].join('\n');

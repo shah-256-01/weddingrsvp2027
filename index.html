@@ -413,8 +413,8 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
     <span class="guest-nav-name" id="display-code"></span>
   </nav>
   <div class="guest-hero">
-    <div class="guest-hero-welcome"><span class="label">With joy, we welcome the</span></div>
-    <h2 class="guest-hero-family" id="guest-family-greeting">Shah Family</h2>
+    <div class="guest-hero-welcome"><span class="label">With joy, we welcome</span></div>
+    <h2 class="guest-hero-family" id="guest-family-greeting">Priya Sharma</h2>
     <div class="ornament" style="margin:1.1rem 0 1.2rem;" aria-hidden="true">
       <div class="ornament-line rev" style="width:50px"></div>
       <div class="ornament-diamond"></div>
@@ -705,7 +705,6 @@ const INVITE_IMAGES = {
 };
 
 let EVENTS = [];
-let CODES_MAP = {};
 let currentGuest = null;
 
 function escapeHtml(str) {
@@ -793,21 +792,6 @@ function postRSVP(payload) {
 }
 
 /* ══════════════════════════════════════════════
-   CODE MAP
-══════════════════════════════════════════════ */
-function buildCodesMap(events) {
-  const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
-  const map = {};
-  const n   = sorted.length;
-  if (n > 12) return map; // cap at 2^12 = 4096 combinations
-  for (let i = 1; i < (1 << n); i++) {
-    const ids = sorted.filter((_, j) => i & (1 << j)).map(e => e.id);
-    map[ids.join('') + '2026'] = ids;
-  }
-  return map;
-}
-
-/* ══════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════ */
 let currentCode = '', currentEventIds = [], eventRSVPs = {};
@@ -824,7 +808,6 @@ async function init() {
       showEventLoadError('Events are not yet configured. Please contact the wedding team.');
       return;
     }
-    CODES_MAP = buildCodesMap(EVENTS);
     hideLoadingSpinner();
   } catch (err) {
     hideLoadingSpinner();
@@ -942,11 +925,12 @@ async function submitEntry() {
 ══════════════════════════════════════════════ */
 function loadGuestPage() {
   showPage('guest');
-  document.getElementById('display-code').textContent = currentGuest.familyName;
+  document.getElementById('display-code').textContent = currentGuest.firstName || currentGuest.familyName;
   var banner = document.getElementById('welcome-banner');
   if (banner) banner.classList.remove('hidden');
-  document.getElementById('guest-family-greeting').textContent =
-    currentGuest.familyName + ' Family';
+  var fullName = [currentGuest.firstName, currentGuest.lastName].filter(Boolean).join(' ').trim()
+    || currentGuest.familyName || 'Guest';
+  document.getElementById('guest-family-greeting').textContent = fullName;
 
   // Show/hide overseas subnav tab
   if (currentGuest.isOverseas) {
@@ -1188,7 +1172,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
     '</div>' +
     '<h2 class="success-title">Your response is received</h2>' +
     '<p class="success-sub" style="margin-bottom:1.5rem;">' +
-      'A reply for <strong>' + escapeHtml(existingRSVP.submissionName || 'your family') + '</strong> ' +
+      'A reply for <strong>' + escapeHtml(existingRSVP.submissionName || 'you') + '</strong> ' +
       'was noted on ' + submittedDate + '. Below, a keepsake of the events you\'ll be joining us for.' +
     '</p>' +
     (attendingCards
@@ -1596,8 +1580,14 @@ async function submitRSVP() {
   btn.textContent = 'Submitting\u2026';
   btn.disabled    = true;
 
+  var submitterName = [currentGuest.firstName, currentGuest.lastName].filter(Boolean).join(' ').trim()
+    || currentGuest.familyName || '';
   var payload = {
-    submissionName: currentGuest.familyName,
+    // submissionName is the legacy field name expected by Code.gs.submitRSVP
+    // (it's checked against the guest row's name). With per-guest unique codes,
+    // the submitter is always the logged-in guest themselves, so send their
+    // full name rather than a shared family label.
+    submissionName: submitterName,
     invitationCode: currentCode,
     submittedAt:    new Date().toISOString(),
     guestEmail:     currentGuest.email || '',
