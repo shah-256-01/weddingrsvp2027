@@ -410,6 +410,10 @@ function validateGuest(code, firstName, lastName) {
     events:         eventIds,
     allocations,
     isOverseas:     String(match.is_overseas || '').toUpperCase() === 'TRUE',
+    // Surfaced so the client can pick side-specific invitation artwork
+    // (Bride's side vs Groom's side) — see INVITE_IMAGES / WELCOME_IMAGES
+    // in index.html.
+    relationship:   sanitiseSheetValue(match.relationship),
     existingRSVP,
   };
 }

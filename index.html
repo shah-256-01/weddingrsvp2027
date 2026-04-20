@@ -158,6 +158,10 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .cd-dot{width:3px;height:3px;background:var(--gold-soft);border-radius:50%;opacity:.5;align-self:center;}
 .events-section{max-width:900px;margin:0 auto;padding:2.8rem 2rem 1.2rem;}
 .events-section-header{text-align:center;margin-bottom:2rem;}
+/* Non-interactive "from the bride's side / groom's side" opener image
+   shown above the RSVP list. Hidden when we can't resolve a side. */
+.welcome-image{margin:0 auto 2rem;max-width:520px;border:1px solid var(--rule);background:#fff;overflow:hidden;}
+.welcome-image img{display:block;width:100%;height:auto;background:var(--blush);}
 .section-tag{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.35em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.45rem;}
 .section-title{font-family:var(--serif);font-size:var(--display-md);font-weight:300;font-style:italic;color:var(--wine);}
 .event-card{border:1px solid var(--rule);background:#fff;margin-bottom:1rem;overflow:hidden;transition:box-shadow .3s,border-color .3s;}
@@ -534,6 +538,9 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
     </div>
   </div>
   <div class="events-section" id="events-section">
+    <figure class="welcome-image hidden" id="welcome-image">
+      <img id="welcome-image-img" alt="" loading="lazy"/>
+    </figure>
     <div class="events-section-header">
       <span class="section-tag">Your invitations</span>
       <h2 class="section-title">Our celebrations, one reply</h2>
@@ -705,13 +712,55 @@ const CONTACT_INFO = 'couple@example.com'; // ← update with your contact email
 const WEDDING_VENUE = 'Aurora Bustani, Albizzia · Thika';
 
 // Map event IDs to their custom invitation image (optional). When present,
-// the returning-guest screen renders that image as the invitation card.
-// Events without an entry fall back to the text-based invite-card design.
+// the card renders that image. Events without an entry fall back to the
+// text-based card design.
+//
+// A value may be either:
+//   - a string path → same image for everyone (e.g. the Wedding Day)
+//   - an object { brides, grooms } → side-specific images (resolved from
+//     the guest's `relationship`, see resolveInviteImage below).
 const INVITE_IMAGES = {
   S: 'invitations/mehndi-sangeet.jpg',
   W: 'invitations/wedding-day.jpg',
   B: 'invitations/black-tie.jpg',
+  L: {
+    brides: 'invitations/lagnotri-brides.jpg',
+    grooms: 'invitations/lagnotri-grooms.jpg',
+  },
+  A: {
+    brides: 'invitations/mandvo-brides.jpg',
+    grooms: 'invitations/mandvo-grooms.jpg',
+  },
 };
+
+// Non-event "opening" image displayed once at the top of the RSVP section.
+// Side-specific — nothing is shown if we can't resolve a side.
+const WELCOME_IMAGES = {
+  brides: 'invitations/welcome-brides.jpg',
+  grooms: 'invitations/welcome-grooms.jpg',
+};
+
+// Determine which side of the wedding a guest belongs to, based on their
+// `relationship` string (e.g. "Bride's Family", "Groom's Friend"). Returns
+// 'brides', 'grooms', or null when the relationship doesn't clearly signal
+// a side (Colleague, Other, empty).
+function getGuestSide(relationship) {
+  var r = String(relationship || '').toLowerCase();
+  if (r.indexOf('bride') > -1) return 'brides';
+  if (r.indexOf('groom') > -1) return 'grooms';
+  return null;
+}
+
+// Resolve an INVITE_IMAGES entry to a concrete image path for the current
+// guest. Accepts string entries (same for everyone) or {brides, grooms}.
+// If we can't determine a side, falls back to the brides variant so guests
+// still see artwork rather than a broken placeholder.
+function resolveInviteImage(entry, side) {
+  if (!entry) return '';
+  if (typeof entry === 'string') return entry;
+  if (side && entry[side]) return entry[side];
+  return entry.brides || entry.grooms || '';
+}
 
 let EVENTS = [];
 let currentGuest = null;
@@ -1025,6 +1074,7 @@ function showRSVPFlow() {
   });
   document.getElementById('success-screen').classList.add('hidden');
   document.getElementById('already-submitted-screen').classList.add('hidden');
+  renderWelcomeImage();
   renderEventCards();
   renderSummary();
   updateProgress();
@@ -1105,6 +1155,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
   var summary = existingRSVP.eventSummary || [];
 
   // Build invitation cards for events the guest is attending — each card is their keepsake invite
+  var side = getGuestSide(currentGuest && currentGuest.relationship);
   var attendingIndex = 0;
   var attendingCards = summary
     .filter(function(ev) { return ev.attending; })
@@ -1145,7 +1196,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
       // If a custom invitation image exists, prefer it. The text card is
       // stashed as a data attribute so a post-render handler can swap it in
       // if the image fails to load (file not uploaded yet, 404, etc.).
-      var imagePath = INVITE_IMAGES[ev.id];
+      var imagePath = resolveInviteImage(INVITE_IMAGES[ev.id], side);
       if (imagePath) {
         var alt = 'Invitation to ' + (evt.name || ev.name || 'event');
         return '<article class="invite-card invite-card--image" data-fallback="' + escapeAttr(textCard) + '">' +
@@ -1211,6 +1262,25 @@ function showAlreadySubmittedScreen(existingRSVP) {
 
 var ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 
+// Show the side-specific opening image above the RSVP list. Hidden if we
+// can't resolve a side (Colleague/Other guests) or the image fails to load.
+function renderWelcomeImage() {
+  var wrap = document.getElementById('welcome-image');
+  var img = document.getElementById('welcome-image-img');
+  if (!wrap || !img) return;
+  var side = getGuestSide(currentGuest && currentGuest.relationship);
+  var src = side ? WELCOME_IMAGES[side] : '';
+  if (!src) {
+    wrap.classList.add('hidden');
+    img.removeAttribute('src');
+    return;
+  }
+  img.alt = 'Welcome from the ' + (side === 'brides' ? "Bride" : "Groom") + "'s side";
+  img.onerror = function() { wrap.classList.add('hidden'); };
+  img.src = src;
+  wrap.classList.remove('hidden');
+}
+
 function renderEventCards() {
   const list = document.getElementById('events-list');
   list.innerHTML = '';
@@ -1219,7 +1289,8 @@ function renderEventCards() {
     if (!evt) return;
     const safeId = escapeAttr(id);
     const numeral = ROMAN[idx] || String(idx + 1);
-    const imagePath = INVITE_IMAGES[evt.id];
+    const side = getGuestSide(currentGuest && currentGuest.relationship);
+    const imagePath = resolveInviteImage(INVITE_IMAGES[evt.id], side);
     const hasImage = !!imagePath;
     const el = document.createElement('div');
     // Image cards are always expanded — no chevron, no toggle. Text cards
