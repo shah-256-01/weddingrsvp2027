@@ -289,7 +289,125 @@ icon + Cormorant count), `.view-guest-status` (traffic-light block).
 
 ---
 
-## 6. Responsive breakpoints
+## 6. Page-by-page
+
+### 6.1 Guests
+
+The primary management view. Contains filters, a view switcher, and the
+guest list itself.
+
+**Filter bar** — search input + three selects (Relationship / RSVP status /
+Overseas). Jost inputs, `.filter-bar input/select` at `--fs-md`.
+
+**View switcher** (big segmented buttons, `44px` min-height):
+- List — the default `.guest-list-table` (see Layout §5.4).
+- Cards — grouped by invitation code, each group card shows a wine-gold
+  header with event chips and the guests within. Uses `.event-chip` pills
+  (`.2rem .55rem` padding, wine/8% background, Jost `--fs-2xs`).
+- RSVP Status — two `.admin-card`s side by side titled "Submitted" and
+  "Pending", each listing guests with a status dot, name (`--fs-lg`), and
+  relationship · code-pill meta. Below those, a "Duplicate Submissions"
+  section flags codes with >1 submission.
+- By Event — per-event stat strip (Invitations / Guests Invited / Guests
+  Confirmed / Pending / Declined) + an event filter bar + a focused guest
+  table for the selected event. Columns are just Name (with dot + rel sub)
+  and Guests count (big Cormorant 1.6rem number); the RSVP column was
+  intentionally removed in favour of the dot.
+
+**Pagination** bar appears below the default List view.
+
+### 6.2 Messages
+
+Single `.admin-card` titled **Messages** with a mode toggle at top:
+
+```
+[ ✉ Initial Invite ][ 🔒 Chase-Up ]     ← .msg-mode-switcher
+```
+
+Below the toggle: relationship filter + sent filter (sent filter hidden in
+chase mode), legend, progress card, then the row list.
+
+**Progress card** (`.invite-progress-card`):
+
+```
+INVITE · GROOM'S FAMILY                     [▶ Send next] [↻ Reset session]
+8 sent · 2 skipped · 12 remaining
+████░░░░░░░░░░░░░░░░░░░░░░  33%
+Up next: Shanah Shah · Groom's Family
+```
+
+- Gold-pale background, Cinzel title, Jost subline.
+- Progress bar: `6px` gold-tinted track, green fill, smooth width transition.
+- Two CTAs right-aligned (primary send-next; ghost reset appears only when
+  there are skips).
+
+**Rows** — see Layout §5.3 + Status §3. Each row: dot + name + session tag +
+code-pill headline, single muted meta line (relationship · phone), and a
+controls row with a per-guest template `<select>`, Copy, Send (primary) +
+Skip (ghost). In invite mode, already-sent guests get Resend + an × clear
+button.
+
+Per-relationship skip list is persisted in `localStorage` under
+`weddingAdmin:msgSkip:{mode}:{rel}` so two admins splitting the work resume
+independently.
+
+### 6.3 RSVPs
+
+A larger page focused on responses.
+
+**Filter bar** — search + event filter + response filter + relationship
+filter + sort.
+
+**View switcher + utilities**: Submissions / By Event / Matrix, plus a
+"Clear filters" and "Export CSV" pair pushed to the right.
+
+**Event breakdown** — a `.rsvp-breakdown` grid of `.event-rsvp-card`s, one
+per event. Each card: icon + name header, then three Cormorant stat columns
+(Yes / No / Guests count).
+
+**View container** header combines a Cinzel title + a legend of Yes/TBC/No
+pills.
+
+**Submissions view** — `.invite-row` grid. Identity: name, relationship,
+code pill, submission timestamp. Controls area holds `.rsvp-evt-pills`
+wrapping with per-event response pills.
+
+**By Event view** — per-event `.admin-card` with a Cormorant `--fs-xl`
+event title, then Cinzel `--fs-2xs` eyebrow sections for Attending /
+Declined, each listing guest name + guest count.
+
+**Matrix view** — a sparse `.guest-table`: guest name (Cormorant `--fs-lg`)
++ code pill on the left, one cell per event with a Yes/No pill or an em-dash
+for unanswered, Total guests on the right.
+
+### 6.4 Settings
+
+Stack of `.admin-card`s:
+
+- **Events Configuration** — read-only grid listing events from the sheet
+  (ID / Name / Icon / Date / Venue / Active / Seating).
+- **Instructions** — prose card explaining event IDs, codes, allocations,
+  CSV.
+- **Message Settings** — server-persisted deadlines + RSVP URL.
+- **Message Templates** — CRUD list of templates with `{{name}}`, `{{code}}`,
+  `{{url}}`, `{{deadline}}` variables.
+- **Relationship Defaults** — map each relationship to a default template.
+- **Generate Invitation Code** — utility block: one-shot "Generate" button
+  that rotates a candidate code for pasting onto physical invites.
+
+### 6.5 CSV Upload
+
+- **Download template** button (admin-secondary) streams a CSV with columns
+  named from event names (e.g. "Mandvo Guests", "Wedding Table").
+- **Drop zone** (`.csv-drop-zone`) for picking a file.
+- **Preview table** (`.csv-preview-table`) shows the first 10 rows post-parse.
+- **Apply relationship** selector above "Upload guests" lets the admin
+  override the CSV's relationship column for the whole batch.
+- **Upload** triggers `bulkAddGuests`. Results card below (success/error).
+
+---
+
+## 7. Responsive breakpoints
 
 ```css
 @media (max-width: 700px)  { /* phones + small tablets */ }
