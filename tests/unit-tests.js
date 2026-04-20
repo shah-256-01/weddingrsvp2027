@@ -409,6 +409,52 @@ assert('message with special chars', buildWhatsAppUrl('+91 98765 43210', 'Hello 
 assert('invalid phone returns empty', buildWhatsAppUrl('123'), '');
 assert('null phone returns empty', buildWhatsAppUrl(null, 'Hi'), '');
 
+// ═══════════════════════════════════════════════
+//   Invitation code generator (per-guest unique codes)
+//   Mirrors the helpers defined in appsscript/Code.gs.
+// ═══════════════════════════════════════════════
+const CODE_CHARSET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const CODE_CHARSET_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
+
+function generateCandidateCode() {
+  let out = '';
+  for (let i = 0; i < 6; i++) {
+    out += CODE_CHARSET.charAt(Math.floor(Math.random() * CODE_CHARSET.length));
+  }
+  return out;
+}
+
+function validateCodeFormat(code) {
+  return CODE_CHARSET_RE.test(String(code || '').toUpperCase());
+}
+
+console.log('\n=== invitation code format ===');
+assert('length is 6', generateCandidateCode().length, 6);
+assert('6-char random passes validation', validateCodeFormat(generateCandidateCode()), true);
+assert('accepts lowercase (normalized on input)', validateCodeFormat('k7x4pm'), true);
+assert('rejects 0 (zero)', validateCodeFormat('A0BCDE'), false);
+assert('rejects O (oh)', validateCodeFormat('ABCDOE'), false);
+assert('rejects 1 (one)', validateCodeFormat('A1BCDE'), false);
+assert('rejects I', validateCodeFormat('ABCIDE'), false);
+assert('rejects L', validateCodeFormat('ALBCDE'), false);
+assert('rejects 5 chars', validateCodeFormat('ABCDE'), false);
+assert('rejects 7 chars', validateCodeFormat('ABCDEFG'), false);
+assert('accepts canonical sample', validateCodeFormat('K7X4PM'), true);
+
+console.log('\n=== invitation code uniqueness (500 samples) ===');
+{
+  const seen = Object.create(null);
+  let duplicates = 0;
+  for (let i = 0; i < 500; i++) {
+    const c = generateCandidateCode();
+    if (seen[c]) duplicates++;
+    seen[c] = true;
+  }
+  // 500 draws from 31^6 ≈ 887M — probability of any collision is ~1e-4.
+  // Asserting 0 here could flake; asserting <= 1 gives a safety margin.
+  assert('at most 1 duplicate in 500 draws', duplicates <= 1, true);
+}
+
 console.log('\n═══════════════════════════════════════');
 console.log(`  PASSED: ${passed}`);
 console.log(`  FAILED: ${failed}`);

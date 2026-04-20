@@ -607,12 +607,6 @@ let   sessionTimer       = null;
 let   warningTimer       = null;
 
 // ── Helpers ────────────────────────────────
-function codeForIds(ids) {
-  if (!ids || !ids.length) return '';
-  var sorted = ids.filter(Boolean).sort(function(a, b) { return a.localeCompare(b); });
-  return sorted.join('') + '2026';
-}
-
 function buildEventDots(g) {
   var evIds = String(g.events || '').split(',').map(s => s.trim()).filter(Boolean);
   return evIds.map(function(id) {

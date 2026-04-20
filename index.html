@@ -705,7 +705,6 @@ const INVITE_IMAGES = {
 };
 
 let EVENTS = [];
-let CODES_MAP = {};
 let currentGuest = null;
 
 function escapeHtml(str) {
@@ -793,21 +792,6 @@ function postRSVP(payload) {
 }
 
 /* ══════════════════════════════════════════════
-   CODE MAP
-══════════════════════════════════════════════ */
-function buildCodesMap(events) {
-  const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
-  const map = {};
-  const n   = sorted.length;
-  if (n > 12) return map; // cap at 2^12 = 4096 combinations
-  for (let i = 1; i < (1 << n); i++) {
-    const ids = sorted.filter((_, j) => i & (1 << j)).map(e => e.id);
-    map[ids.join('') + '2026'] = ids;
-  }
-  return map;
-}
-
-/* ══════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════ */
 let currentCode = '', currentEventIds = [], eventRSVPs = {};
@@ -824,7 +808,6 @@ async function init() {
       showEventLoadError('Events are not yet configured. Please contact the wedding team.');
       return;
     }
-    CODES_MAP = buildCodesMap(EVENTS);
     hideLoadingSpinner();
   } catch (err) {
     hideLoadingSpinner();
