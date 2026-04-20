@@ -78,6 +78,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 
 /* ── ORNAMENT ── */
 .ornament{display:flex;align-items:center;gap:.9rem;justify-content:center;}
+.ornament svg{width:12px;height:12px;color:var(--gold);flex-shrink:0;}
 .ornament-line{height:1px;background:linear-gradient(to right,transparent,var(--gold));}
 .ornament-line.rev{background:linear-gradient(to left,transparent,var(--gold));}
 .ornament-diamond{width:6px;height:6px;background:var(--gold);transform:rotate(45deg);flex-shrink:0;}
@@ -1731,7 +1732,7 @@ function startCountdown(){
   const host=document.getElementById('petals');
   if(!host) return;
   ['#c97b84','#e8c87a','#b8924a','#6b2737','#4a7c74'].forEach(c=>{
-    for(let i=0;i<6;i++){
+    for(let i=0;i<3;i++){
       const p=document.createElement('div'); p.className='petal';
       const sz=Math.random()*10+10;
       p.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz*1.4}px;background:${c};animation-duration:${8+Math.random()*7}s;animation-delay:${-Math.random()*10}s;`;
