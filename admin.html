@@ -86,6 +86,26 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .guest-table .guest-name{font-family:'Cormorant Garamond',serif;font-size:var(--fs-lg);color:var(--wine);font-weight:400;}
 .guest-table .guest-contact{font-size:.82rem;color:var(--muted);}
 .guest-mobile-meta{display:none;margin-top:.25rem;font-size:var(--fs-2xs);}
+/* Guests list table — 3-column redesign */
+.guest-identity{display:flex;align-items:flex-start;gap:.65rem;min-width:0;}
+.guest-status-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:.5rem;box-shadow:0 0 0 2px rgba(0,0,0,.04);}
+.guest-status-dot--red{background:var(--red);}
+.guest-status-dot--orange{background:var(--gold);}
+.guest-status-dot--green{background:var(--green);}
+.guest-status-legend{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;font-size:var(--fs-2xs);color:var(--muted);margin-bottom:.7rem;padding:0 .25rem;}
+.guest-status-legend .guest-status-dot{margin-top:0;width:10px;height:10px;vertical-align:middle;margin-right:.4rem;}
+.guest-meta-col{display:flex;flex-direction:column;gap:.35rem;font-size:var(--fs-md);min-width:0;}
+.guest-meta-contact{color:var(--muted);display:flex;flex-wrap:wrap;gap:.2rem .55rem;align-items:center;line-height:1.4;}
+.guest-meta-contact > span + span::before{content:'·';color:rgba(0,0,0,.2);margin-right:.55rem;}
+.guest-meta-events{display:flex;flex-wrap:wrap;gap:.35rem;font-size:1.1rem;align-items:center;}
+.guest-actions-col{display:flex;flex-direction:column;gap:.35rem;align-items:stretch;min-width:110px;}
+.guest-actions-col .btn{justify-content:center;padding:.5rem .9rem;}
+.guest-actions-col .btn-danger-ghost{background:transparent;color:var(--red);border:1px solid rgba(139,32,32,.25);}
+.guest-actions-col .btn-danger-ghost:hover{background:rgba(139,32,32,.08);}
+@media(max-width:640px){
+  .guest-actions-col{min-width:auto;}
+  .guest-actions-col .btn{padding:.45rem .7rem;font-size:var(--fs-2xs);}
+}
 .code-pill{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-tight);color:var(--wine);background:var(--gold-pale);padding:.16rem .5rem;border-radius:10px;white-space:nowrap;}
 .sent-badge{display:inline-block;font-size:var(--fs-2xs);letter-spacing:.08em;padding:.12rem .5rem;border-radius:10px;background:rgba(45,74,62,.1);color:var(--green);margin-left:.35rem;vertical-align:middle;white-space:nowrap;}
 .sent-badge--pending{background:rgba(184,146,74,.12);color:var(--muted);}
@@ -777,6 +797,25 @@ function buildEventDots(g) {
   }).join(' ');
 }
 
+// 3-state status for the Guests list:
+//   not-sent = invite not yet sent via WhatsApp (invite_sent_at blank)
+//   pending  = invite sent but RSVP not yet submitted
+//   rsvp     = RSVP submitted
+function guestStatus(g) {
+  if (allSubmittedCodes.has(g.invitation_code)) return 'rsvp';
+  if (sanitiseValue(g.invite_sent_at)) return 'pending';
+  return 'not-sent';
+}
+
+function guestStatusDot(g) {
+  var s = guestStatus(g);
+  var cls, title;
+  if (s === 'rsvp')         { cls = 'green';  title = 'RSVP submitted'; }
+  else if (s === 'pending') { cls = 'orange'; title = 'Invite sent — awaiting RSVP'; }
+  else                      { cls = 'red';    title = 'Invite not sent'; }
+  return '<span class="guest-status-dot guest-status-dot--' + cls + '" title="' + title + '"></span>';
+}
+
 function isSubmitted(g) {
   return allSubmittedCodes.has(g.invitation_code);
 }
@@ -970,34 +1009,55 @@ function renderTableView(guests, container) {
   var pageGuests = getPageGuests();
 
   var rows = pageGuests.map(function(g) {
-    var fullName = escapeAttr((g.first_name || '') + ' ' + (g.last_name || ''));
-    var code = escapeAttr(g.invitation_code || '');
-    var submitted = isSubmitted(g);
-    var rsvpCls = submitted ? 'rsvp-pill rsvp-submitted' : 'rsvp-pill rsvp-pending';
-    var rsvpLabel = submitted ? 'Submitted' : 'Pending';
-    var dots = buildEventDots(g);
+    var fullName   = escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+    var code       = escapeAttr(g.invitation_code || '');
     var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
-    var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757; Overseas</span>' : '';
-    var contactParts = [escapeAttr(g.relationship || ''), phoneWhatsAppHtml(g.phone), escapeAttr(g.email || '')].filter(Boolean).join(' &middot; ');
+    var overseasBadge = isOverseas ? ' <span class="overseas-badge">&#127757; Overseas</span>' : '';
+    var dots       = buildEventDots(g);
+    var rel        = escapeAttr(g.relationship || '');
+    var phone      = phoneWhatsAppHtml(g.phone);
+    var email      = escapeAttr(g.email || '');
+
+    // Middle column — stacked relationship/contact/code/events. Each item
+    // becomes its own span so the dot-separator pseudo rule lays them out.
+    var contactSpans = [];
+    if (rel)   contactSpans.push('<span>' + rel + '</span>');
+    if (phone) contactSpans.push('<span>' + phone + '</span>');
+    if (email) contactSpans.push('<span>' + email + '</span>');
 
     return '<tr>' +
-      '<td><div class="guest-name">' + fullName + overseasBadge + '</div>' +
-        '<div class="guest-contact">' + contactParts + '</div>' +
-        '<div class="guest-mobile-meta"><span class="code-pill">' + code + '</span> ' + dots + '</div></td>' +
-      '<td class="col-events">' + dots + '</td>' +
-      '<td class="col-code"><span class="code-pill">' + code + '</span></td>' +
-      '<td><span class="' + rsvpCls + '">' + rsvpLabel + '</span></td>' +
-      '<td><div class="row-actions">' +
-        '<button class="btn btn-icon btn-ghost" title="View" onclick="openViewGuest(\'' + escapeAttr(g.id) + '\')">&#128065;</button>' +
-        '<button class="btn btn-icon btn-ghost" title="Edit" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">&#9998;</button>' +
-        '<button class="btn btn-icon btn-ghost" title="Delete" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')" style="color:var(--red);">&#10005;</button>' +
-      '</div></td></tr>';
+      '<td>' +
+        '<div class="guest-identity">' + guestStatusDot(g) +
+          '<div><div class="guest-name">' + fullName + overseasBadge + '</div></div>' +
+        '</div>' +
+      '</td>' +
+      '<td>' +
+        '<div class="guest-meta-col">' +
+          (contactSpans.length ? '<div class="guest-meta-contact">' + contactSpans.join('') + '</div>' : '') +
+          (code ? '<div><span class="code-pill">' + code + '</span></div>' : '') +
+          (dots ? '<div class="guest-meta-events">' + dots + '</div>' : '') +
+        '</div>' +
+      '</td>' +
+      '<td>' +
+        '<div class="guest-actions-col">' +
+          '<button class="btn btn-secondary btn-sm" onclick="openViewGuest(\'' + escapeAttr(g.id) + '\')">&#128065; View</button>' +
+          '<button class="btn btn-secondary btn-sm" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">&#9998; Edit</button>' +
+          '<button class="btn btn-danger-ghost btn-sm" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')">&#10005; Delete</button>' +
+        '</div>' +
+      '</td></tr>';
   }).join('');
 
+  var legend = '<div class="guest-status-legend">' +
+    '<span><span class="guest-status-dot guest-status-dot--red"></span>Invite not sent</span>' +
+    '<span><span class="guest-status-dot guest-status-dot--orange"></span>Awaiting RSVP</span>' +
+    '<span><span class="guest-status-dot guest-status-dot--green"></span>RSVP&rsquo;d</span>' +
+    '</div>';
+
   container.innerHTML =
+    legend +
     '<div class="admin-card" style="padding:0;overflow:hidden;"><div class="guest-table-wrap">' +
     '<table class="guest-table"><thead><tr>' +
-    '<th>Name</th><th class="col-events">Events</th><th class="col-code">Code</th><th>RSVP</th><th style="text-align:right;">Actions</th>' +
+    '<th style="width:22%;">Name</th><th>Contact &amp; Events</th><th style="width:130px;text-align:right;">Actions</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 
   renderPagination(container);
