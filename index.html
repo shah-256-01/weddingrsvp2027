@@ -199,12 +199,12 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .family-name-input{width:100%;border:1px solid var(--border);background:#fff;padding:.85rem 1rem;font-family:var(--serif);font-size:var(--body-lg);color:var(--wine);outline:none;transition:border-color .2s;}
 .family-name-input:focus{border-color:var(--gold);}
 .rsvp-summary{max-width:900px;margin:0 auto 1.5rem;padding:0 1.5rem;}
-.summary-card{background:var(--blush);border:1px solid var(--border);border-left:4px solid var(--gold);padding:1.6rem;}
-.summary-title{font-family:var(--serif);font-style:italic;font-size:var(--display-sm);color:var(--wine);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
-.summary-title::before{content:'';}
-.summary-row{display:flex;justify-content:space-between;align-items:center;padding:.65rem 0;border-bottom:1px solid rgba(184,146,74,.14);font-size:var(--ui);gap:.5rem;}
+.summary-card{background:var(--cream-deep);border:1px solid var(--rule);padding:1.8rem;position:relative;}
+.summary-title{font-family:var(--serif);font-style:italic;font-size:1.5rem;color:var(--wine);margin-bottom:1rem;}
+.summary-row{display:flex;justify-content:space-between;align-items:baseline;padding:.75rem 0;border-bottom:1px solid var(--rule);font-size:var(--body);gap:.5rem;}
 .summary-row:last-child{border-bottom:none;}
-.summary-status{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.1em;white-space:nowrap;}
+.summary-name{font-family:var(--serif);font-size:1.15rem;color:var(--ink);}
+.summary-status{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;}
 .status-attending{color:var(--green);}
 .status-declined{color:var(--red);}
 .status-pending{color:var(--muted);}
@@ -314,16 +314,16 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .contact-error{font-size:var(--ui);color:var(--red);display:block;line-height:1.5;padding:.5rem .75rem;background:rgba(139,32,32,.05);border-radius:2px;}
 .contact-submit-btn{width:100%;justify-content:center;min-height:52px;font-size:var(--ui);letter-spacing:.18em;margin-top:.4rem;}
 /* ── PROGRESS BAR ── */
-.progress-wrap{margin-bottom:1.8rem;padding:1rem 1.2rem;background:var(--gold-pale);border:1px solid var(--border);border-radius:2px;transition:background .4s,border-color .4s;}
-.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;}
-.progress-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.14em;color:var(--wine);text-transform:uppercase;transition:color .3s;}
-.progress-pct{font-family:var(--serif);font-size:1.1rem;color:var(--gold);font-weight:400;transition:color .3s;}
-.progress-track{height:4px;background:rgba(184,146,74,.2);border-radius:2px;overflow:hidden;}
-.progress-fill{height:100%;background:linear-gradient(to right,var(--gold),var(--rose,#c97b84));border-radius:2px;transition:width .4s cubic-bezier(0.23,1,0.32,1);}
-.progress-wrap.complete{background:rgba(45,74,62,.06);border-color:rgba(45,74,62,.25);}
-.progress-wrap.complete .progress-label{color:var(--green,#2d4a3e);}
-.progress-wrap.complete .progress-pct{color:var(--green,#2d4a3e);}
-.progress-wrap.complete .progress-fill{background:var(--green,#2d4a3e);}
+.progress-wrap{margin-bottom:1.8rem;padding:1rem 1.2rem;background:var(--cream-deep);border:1px solid var(--rule);transition:background .4s,border-color .4s;}
+.progress-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.7rem;}
+.progress-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.18em;color:var(--ink-soft);text-transform:uppercase;transition:color .3s;}
+.progress-pct{font-family:var(--serif);font-style:italic;font-size:1.2rem;color:var(--gold);transition:color .3s;}
+.progress-track{height:2px;background:var(--rule);overflow:hidden;}
+.progress-fill{height:100%;background:var(--gold);transition:width .4s cubic-bezier(.23,1,.32,1);}
+.progress-wrap.complete{background:rgba(45,74,62,.06);border-color:rgba(45,74,62,.2);}
+.progress-wrap.complete .progress-label{color:var(--green);}
+.progress-wrap.complete .progress-pct{color:var(--green);}
+.progress-wrap.complete .progress-fill{background:var(--green);}
 /* ── CALENDAR BUTTONS ── */
 .cal-event-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1.1rem;background:#fff;border:1px solid var(--border);border-radius:2px;flex-wrap:wrap;}
 .cal-event-info{display:flex;align-items:center;gap:.75rem;flex:1;min-width:0;}
@@ -524,7 +524,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
     </div>
     <div class="progress-wrap" id="progress-wrap">
       <div class="progress-header">
-        <span class="progress-label" id="progress-label">0 of 0 events responded</span>
+        <span class="progress-label" id="progress-label">Begin with the first event</span>
         <span class="progress-pct" id="progress-pct">0%</span>
       </div>
       <div class="progress-track">
@@ -535,7 +535,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
   </div>
   <div class="rsvp-summary" id="rsvp-summary">
     <div class="summary-card">
-      <div class="summary-title">Your RSVP Summary</div>
+      <div class="summary-title">Your responses so far</div>
       <div id="summary-rows"></div>
     </div>
   </div>
@@ -1340,13 +1340,17 @@ function updateProgress() {
   if (!labelEl || !pctEl || !fillEl || !wrapEl) return;
 
   if (complete) {
-    labelEl.textContent = '\u2713 All events responded \u2014 ready to submit';
+    labelEl.textContent = 'Your responses are complete';
     pctEl.textContent   = '100%';
     fillEl.style.width  = '100%';
     wrapEl.classList.add('complete');
+  } else if (responded === 0) {
+    labelEl.textContent = 'Begin with the first event';
+    pctEl.textContent   = pct + '%';
+    fillEl.style.width  = pct + '%';
+    wrapEl.classList.remove('complete');
   } else {
-    labelEl.textContent = responded + ' of ' + total +
-      ' event' + (total !== 1 ? 's' : '') + ' responded';
+    labelEl.textContent = responded + ' of ' + total + ' responses complete';
     pctEl.textContent   = pct + '%';
     fillEl.style.width  = pct + '%';
     wrapEl.classList.remove('complete');
@@ -1499,8 +1503,8 @@ function renderSummary() {
       var allNames = (r.guestNames || []).filter(Boolean);
       if (allNames.length) detail += ' (' + allNames.map(function(n) { return escapeHtml(n); }).join(', ') + ')';
     }
-    else badge = '<span class="summary-status status-declined">Declined</span>';
-    row.innerHTML = '<span>' + escapeHtml(evt.icon) + ' ' + escapeHtml(evt.name) + '<span style="color:var(--muted);font-size:var(--ui-xs);">' + detail + '</span></span>' + badge;
+    else badge = '<span class="summary-status status-declined">Regrets</span>';
+    row.innerHTML = '<span class="summary-name">' + escapeHtml(evt.name) + '<span style="color:var(--muted);font-size:var(--ui-xs);font-family:var(--sans);">' + detail + '</span></span>' + badge;
     rows.appendChild(row);
   });
 }
