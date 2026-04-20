@@ -344,6 +344,17 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <input type="file" id="csv-file-input" accept=".csv" class="hidden" onchange="handleCSVFile(this.files[0])"/>
       </div>
       <div id="csv-preview" class="hidden" style="margin-top:1rem;"></div>
+      <div class="hidden" id="csv-relationship-apply-wrap" style="margin-top:1rem;padding:.9rem 1rem;background:var(--gold-pale);border:1px solid rgba(184,146,74,.28);border-radius:2px;">
+        <label for="csv-relationship-apply" style="font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:var(--wine);text-transform:uppercase;display:block;margin-bottom:.5rem;">Apply relationship to every row</label>
+        <select id="csv-relationship-apply" style="width:100%;padding:.55rem .75rem;font-family:'Jost',sans-serif;font-size:.82rem;border:1px solid rgba(0,0,0,.1);background:#fff;border-radius:2px;color:var(--ink);">
+          <option value="">Keep values from CSV</option>
+          <option value="Bride's Family">Bride's Family</option>
+          <option value="Groom's Family">Groom's Family</option>
+          <option value="Bride's Friend">Bride's Friend</option>
+          <option value="Groom's Friend">Groom's Friend</option>
+        </select>
+        <p style="font-size:.7rem;color:var(--muted);margin-top:.45rem;line-height:1.5;">Pick one to apply it to every uploaded row (overrides the <code>relationship</code> column). Leave on <em>Keep values from CSV</em> if each row already has the right value.</p>
+      </div>
       <div style="margin-top:1rem;text-align:center;" id="csv-upload-actions" class="hidden">
         <button class="btn btn-primary btn-sm" onclick="uploadCSV()">Upload Guests</button>
         <button class="btn btn-ghost btn-sm" onclick="clearCSV()">Clear</button>
@@ -1910,6 +1921,7 @@ function handleCSVFile(file) {
     }
     renderCSVPreview(parsedCSVRows);
     document.getElementById('csv-preview').classList.remove('hidden');
+    document.getElementById('csv-relationship-apply-wrap').classList.remove('hidden');
     document.getElementById('csv-upload-actions').classList.remove('hidden');
     document.getElementById('csv-results').innerHTML = '';
   };
@@ -1996,6 +2008,21 @@ function renderCSVPreview(rows) {
 
 function uploadCSV() {
   if (!parsedCSVRows.length) { alert('No rows to upload.'); return; }
+
+  // If the admin picked a bulk relationship, apply it to every row before
+  // upload (overrides whatever was in the CSV `relationship` column).
+  var applySel = document.getElementById('csv-relationship-apply');
+  var applyRel = applySel ? applySel.value : '';
+  var rowsToUpload = parsedCSVRows;
+  if (applyRel) {
+    rowsToUpload = parsedCSVRows.map(function(r) {
+      var copy = {};
+      Object.keys(r).forEach(function(k) { copy[k] = r[k]; });
+      copy.relationship = applyRel;
+      return copy;
+    });
+  }
+
   var btn = document.querySelector('#csv-upload-actions .btn-primary');
   btn.textContent = 'Uploading...'; btn.disabled = true;
   google.script.run
@@ -2020,7 +2047,7 @@ function uploadCSV() {
       document.getElementById('csv-results').innerHTML =
         '<div class="upload-results upload-error">Upload failed: ' + escapeAttr(err.message || 'Unknown error') + '</div>';
     })
-    .bulkAddGuests({ guests: parsedCSVRows });
+    .bulkAddGuests({ guests: rowsToUpload });
 }
 
 function clearCSV() {
@@ -2028,6 +2055,10 @@ function clearCSV() {
   document.getElementById('csv-preview').innerHTML = '';
   document.getElementById('csv-preview').classList.add('hidden');
   document.getElementById('csv-upload-actions').classList.add('hidden');
+  var applyWrap = document.getElementById('csv-relationship-apply-wrap');
+  if (applyWrap) applyWrap.classList.add('hidden');
+  var applySel = document.getElementById('csv-relationship-apply');
+  if (applySel) applySel.value = '';
   document.getElementById('csv-file-input').value = '';
 }
 
