@@ -29,7 +29,7 @@ const TABS = {
   rsvpByEvent:  'RSVPs_by_event',
 };
 
-const EVENT_IDS = ['L','S','A','G','W','B'];
+const EVENT_IDS = ['Lg','MS','Ma','MG','We','BT'];
 
 // ── Routing ──────────────────────────────────────────────
 function doGet(e) {
@@ -736,7 +736,7 @@ function bulkAddGuests(payload) {
         const id  = 'g-' + Utilities.getUuid();
         const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
           .map(s => s.trim()).filter(Boolean)
-          .sort((a, b) => a.localeCompare(b));
+          .sort((a, b) => EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b));
 
         const requested = String(g.invitation_code || '').toUpperCase().trim();
         if (requested) {
@@ -1336,12 +1336,12 @@ function setupSheet() {
     evSheet.clearContents();
     evSheet.appendRow(['id','name','date','time','venue','icon','active','seating']);
     [
-      ['A','Mandvo',           'TBC','TBC','TBC','🎶','TRUE','FALSE'],
-      ['B','Black Tie',        'TBC','TBC','TBC','🎩','TRUE','FALSE'],
-      ['G','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE','FALSE'],
-      ['L','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE','FALSE'],
-      ['S','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE','FALSE'],
-      ['W','Wedding',          'TBC','TBC','TBC','💍','TRUE','FALSE'],
+      ['Lg','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE','FALSE'],
+      ['MS','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE','FALSE'],
+      ['Ma','Mandvo',           'TBC','TBC','TBC','🎶','TRUE','FALSE'],
+      ['MG','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE','FALSE'],
+      ['We','Wedding',          'TBC','TBC','TBC','💍','TRUE','FALSE'],
+      ['BT','Black Tie',        'TBC','TBC','TBC','🎩','TRUE','FALSE'],
     ].forEach(row => evSheet.appendRow(row));
   }
 
@@ -1397,7 +1397,7 @@ function setupSheet() {
 //     live with a fresh data set after testing).
 //
 // Header *keys* in row 1 are kept identical to what the rest of the
-// code expects (first_name, invitation_code, L_guests, etc.). The
+// code expects (first_name, invitation_code, Lg_guests, etc.). The
 // "clear labelling" lives in the per-cell notes and in the dropdowns.
 function rebuildSheetToTemplate() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
@@ -1532,12 +1532,12 @@ function _templateRebuildEventsTab(ss, log) {
   } else {
     // Seed with the six default events when sheet was empty
     const seed = [
-      ['A', 'Mandvo',            'TBC', 'TBC', 'TBC', '🍛', 'TRUE', 'FALSE'],
-      ['B', 'Black Tie',         'TBC', 'TBC', 'TBC', '🥂', 'TRUE', 'FALSE'],
-      ['G', 'Meet & Greet',      'TBC', 'TBC', 'TBC', '🌿', 'TRUE', 'FALSE'],
-      ['L', 'Lagnotri',          'TBC', 'TBC', 'TBC', '🪔', 'TRUE', 'FALSE'],
-      ['S', 'Mehendi & Sangeet', 'TBC', 'TBC', 'TBC', '🎩', 'TRUE', 'FALSE'],
-      ['W', 'Wedding',           'TBC', 'TBC', 'TBC', '💍', 'TRUE', 'FALSE'],
+      ['Lg', 'Lagnotri',          'TBC', 'TBC', 'TBC', '🪔', 'TRUE', 'FALSE'],
+      ['MS', 'Mehendi & Sangeet', 'TBC', 'TBC', 'TBC', '🌿', 'TRUE', 'FALSE'],
+      ['Ma', 'Mandvo',            'TBC', 'TBC', 'TBC', '🍛', 'TRUE', 'FALSE'],
+      ['MG', 'Meet & Greet',      'TBC', 'TBC', 'TBC', '🥂', 'TRUE', 'FALSE'],
+      ['We', 'Wedding',           'TBC', 'TBC', 'TBC', '💍', 'TRUE', 'FALSE'],
+      ['BT', 'Black Tie',         'TBC', 'TBC', 'TBC', '🎩', 'TRUE', 'FALSE'],
     ];
     sheet.getRange(2, 1, seed.length, headers.length).setValues(seed);
     log.push('Events: rebuilt, seeded 6 default events.');
@@ -1572,7 +1572,7 @@ function _templateRebuildGuestsTab(ss, log) {
     is_overseas:     'TRUE if the guest is travelling internationally. Shown as an "Overseas" badge in the admin and guest UI.',
     notes:           'Free-text notes visible only to the admin.',
     invitation_code: 'The code the guest enters to RSVP (shared by their whole family). Auto-generated from the events they are invited to.',
-    events:          'Comma-separated event IDs the guest is invited to (e.g. L,S,A,G,W,B). Drives which event cards they see on the site.',
+    events:          'Comma-separated event IDs the guest is invited to (e.g. Lg,MS,Ma,MG,We,BT). Drives which event cards they see on the site.',
     status:          'ACTIVE or DELETED. DELETED rows are kept for audit but hidden from the site and admin list by default.',
   };
   EVENT_IDS.forEach(function(id) {

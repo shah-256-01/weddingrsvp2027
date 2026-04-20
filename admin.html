@@ -1787,14 +1787,19 @@ function exportGuestListCSV() {
         'first_name','last_name','phone','email','relationship',
         'notes','is_overseas','events','invitation_code','status'
       ];
-      var eventHeaders = [];
+      // Each event gets two CSV columns labelled by its full name, e.g.
+      // "Mandvo Guests" and "Mandvo Table". Internally the sheet still uses
+      // "{id}_guests" / "{id}_table" — we translate when writing the row.
+      var eventColumns = [];
       allEvents.forEach(function(ev) {
-        eventHeaders.push(ev.id + '_guests', ev.id + '_table');
+        eventColumns.push({ header: ev.name + ' Guests', key: ev.id + '_guests' });
+        eventColumns.push({ header: ev.name + ' Table',  key: ev.id + '_table'  });
       });
-      var headers = fixedHeaders.concat(eventHeaders);
+      var headers = fixedHeaders.concat(eventColumns.map(function(c) { return c.header; }));
+      var allKeys = fixedHeaders.concat(eventColumns.map(function(c) { return c.key; }));
       var rows = guests.map(function(g) {
-        return headers.map(function(h) {
-          var val = String(g[h] || '');
+        return allKeys.map(function(k) {
+          var val = String(g[k] || '');
           if (/^[=+\-@\t\r]/.test(val)) val = "'" + val;
           if (val.indexOf('"') > -1 || val.indexOf(',') > -1 || val.indexOf('\n') > -1) {
             return '"' + val.replace(/"/g, '""') + '"';
@@ -1876,26 +1881,35 @@ function downloadCSVTemplate() {
   // blank to auto-generate a unique 6-char code per guest; populate only
   // when you want a specific code (6 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ,
   // excludes 0/O/1/I/L).
-  var eventIds = (allEvents || []).map(function(e) { return e.id; });
-  if (!eventIds.length) eventIds = ['L', 'S', 'A', 'G', 'W', 'B'];
+  var events = (allEvents && allEvents.length) ? allEvents : [
+    { id: 'Lg', name: 'Lagnotri' },
+    { id: 'MS', name: 'Mehendi & Sangeet' },
+    { id: 'Ma', name: 'Mandvo' },
+    { id: 'MG', name: 'Meet & Greet' },
+    { id: 'We', name: 'Wedding' },
+    { id: 'BT', name: 'Black Tie' }
+  ];
 
   var fixed = [
     'first_name', 'last_name', 'phone', 'email', 'relationship',
     'is_overseas', 'notes', 'events', 'invitation_code',
   ];
-  var guestCols = eventIds.map(function(id) { return id + '_guests'; });
-  var tableCols = eventIds.map(function(id) { return id + '_table'; });
+  var guestCols = events.map(function(ev) { return ev.name + ' Guests'; });
+  var tableCols = events.map(function(ev) { return ev.name + ' Table'; });
   var headers = fixed.concat(guestCols).concat(tableCols);
 
-  // Example row — guest invited to Mehndi & Sangeet, Wedding, Black Tie
+  // Example row: guest invited to Mehendi & Sangeet, Wedding, Black Tie.
+  // The events column is ignored on import (auto-derived from per-event
+  // Guests columns > 0) — we still include it for human readability.
+  var attending = { MS: 2, We: 2, BT: 2 };
   var fixedRow = [
     'Priya', 'Sharma', '+254700000000', 'priya@email.com',
-    "Bride's Family", 'FALSE', 'Vegetarian', '"S,W,B"', '',
+    "Bride's Family", 'FALSE', 'Vegetarian',
+    '"' + events.filter(function(ev) { return attending[ev.id]; }).map(function(ev) { return ev.id; }).join(',') + '"',
+    '',
   ];
-  var guestRow = eventIds.map(function(id) {
-    return (['S', 'W', 'B'].indexOf(id) >= 0) ? '2' : '0';
-  });
-  var tableRow = eventIds.map(function() { return ''; });
+  var guestRow = events.map(function(ev) { return String(attending[ev.id] || 0); });
+  var tableRow = events.map(function() { return ''; });
   var row = fixedRow.concat(guestRow).concat(tableRow);
 
   var csv  = [headers.join(','), row.join(',')].join('\n');
@@ -1946,20 +1960,25 @@ function parseCSV(text) {
     var rawOverseas = String(obj.is_overseas || 'FALSE').trim().toUpperCase();
     obj.is_overseas = (rawOverseas === 'TRUE' || rawOverseas === 'YES' || rawOverseas === '1')
       ? 'TRUE' : 'FALSE';
-    // Normalise events; invitation_code is passed through as-is so the
-    // server can either honour a caller-provided code or auto-generate a
-    // unique one when blank.
-    if (obj.events) {
-      var validIds = new Set(allEvents.map(function(e) { return e.id; }));
-      var evIds = obj.events.split(',').map(function(s) { return s.trim(); })
-        .filter(function(id) { return id && validIds.has(id); });
-      evIds.sort(function(a, b) {
-        var ia = allEvents.findIndex(function(e) { return e.id === a; });
-        var ib = allEvents.findIndex(function(e) { return e.id === b; });
-        return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
-      });
-      obj.events = evIds.join(',');
-    }
+    // Remap friendly CSV headers "{Event Name} Guests" / "{Event Name} Table"
+    // into the internal sheet columns "{id}_guests" / "{id}_table", then
+    // auto-derive the events list from any allocation > 0 (overrides any
+    // manual "events" column in the CSV).
+    var derivedEventIds = [];
+    (allEvents || []).forEach(function(ev) {
+      var guestHeader = ev.name + ' Guests';
+      var tableHeader = ev.name + ' Table';
+      if (obj[guestHeader] !== undefined) {
+        obj[ev.id + '_guests'] = obj[guestHeader];
+        delete obj[guestHeader];
+      }
+      if (obj[tableHeader] !== undefined) {
+        obj[ev.id + '_table'] = obj[tableHeader];
+        delete obj[tableHeader];
+      }
+      if (Number(obj[ev.id + '_guests']) > 0) derivedEventIds.push(ev.id);
+    });
+    obj.events = derivedEventIds.join(',');
     obj.invitation_code = String(obj.invitation_code || '').toUpperCase().trim();
     rows.push(obj);
   }

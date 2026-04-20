@@ -1679,14 +1679,16 @@ function exportGuestListCSV() {
         'first_name','last_name','phone','email','relationship',
         'notes','is_overseas','events','invitation_code','status'
       ];
-      var eventHeaders = [];
+      var eventColumns = [];
       allEvents.forEach(function(ev) {
-        eventHeaders.push(ev.id + '_guests', ev.id + '_table');
+        eventColumns.push({ header: ev.name + ' Guests', key: ev.id + '_guests' });
+        eventColumns.push({ header: ev.name + ' Table',  key: ev.id + '_table'  });
       });
-      var headers = fixedHeaders.concat(eventHeaders);
+      var headers = fixedHeaders.concat(eventColumns.map(function(c) { return c.header; }));
+      var allKeys = fixedHeaders.concat(eventColumns.map(function(c) { return c.key; }));
       var rows = guests.map(function(g) {
-        return headers.map(function(h) {
-          var val = String(g[h] || '');
+        return allKeys.map(function(k) {
+          var val = String(g[k] || '');
           if (/^[=+\-@\t\r]/.test(val)) val = "'" + val;
           if (val.indexOf('"') > -1 || val.indexOf(',') > -1 || val.indexOf('\n') > -1) {
             return '"' + val.replace(/"/g, '""') + '"';
@@ -1765,21 +1767,34 @@ function downloadCSVTemplate() {
   // invitation_code is optional: leave blank to auto-generate a unique 6-char
   // code per guest. Populate only when you want to set a specific code (must
   // be 6 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ — excludes 0/O/1/I/L).
-  var headers = [
+  // Events are auto-derived on import from any "{Event} Guests" column > 0,
+  // so the "events" column is informational only.
+  var events = (allEvents && allEvents.length) ? allEvents : [
+    { id: 'Lg', name: 'Lagnotri' },
+    { id: 'MS', name: 'Mehendi & Sangeet' },
+    { id: 'Ma', name: 'Mandvo' },
+    { id: 'MG', name: 'Meet & Greet' },
+    { id: 'We', name: 'Wedding' },
+    { id: 'BT', name: 'Black Tie' }
+  ];
+  var fixed = [
     'first_name','last_name','phone','email','relationship',
-    'notes','is_overseas','events','invitation_code',
-    'L_guests',
-    'S_guests',
-    'A_guests',
-    'G_guests',
-    'W_guests',
-    'B_guests'
+    'notes','is_overseas','events','invitation_code'
   ];
-  var exampleRow = [
+  var guestCols = events.map(function(ev) { return ev.name + ' Guests'; });
+  var tableCols = events.map(function(ev) { return ev.name + ' Table'; });
+  var headers = fixed.concat(guestCols).concat(tableCols);
+
+  var attending = { Lg: 6, MS: 6, We: 6 };
+  var fixedRow = [
     'Priya','Sharma','+447700000000','priya@email.com',
-    "Bride's Family",'Any notes here','FALSE','"L,S,W"','',
-    '6','6','0','4','6','0'
+    "Bride's Family",'Any notes here','FALSE',
+    '"' + events.filter(function(ev) { return attending[ev.id]; }).map(function(ev) { return ev.id; }).join(',') + '"',
+    ''
   ];
+  var guestRow = events.map(function(ev) { return String(attending[ev.id] || 0); });
+  var tableRow = events.map(function() { return ''; });
+  var exampleRow = fixedRow.concat(guestRow).concat(tableRow);
   var csv  = [headers.join(','), exampleRow.join(',')].join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
   var url  = URL.createObjectURL(blob);
@@ -1828,15 +1843,25 @@ function parseCSV(text) {
     var rawOverseas = String(obj.is_overseas || 'FALSE').trim().toUpperCase();
     obj.is_overseas = (rawOverseas === 'TRUE' || rawOverseas === 'YES' || rawOverseas === '1')
       ? 'TRUE' : 'FALSE';
-    // Auto-generate invitation_code from validated events
-    if (obj.events) {
-      var validIds = new Set(allEvents.map(function(e) { return e.id; }));
-      var evIds = obj.events.split(',').map(function(s) { return s.trim(); })
-        .filter(function(id) { return id && validIds.has(id); });
-      evIds.sort(function(a, b) { return a.localeCompare(b); });
-      obj.invitation_code = evIds.join('') + '2026';
-      obj.events = evIds.join(',');
-    }
+    // Remap friendly "{Event Name} Guests" / "{Event Name} Table" headers into
+    // internal "{id}_guests" / "{id}_table" sheet columns, and auto-derive
+    // events from any allocation > 0 (overrides the CSV's events column).
+    var derivedEventIds = [];
+    (allEvents || []).forEach(function(ev) {
+      var guestHeader = ev.name + ' Guests';
+      var tableHeader = ev.name + ' Table';
+      if (obj[guestHeader] !== undefined) {
+        obj[ev.id + '_guests'] = obj[guestHeader];
+        delete obj[guestHeader];
+      }
+      if (obj[tableHeader] !== undefined) {
+        obj[ev.id + '_table'] = obj[tableHeader];
+        delete obj[tableHeader];
+      }
+      if (Number(obj[ev.id + '_guests']) > 0) derivedEventIds.push(ev.id);
+    });
+    obj.events = derivedEventIds.join(',');
+    obj.invitation_code = String(obj.invitation_code || '').toUpperCase().trim();
     rows.push(obj);
   }
   return rows;

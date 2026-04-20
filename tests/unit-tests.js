@@ -93,13 +93,15 @@ function sanitiseValue(val) {
   return s;
 }
 
+const EVENT_IDS = ['Lg','MS','Ma','MG','We','BT'];
+
 function codeForIds(ids) {
   if (!ids || !ids.length) return '';
-  var sorted = ids.filter(Boolean).sort(function(a, b) { return a.localeCompare(b); });
+  var sorted = ids.filter(Boolean).sort(function(a, b) {
+    return EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b);
+  });
   return sorted.join('') + '2026';
 }
-
-const EVENT_IDS = ['L','S','A','G','W','B'];
 
 function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status'];
@@ -108,7 +110,9 @@ function guestHeaders() {
 }
 
 function buildCodesMap(events) {
-  const sorted = [...events].sort((a, b) => a.id.localeCompare(b.id));
+  const sorted = [...events].sort(function(a, b) {
+    return EVENT_IDS.indexOf(a.id) - EVENT_IDS.indexOf(b.id);
+  });
   const map = {};
   const n = sorted.length;
   if (n > 12) return map;
@@ -258,14 +262,14 @@ assert('zero', sanitiseValue(0), '0');
 assert('false', sanitiseValue(false), 'false');
 
 console.log('\n=== codeForIds ===');
-assert('single event', codeForIds(['L']), 'L2026');
-assert('two events sorted', codeForIds(['W', 'L']), 'LW2026');
-assert('all events', codeForIds(['W', 'B', 'L', 'S', 'A', 'G']), 'ABGLSW2026');
-assert('already sorted', codeForIds(['A', 'B', 'G']), 'ABG2026');
+assert('single event', codeForIds(['Lg']), 'Lg2026');
+assert('two events sorted', codeForIds(['We', 'Lg']), 'LgWe2026');
+assert('all events', codeForIds(['We', 'BT', 'Lg', 'MS', 'Ma', 'MG']), 'LgMSMaMGWeBT2026');
+assert('already sorted', codeForIds(['Ma', 'MG', 'BT']), 'MaMGBT2026');
 assert('empty array', codeForIds([]), '');
 assert('null input', codeForIds(null), '');
 assert('undefined input', codeForIds(undefined), '');
-assert('filters falsy', codeForIds(['L', '', null, 'S']), 'LS2026');
+assert('filters falsy', codeForIds(['Lg', '', null, 'MS']), 'LgMS2026');
 
 console.log('\n=== guestHeaders ===');
 const headers = guestHeaders();
@@ -274,20 +278,20 @@ assert('has first_name', headers.includes('first_name'), true);
 assert('has last_name', headers.includes('last_name'), true);
 assert('has invitation_code', headers.includes('invitation_code'), true);
 assert('has status', headers.includes('status'), true);
-assert('has L_guests', headers.includes('L_guests'), true);
-assert('has B_guests', headers.includes('B_guests'), true);
-assert('has L_table', headers.includes('L_table'), true);
-assert('has W_table', headers.includes('W_table'), true);
-assert('has B_table', headers.includes('B_table'), true);
+assert('has Lg_guests', headers.includes('Lg_guests'), true);
+assert('has BT_guests', headers.includes('BT_guests'), true);
+assert('has Lg_table', headers.includes('Lg_table'), true);
+assert('has We_table', headers.includes('We_table'), true);
+assert('has BT_table', headers.includes('BT_table'), true);
 assert('total count', headers.length, 11 + EVENT_IDS.length * 2);
 assert('no duplicates', headers.length, new Set(headers).size);
 
 console.log('\n=== buildCodesMap ===');
-const events2 = [{ id: 'L' }, { id: 'S' }];
+const events2 = [{ id: 'Lg' }, { id: 'MS' }];
 const map2 = buildCodesMap(events2);
-assert('single L', JSON.stringify(map2['L2026']), JSON.stringify(['L']));
-assert('single S', JSON.stringify(map2['S2026']), JSON.stringify(['S']));
-assert('both LS', JSON.stringify(map2['LS2026']), JSON.stringify(['L', 'S']));
+assert('single Lg', JSON.stringify(map2['Lg2026']), JSON.stringify(['Lg']));
+assert('single MS', JSON.stringify(map2['MS2026']), JSON.stringify(['MS']));
+assert('both LgMS', JSON.stringify(map2['LgMS2026']), JSON.stringify(['Lg', 'MS']));
 assert('total combos for 2 events', Object.keys(map2).length, 3);
 
 const events3 = [{ id: 'A' }, { id: 'B' }, { id: 'G' }];
