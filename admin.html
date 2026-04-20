@@ -115,8 +115,21 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .guest-actions-col{display:flex;flex-direction:column;gap:.35rem;align-items:stretch;min-width:120px;}
 .btn-danger-ghost{background:transparent;color:var(--red);border:1px solid rgba(139,32,32,.25);}
 .btn-danger-ghost:hover{background:rgba(139,32,32,.08);}
+/* Mobile: stack the main guest-list row so the 3 action buttons sit
+   side-by-side below the name/contact instead of forcing a third narrow
+   column. Buttons keep their unified 40px height; only layout changes. */
 @media(max-width:640px){
-  .guest-actions-col{min-width:auto;}
+  .guest-list-table,
+  .guest-list-table tbody,
+  .guest-list-table tr,
+  .guest-list-table td{display:block;width:100%;}
+  .guest-list-table thead{display:none;}
+  .guest-list-table tr{padding:.8rem .9rem;border-bottom:1px solid rgba(0,0,0,.06);}
+  .guest-list-table tr:last-child{border-bottom:none;}
+  .guest-list-table td{padding:.3rem 0;border:none;}
+  .guest-list-table tr:hover td{background:transparent;}
+  .guest-actions-col{flex-direction:row;gap:.4rem;margin-top:.4rem;min-width:0;}
+  .guest-actions-col .btn{flex:1;min-width:0;padding-left:10px;padding-right:10px;letter-spacing:.1em;}
 }
 .code-pill{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-tight);color:var(--wine);background:var(--gold-pale);padding:.16rem .5rem;border-radius:10px;white-space:nowrap;}
 .sent-badge{display:inline-block;font-size:var(--fs-2xs);letter-spacing:.08em;padding:.12rem .5rem;border-radius:10px;background:rgba(45,74,62,.1);color:var(--green);margin-left:.35rem;vertical-align:middle;white-space:nowrap;}
@@ -1123,7 +1136,7 @@ function renderTableView(guests, container) {
   container.innerHTML =
     legend +
     '<div class="admin-card" style="padding:0;overflow:hidden;"><div class="guest-table-wrap">' +
-    '<table class="guest-table"><thead><tr>' +
+    '<table class="guest-table guest-list-table"><thead><tr>' +
     '<th style="width:22%;">Name</th><th>Contact &amp; Events</th><th style="width:130px;text-align:right;">Actions</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 
