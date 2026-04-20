@@ -167,6 +167,32 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-evt-pill--no{background:rgba(139,32,32,.08);color:var(--red);}
 .rsvp-evt-pill--tbc{background:rgba(184,146,74,.15);color:var(--gold);}
 .rsvp-evt-pills{display:flex;flex-wrap:wrap;gap:.35rem;}
+/* View-Guest modal layout */
+.view-guest-hero{text-align:center;padding-bottom:1.2rem;margin-bottom:1.3rem;border-bottom:1px solid rgba(184,146,74,.18);}
+.view-guest-hero .code-pill{font-size:var(--fs-sm);padding:.3rem 1rem;letter-spacing:.25em;}
+.view-guest-hero .overseas-badge{margin-left:.4rem;vertical-align:middle;}
+.view-guest-meta{display:grid;grid-template-columns:max-content 1fr;gap:.7rem 1.2rem;margin-bottom:1.5rem;align-items:baseline;}
+.view-guest-meta dt{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);text-transform:uppercase;color:var(--muted);line-height:1.5;}
+.view-guest-meta dd{font-size:var(--fs-md);color:var(--ink);word-break:break-word;line-height:1.5;}
+.view-guest-meta dd a{color:inherit;}
+.view-guest-section-title{font-family:'Cinzel',serif;font-size:var(--fs-sm);letter-spacing:var(--ls-wider);text-transform:uppercase;color:var(--wine);margin-bottom:.6rem;display:flex;align-items:center;gap:.55rem;}
+.view-guest-section-title::after{content:'';flex:1;height:1px;background:rgba(184,146,74,.2);}
+.view-guest-alloc-list{margin-bottom:1.2rem;}
+.view-guest-alloc{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.85rem .25rem;border-bottom:1px solid rgba(0,0,0,.05);font-size:var(--fs-md);}
+.view-guest-alloc:last-child{border-bottom:none;}
+.view-guest-alloc__event{display:flex;align-items:center;gap:.65rem;min-width:0;}
+.view-guest-alloc__icon{font-size:1.3rem;line-height:1;flex-shrink:0;}
+.view-guest-alloc__count{color:var(--muted);white-space:nowrap;}
+.view-guest-alloc__count strong{color:var(--wine);font-weight:600;font-family:'Cormorant Garamond',serif;font-size:var(--fs-lg);margin-right:.25rem;}
+.view-guest-status{margin-top:.4rem;padding:1rem 1.1rem;border-radius:3px;display:flex;align-items:flex-start;gap:.7rem;font-size:var(--fs-md);line-height:1.5;}
+.view-guest-status__dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:.25rem;}
+.view-guest-status__body{flex:1;min-width:0;}
+.view-guest-status__label{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);text-transform:uppercase;margin-bottom:.2rem;}
+.view-guest-status--rsvp{background:rgba(45,74,62,.08);color:var(--green);}
+.view-guest-status--pending{background:rgba(184,146,74,.1);color:var(--ink);}
+.view-guest-status--pending .view-guest-status__label{color:var(--gold);}
+.view-guest-status--not-sent{background:rgba(139,32,32,.06);color:var(--ink);}
+.view-guest-status--not-sent .view-guest-status__label{color:var(--red);}
 .row-actions{display:flex;gap:.35rem;justify-content:flex-end;}
 .view-switcher{display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center;}
 .view-btn{display:inline-flex;align-items:center;gap:.5rem;font-family:'Cinzel',serif;font-size:var(--fs-sm);letter-spacing:var(--ls-wide);text-transform:uppercase;padding:.8rem 1.35rem;border:1px solid var(--border);background:#faf8f5;cursor:pointer;border-radius:3px;color:var(--muted);transition:all .18s;min-height:44px;white-space:nowrap;}
@@ -1819,59 +1845,88 @@ function openViewGuest(id) {
   var g = allGuests.find(function(x) { return x.id === id; });
   if (!g) return;
   var rawFullName = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
-  var fullName = escapeAttr(rawFullName);
   var evIds = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-  var eventNames = evIds.map(function(eid) {
-    var ev = allEvents.find(function(e) { return e.id === eid; });
-    return ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(eid);
-  }).join(', ');
-
-  var allocHtml = evIds.map(function(eid) {
-    var ev = allEvents.find(function(e) { return e.id === eid; });
-    var evName = ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(eid);
-    return '<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:.78rem;">' +
-      '<span>' + evName + '</span>' +
-      '<span>' + (Number(g[eid + '_guests']) || 0) + ' guests</span></div>';
-  }).join('');
-
   var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
-  var overseasTag = isOverseas ? ' <span class="overseas-badge">&#127757; Overseas</span>' : '';
-  var html =
-    '<div style="text-align:center;margin-bottom:1rem;">' +
-    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:1.4rem;color:var(--wine);">' + fullName + overseasTag + '</div>' +
-    '<span class="code-pill" style="margin-top:.4rem;display:inline-block;">' + escapeAttr(g.invitation_code || '') + '</span></div>' +
-    '<div style="display:grid;grid-template-columns:auto 1fr;gap:.4rem .8rem;font-size:.8rem;margin-bottom:1rem;">' +
-    (g.phone ? '<span style="color:var(--muted);">Phone</span><span>' + phoneWhatsAppHtml(g.phone) + (normalizePhoneForWhatsApp(g.phone) ? ' &#128172;' : '') + '</span>' : '') +
-    (g.email ? '<span style="color:var(--muted);">Email</span><span>' + escapeAttr(g.email) + '</span>' : '') +
-    (g.relationship ? '<span style="color:var(--muted);">Relationship</span><span>' + escapeAttr(g.relationship) + '</span>' : '') +
-    (g.notes ? '<span style="color:var(--muted);">Notes</span><span>' + escapeAttr(g.notes) + '</span>' : '') +
-    '</div>' +
-    '<div style="font-size:.78rem;margin-bottom:.5rem;"><strong>Events:</strong> ' + eventNames + '</div>' +
-    '<div style="font-family:\'Cinzel\',serif;font-size:.54rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-bottom:.3rem;">Allocations</div>' +
-    allocHtml;
 
-  // RSVP status: use allSubmittedCodes as the single source of truth (same
-  // one the list view uses). Look up allRSVPs only to display submission
-  // details, normalising case/whitespace and skipping DELETED rows.
+  // Hero: code + overseas badge (name lives in the modal title already).
+  var heroParts = [];
+  if (g.invitation_code) heroParts.push('<span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>');
+  if (isOverseas)        heroParts.push('<span class="overseas-badge">&#127757; Overseas</span>');
+  var hero = heroParts.length
+    ? '<div class="view-guest-hero">' + heroParts.join(' ') + '</div>'
+    : '';
+
+  // Details — phone, email, relationship, notes. Only rows with data render.
+  var detailRows = [];
+  if (g.phone) {
+    detailRows.push('<dt>Phone</dt><dd>' + phoneWhatsAppHtml(g.phone) +
+      (normalizePhoneForWhatsApp(g.phone) ? ' <span title="Opens WhatsApp">&#128172;</span>' : '') + '</dd>');
+  }
+  if (g.email)        detailRows.push('<dt>Email</dt><dd>' + escapeAttr(g.email) + '</dd>');
+  if (g.relationship) detailRows.push('<dt>Relationship</dt><dd>' + escapeAttr(g.relationship) + '</dd>');
+  if (g.notes)        detailRows.push('<dt>Notes</dt><dd>' + escapeAttr(g.notes) + '</dd>');
+  var detailsHtml = detailRows.length
+    ? '<dl class="view-guest-meta">' + detailRows.join('') + '</dl>'
+    : '';
+
+  // Allocations — one row per event with icon + name + guest count.
+  var allocHtml = evIds.length
+    ? '<div class="view-guest-section-title">Allocations</div>' +
+      '<div class="view-guest-alloc-list">' +
+      evIds.map(function(eid) {
+        var ev = allEvents.find(function(e) { return e.id === eid; });
+        var icon = ev ? escapeAttr(ev.icon) : '';
+        var name = escapeAttr(ev ? ev.name : eid);
+        var count = Number(g[eid + '_guests']) || 0;
+        var countLabel = 'guest' + (count === 1 ? '' : 's');
+        return '<div class="view-guest-alloc">' +
+          '<div class="view-guest-alloc__event"><span class="view-guest-alloc__icon">' + icon + '</span>' + name + '</div>' +
+          '<div class="view-guest-alloc__count"><strong>' + count + '</strong>' + countLabel + '</div>' +
+        '</div>';
+      }).join('') +
+      '</div>'
+    : '';
+
+  // Traffic-light status block — uses the same three-state logic as the
+  // Guests list so the colour matches the row's dot.
   var codeKey = String(g.invitation_code || '').toUpperCase().trim();
   var isSubmitted = allSubmittedCodes.has(g.invitation_code) || allSubmittedCodes.has(codeKey);
+  var statusHtml;
   if (isSubmitted) {
     var matches = (allRSVPs || []).filter(function(r) {
       if (String(r.status || '').toUpperCase() === 'DELETED') return false;
       return String(r.invitation_code || '').toUpperCase().trim() === codeKey;
     });
     matches.sort(function(a, b) { return new Date(b.timestamp || 0) - new Date(a.timestamp || 0); });
-    var rsvp = matches[0] || null;
+    var rsvp = matches[0];
     var detail = rsvp
-      ? 'Submitted by: ' + escapeAttr(rsvp.submission_name || '') +
+      ? 'Submitted by ' + escapeAttr(rsvp.submission_name || 'guest') +
           (rsvp.timestamp ? ' on ' + escapeAttr(rsvp.timestamp) : '')
       : 'Response recorded.';
-    html += '<div style="margin-top:1rem;padding:.8rem;background:rgba(45,74,62,.06);border-radius:2px;">' +
-      '<div style="font-family:\'Cinzel\',serif;font-size:.54rem;letter-spacing:.14em;color:var(--green);text-transform:uppercase;margin-bottom:.3rem;">RSVP Submitted</div>' +
-      '<div style="font-size:.72rem;color:var(--muted);">' + detail + '</div></div>';
+    statusHtml =
+      '<div class="view-guest-status view-guest-status--rsvp">' +
+        '<span class="view-guest-status__dot" style="background:var(--green);"></span>' +
+        '<div class="view-guest-status__body"><div class="view-guest-status__label">RSVP submitted</div>' + detail + '</div>' +
+      '</div>';
+  } else if (sanitiseValue(g.invite_sent_at)) {
+    statusHtml =
+      '<div class="view-guest-status view-guest-status--pending">' +
+        '<span class="view-guest-status__dot" style="background:var(--gold);"></span>' +
+        '<div class="view-guest-status__body"><div class="view-guest-status__label">Awaiting RSVP</div>' +
+          'Invite sent ' + escapeAttr(formatSentAt(g.invite_sent_at)) + ' &mdash; no response yet.' +
+        '</div>' +
+      '</div>';
   } else {
-    html += '<div style="margin-top:1rem;padding:.8rem;background:rgba(184,146,74,.08);border-radius:2px;font-size:.78rem;color:var(--gold);">RSVP Pending</div>';
+    statusHtml =
+      '<div class="view-guest-status view-guest-status--not-sent">' +
+        '<span class="view-guest-status__dot" style="background:var(--red);"></span>' +
+        '<div class="view-guest-status__body"><div class="view-guest-status__label">Invite not sent</div>' +
+          'Head to the Messages tab to send the initial invite via WhatsApp.' +
+        '</div>' +
+      '</div>';
   }
+
+  var html = hero + detailsHtml + allocHtml + statusHtml;
 
   document.getElementById('view-modal-title').textContent = rawFullName;
   document.getElementById('view-modal-body').innerHTML = html;
