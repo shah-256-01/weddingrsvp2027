@@ -421,3 +421,112 @@ Inputs on mobile are forced to `16px` to suppress iOS zoom. Modal height uses
 both `vh` and `svh` (`svh` fallback for iOS URL-bar behaviour). Safe-area
 padding on the mobile modal-footer prevents the home indicator from hiding
 Save/Cancel.
+
+---
+
+## 8. Known tradeoffs and pain points
+
+Things that work OK but a designer might want to revisit:
+
+1. **Spacing is ad-hoc.** No `--sp-*` scale. Rules pick rem values individually,
+   leading to minor inconsistencies (`.35rem` vs `.4rem` vs `.55rem` gaps). A
+   designer-led scale (`4/8/12/16/24/32`) could clean this up without
+   touching colors or type.
+
+2. **Two competing vertical rhythms.** Cinzel all-caps with heavy letter-
+   spacing reads as "eyebrow", but some card titles use `--fs-sm` (15px)
+   while others still use `--fs-2xs` (12px) depending on context. The scale
+   works; its application isn't strictly codified.
+
+3. **Cormorant sizes are inline-picked.** Stat numbers (`2rem`), ersvp-num
+   (`1.55rem`), event-guest-count (`1.6rem`), section modal titles
+   (`--fs-xl` ≈ 1.3rem). They're roughly a scale but not tokenised. A single
+   `--display-*` scale would tidy this.
+
+4. **Three different "segmented" controls** that look superficially similar
+   but are styled individually: `.admin-tab`, `.view-btn`, `.msg-mode-btn`,
+   `.event-filter-btn`. Could consolidate into one segmented-control
+   component with modifier classes.
+
+5. **Icon-text coupling via emoji.** Every action label uses an emoji
+   (`👁 VIEW`, `✎ EDIT`, `✕ DELETE`, `💬 SEND`). Looks fine, but means the
+   "icon system" is whatever the OS renders. A designed icon set (SVG with
+   currentColor) would improve legibility and brand consistency — especially
+   the `💬` on the wine Send button, which renders colored and breaks the
+   monochrome button.
+
+6. **The guest-site and admin share tokens but diverge on feel.** The guest
+   site (`index.html`) leans richer (ornate date formatting, falling petals,
+   ornament rules everywhere). The admin is more utilitarian. There's no
+   style guide forcing that divergence — it's just how it evolved. Worth
+   deciding whether admin should echo the guest-site tone more (warmer
+   backgrounds, more flourish) or lean fully utilitarian.
+
+7. **Traffic light is strong; event response pills look similar but live
+   in a different namespace.** `.rsvp-evt-pill--yes/no/tbc` and
+   `.guest-status-dot--green/orange/red` map to the same colors but can't be
+   unified because one is a pill shape, the other a circle. Could formalise
+   a shared color-state primitive.
+
+8. **Modal hero vs sticky title duplication (fixed).** The earlier View-
+   Guest modal duplicated the guest name between the sticky modal title and
+   a body hero. Resolved by keeping the name only in the sticky title. Worth
+   calling out as a pattern to avoid going forward.
+
+9. **Dense pages still feel dense.** Even after the typography scale-up,
+   RSVPs + Guests lists render a lot of rows on a single card. A designer
+   might propose "chip rows" or group headers to break the monotony.
+
+---
+
+## 9. Open questions for the reviewer
+
+Specific things a designer is asked to critique:
+
+- **Is the palette right?** Wine/gold/blush is opinionated. Is it readable
+  enough for a data-heavy admin UI, or is the wine-on-cream too warm to hold
+  up long sessions?
+- **Is Cinzel doing too much work?** Buttons, tabs, titles, eyebrows, badges
+  are all Cinzel with varying letter-spacing. Would a sans-serif for UI
+  chrome and reserving Cinzel for section titles read cleaner?
+- **Card stacking vs denser views.** The admin favors cards with breathing
+  room; a denser table-first layout might serve power users (who know every
+  guest) better. Should we offer both?
+- **Status dot vs status pill.** The dot is compact and consistent, but on
+  some rows (especially RSVP Status view and "Pending" cards) a bigger
+  status label might be friendlier for less-technical admins.
+- **Action buttons labels vs icon-only.** Current: 40px-tall "👁 VIEW /
+  ✎ EDIT / ✕ DELETE" even on mobile. Is this overkill, or does the text
+  actually help?
+- **First-run empty states.** None of the empty-state copy is illustrated
+  — just italic muted text. Worth designing?
+
+---
+
+## 10. Reference files
+
+Everything the reviewer may need is reachable from the admin in isolation:
+
+| File | What it is |
+|---|---|
+| `admin.html` | The entire admin — CSS, HTML, JS all in one file. ~3,000 lines. |
+| `index.html` | Guest-facing site for tone reference (the "wedding feel"). |
+| `design/preview.html` | Self-contained snapshot of the guest site with backend stubbed out. |
+| `design/admin-design-system.md` | This document. |
+| `appsscript/Code.gs` | Backend reference only; no design implications. |
+
+The admin CSS sits in the first ~380 lines of `admin.html` — that's the
+best place to read actual rules once specific classes have been identified
+from this doc.
+
+---
+
+## 11. Change log for this document
+
+- **Stage 1** — tokens, typefaces, breakpoints.
+- **Stage 2** — button system, traffic-light status system, session tags,
+  RSVP response pills.
+- **Stage 3** — layout patterns (chrome, panel/card, invite-row grid, guest
+  list 3→2→1 col transitions, modal + view-guest layout).
+- **Stage 4** — per-tab walkthrough (Guests, Messages, RSVPs, Settings, CSV).
+- **Stage 5** — known tradeoffs, open questions for reviewers, file refs.
