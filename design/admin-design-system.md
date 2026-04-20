@@ -84,7 +84,89 @@ Notable fixed pixels (not scaled by body font):
 
 ---
 
-## 2. Responsive breakpoints
+## 2. Button system — unified
+
+All `.btn*` variants share **one rectangle**: `12px` Cinzel uppercase, `10px
+20px` padding, `40px` min-height, `.15em` letter-spacing. Fixed-px so a body
+font-size bump doesn't inflate buttons.
+
+Variants differ only in color:
+
+| Class | Background | Text | Border | Use |
+|---|---|---|---|---|
+| `.btn-primary` | `--wine` | `--gold-lt` | none | Primary CTA (Save, Send) |
+| `.btn-secondary` | transparent | `--wine` | `1px --border` | Default action (Copy, View) |
+| `.btn-ghost` | transparent | `--muted` | none | Low-priority (Skip, Cancel) |
+| `.btn-danger` | `--red` | `#fde` | none | Destructive (Logout) |
+| `.btn-danger-ghost` | transparent | `--red` | `1px rgba(139,32,32,.25)` | Destructive secondary (Delete) |
+| `.btn-sm` | — | — | — | **Historical alias**, identical to `.btn` |
+| `.btn-icon` | — | — | — | 40×40 square, icon-only |
+
+Hover transitions: `all .22s` → invert fill/text for primary, tint to blush
+for secondary, wine text for ghost.
+
+**Not considered buttons** (different visual language, not unified):
+
+- `.admin-tab` — sticky tab nav (`--fs-sm`, wine-d bg, gold underline active)
+- `.view-btn` — view switchers on Guests/RSVPs (44px min-height, cream bg,
+  wine active)
+- `.event-filter-btn`, `.page-btn`, `.msg-mode-btn` — segmented controls
+
+---
+
+## 3. Status system — traffic light
+
+The admin uses **three colored states** repeatedly:
+
+| State | Dot color | Token | Meaning |
+|---|---|---|---|
+| Invite not sent | 🔴 | `--red` | `invite_sent_at` is blank |
+| Awaiting RSVP | 🟠 | `--gold` | Invite sent, RSVP not submitted |
+| RSVP'd | 🟢 | `--green` | Submission in `RSVPs_by_family` |
+
+Surfaced via two sibling classes:
+
+- `.guest-status-dot` — 12×12 circle with a subtle 2px light ring
+  (`box-shadow: 0 0 0 2px rgba(0,0,0,.04)`). Used in every row that shows a
+  guest (Guests list, Messages list, RSVP Status view, By-Event view).
+- `.guest-status-legend` — flex row of dot+label pairs, shown above any
+  table/list that uses the dot so the color code is always explained nearby.
+
+A JS helper `guestStatus(g) → 'not-sent' | 'pending' | 'rsvp'` is the single
+source of truth; `guestStatusDot(g)` returns the HTML span.
+
+### Session tags (conceptually separate)
+
+The Messages tab adds *per-session* chips that aren't about RSVP state —
+they're about the admin's workflow:
+
+| Class | Meaning |
+|---|---|
+| `.msg-tag--next` | "Up next" — the guest that **Send next** will open |
+| `.msg-tag--skipped` | The admin chose to skip this one in the current session |
+| `.msg-tag--sent` | Invite was sent recently (shows date, e.g. "Sent 20 Apr") |
+
+The dot carries invite/RSVP state; the tag carries session state. They are
+intentionally decoupled — a green dot guest can still be "Up next" for a
+chase message, for example.
+
+### RSVP-response pills
+
+Used on the RSVPs tab's Submissions and Matrix views:
+
+| Class | Meaning |
+|---|---|
+| `.rsvp-evt-pill--yes` | green tint — attending (with guest count suffix) |
+| `.rsvp-evt-pill--no` | red tint — declined |
+| `.rsvp-evt-pill--tbc` | gold tint — TBC |
+
+Pill structure: `<span class="rsvp-evt-pill rsvp-evt-pill--yes"><span
+class="rsvp-evt-pill__icon">🎶</span> Yes · 6</span>`. Legend above the list
+shows Yes / TBC / No chips so the color map carries.
+
+---
+
+## 5. Responsive breakpoints
 
 ```css
 @media (max-width: 700px)  { /* phones + small tablets */ }
