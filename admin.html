@@ -80,6 +80,21 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .code-pill{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.13em;color:var(--wine);background:var(--gold-pale);padding:.16rem .5rem;border-radius:10px;white-space:nowrap;}
 .sent-badge{display:inline-block;font-size:.58rem;letter-spacing:.08em;padding:.12rem .5rem;border-radius:10px;background:rgba(45,74,62,.1);color:var(--green);margin-left:.35rem;vertical-align:middle;white-space:nowrap;}
 .sent-badge--pending{background:rgba(184,146,74,.12);color:var(--muted);}
+.sent-badge--skipped{background:rgba(139,32,32,.08);color:var(--red);}
+.sent-badge--next{background:rgba(184,146,74,.25);color:var(--wine);}
+.invite-progress-card{background:var(--gold-pale);border:1px solid var(--border);padding:.9rem 1rem;margin-bottom:.9rem;border-radius:4px;}
+.invite-progress-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem;}
+.invite-progress-title{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--wine);margin-bottom:.25rem;}
+.invite-progress-sub{font-size:.74rem;color:var(--ink);}
+.invite-progress-sub strong{color:var(--wine);}
+.invite-progress-bar{height:6px;background:rgba(107,39,55,.1);border-radius:3px;overflow:hidden;}
+.invite-progress-fill{height:100%;background:var(--green);transition:width .4s ease;}
+.invite-progress-next{font-size:.7rem;color:var(--muted);margin-top:.5rem;}
+.invite-progress-next strong{color:var(--wine);}
+.invite-row--next{background:rgba(184,146,74,.07);}
+.invite-row--skipped{opacity:.55;}
+.invite-row--flash{animation:inviteFlash 1.4s ease;}
+@keyframes inviteFlash{0%{background:rgba(45,74,62,.25);}100%{background:transparent;}}
 .event-dot{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;font-size:.65rem;margin:.1rem;}
 .rsvp-pill{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.1em;padding:.2rem .6rem;border-radius:20px;white-space:nowrap;}
 .rsvp-submitted{background:rgba(45,74,62,.12);color:var(--green);}
@@ -498,6 +513,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <option value="sent">Already sent</option>
         </select>
       </div>
+      <div id="invite-progress"></div>
       <div id="invite-list"></div>
     </div>
 
@@ -2770,6 +2786,97 @@ function formatSentAt(iso) {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
+/* ══════════════════════════════════════════════
+   INVITE SESSION — per-relationship skip list
+   (localStorage, so an admin working one relationship
+   can close the tab and resume later without losing
+   which rows they've already chosen to skip.)
+══════════════════════════════════════════════ */
+function inviteSkipKey(rel) {
+  return 'weddingAdmin:inviteSkip:' + (rel || '__all__');
+}
+function getInviteSkips(rel) {
+  try {
+    var raw = localStorage.getItem(inviteSkipKey(rel));
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) { return new Set(); }
+}
+function saveInviteSkips(rel, set) {
+  try { localStorage.setItem(inviteSkipKey(rel), JSON.stringify(Array.from(set))); }
+  catch (e) { /* quota / private mode — skip persists for this page load only */ }
+}
+function addInviteSkip(rel, guestId) {
+  var s = getInviteSkips(rel); s.add(guestId); saveInviteSkips(rel, s);
+}
+function clearInviteSkips(rel) {
+  try { localStorage.removeItem(inviteSkipKey(rel)); } catch (e) {}
+}
+
+function getCurrentInviteRel() {
+  var el = document.getElementById('invite-filter-rel');
+  return el ? el.value : '';
+}
+
+function inviteSendableGuests(rel) {
+  return allGuests.filter(function(g) {
+    if (rel && g.relationship !== rel) return false;
+    return true;
+  });
+}
+
+function findNextInvite() {
+  var rel = getCurrentInviteRel();
+  var skips = getInviteSkips(rel);
+  return inviteSendableGuests(rel).find(function(g) {
+    if (sanitiseValue(g.invite_sent_at)) return false;
+    if (skips.has(g.id)) return false;
+    if (!normalizePhoneForWhatsApp(g.phone)) return false;
+    return true;
+  });
+}
+
+function sendNextInvite() {
+  var next = findNextInvite();
+  if (!next) {
+    alert('Nothing left to send in this list. Reset the session to include skipped guests.');
+    return;
+  }
+  openWhatsApp(next.id, 'invite');
+  // Scroll & flash the row so the admin sees which guest was just queued.
+  setTimeout(function() {
+    var row = document.getElementById('invite-row-' + next.id);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('invite-row--flash');
+      setTimeout(function() { row.classList.remove('invite-row--flash'); }, 1400);
+    }
+  }, 0);
+}
+
+function skipInvite(guestId) {
+  var rel = getCurrentInviteRel();
+  addInviteSkip(rel, guestId);
+  renderInviteList();
+}
+
+function unskipInvite(guestId) {
+  var rel = getCurrentInviteRel();
+  var s = getInviteSkips(rel);
+  s.delete(guestId);
+  saveInviteSkips(rel, s);
+  renderInviteList();
+}
+
+function resetInviteSession() {
+  var rel = getCurrentInviteRel();
+  var label = rel || 'All Relationships';
+  var count = getInviteSkips(rel).size;
+  if (!count) { alert('No skipped guests to reset in "' + label + '".'); return; }
+  if (!confirm('Reset skip list for "' + label + '"? ' + count + ' guest(s) will reappear in the queue. Already-sent guests stay as sent.')) return;
+  clearInviteSkips(rel);
+  renderInviteList();
+}
+
 function clearInviteSent(guestId) {
   if (!confirm('Mark this guest as not-yet-sent? (clears the timestamp so it reappears in the Unsent list.)')) return;
   google.script.run
@@ -2857,17 +2964,53 @@ function renderChaseUpList() {
 function renderInviteList() {
   var relFilter  = document.getElementById('invite-filter-rel').value;
   var sentFilter = (document.getElementById('invite-filter-sent') || {}).value || '';
-  var guests = allGuests.filter(function(g) {
-    if (relFilter && g.relationship !== relFilter) return false;
+  var skips      = getInviteSkips(relFilter);
+
+  // "Scope" = every guest matching the relationship filter. Progress is
+  // always scoped to this list so different admins working different
+  // relationships see their own numbers.
+  var scope = inviteSendableGuests(relFilter);
+  var scopeSent    = scope.filter(function(g) { return !!sanitiseValue(g.invite_sent_at); }).length;
+  var scopeSkipped = scope.filter(function(g) { return skips.has(g.id); }).length;
+  var scopeRemain  = scope.length - scopeSent - scopeSkipped;
+  var nextUp       = findNextInvite();
+
+  var guests = scope.filter(function(g) {
     var isSent = !!sanitiseValue(g.invite_sent_at);
     if (sentFilter === 'sent' && !isSent) return false;
     if (sentFilter === 'unsent' && isSent) return false;
     return true;
   });
 
-  var totalSent   = allGuests.filter(function(g) { return !!sanitiseValue(g.invite_sent_at); }).length;
-  var totalUnsent = allGuests.length - totalSent;
+  // ── Progress header with Send-Next + Reset-Session ──
+  var scopeLabel = relFilter || 'All Relationships';
+  var pctSent = scope.length ? Math.round((scopeSent / scope.length) * 100) : 0;
+  var progress =
+    '<div class="invite-progress-card">' +
+      '<div class="invite-progress-head">' +
+        '<div>' +
+          '<div class="invite-progress-title">' + escapeAttr(scopeLabel) + '</div>' +
+          '<div class="invite-progress-sub">' +
+            scopeSent + ' sent &middot; ' + scopeSkipped + ' skipped &middot; ' +
+            '<strong>' + scopeRemain + ' remaining</strong>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:.4rem;flex-wrap:wrap;">' +
+          (nextUp
+            ? '<button class="btn btn-primary btn-sm" onclick="sendNextInvite()" title="Open WhatsApp for ' + escapeAttr(((nextUp.first_name || '') + ' ' + (nextUp.last_name || '')).trim()) + '">&#9654; Send next</button>'
+            : '<button class="btn btn-primary btn-sm" disabled>All done</button>') +
+          (scopeSkipped ? '<button class="btn btn-ghost btn-sm" onclick="resetInviteSession()" title="Clear the skip list for this relationship">&#8634; Reset session</button>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="invite-progress-bar"><div class="invite-progress-fill" style="width:' + pctSent + '%;"></div></div>' +
+      (nextUp
+        ? '<div class="invite-progress-next">Up next: <strong>' + escapeAttr(((nextUp.first_name || '') + ' ' + (nextUp.last_name || '')).trim()) + '</strong>' +
+            ' &middot; ' + escapeAttr(sanitiseValue(nextUp.relationship)) + '</div>'
+        : '') +
+    '</div>';
+  document.getElementById('invite-progress').innerHTML = progress;
 
+  // ── Row list ──
   var container = document.getElementById('invite-list');
   if (!guests.length) {
     container.innerHTML = '<div class="empty-state">No guests match the current filter.</div>';
@@ -2875,20 +3018,33 @@ function renderInviteList() {
   }
 
   var rows = guests.map(function(g) {
-    var fullName = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
-    var flashId = 'flash-inv-' + g.id;
+    var fullName   = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
+    var flashId    = 'flash-inv-' + g.id;
     var defaultTpl = getDefaultTemplateId(g);
-    var sentAt = sanitiseValue(g.invite_sent_at);
-    var sentLabel = sentAt
-      ? '<span class="sent-badge" title="' + escapeAttr(sentAt) + '">&#10003; Sent ' + escapeAttr(formatSentAt(sentAt)) + '</span>'
-      : '<span class="sent-badge sent-badge--pending">Not sent</span>';
+    var sentAt     = sanitiseValue(g.invite_sent_at);
+    var isSkipped  = skips.has(g.id);
+    var isNext     = nextUp && nextUp.id === g.id;
+
+    var badge;
+    if (sentAt)         badge = '<span class="sent-badge" title="' + escapeAttr(sentAt) + '">&#10003; Sent ' + escapeAttr(formatSentAt(sentAt)) + '</span>';
+    else if (isSkipped) badge = '<span class="sent-badge sent-badge--skipped">Skipped</span>';
+    else if (isNext)    badge = '<span class="sent-badge sent-badge--next">Up next</span>';
+    else                badge = '<span class="sent-badge sent-badge--pending">Not sent</span>';
+
     var sendBtnLabel = sentAt ? 'Resend' : 'Send';
-    var clearBtn = sentAt
+    var clearSentBtn = sentAt
       ? '<button class="btn btn-ghost btn-sm" onclick="clearInviteSent(\'' + escapeAttr(g.id) + '\')" title="Clear sent timestamp">&#10007;</button>'
       : '';
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
+    var skipBtn = '';
+    if (!sentAt) {
+      skipBtn = isSkipped
+        ? '<button class="btn btn-ghost btn-sm" onclick="unskipInvite(\'' + escapeAttr(g.id) + '\')" title="Put back in the queue">&#8634; Unskip</button>'
+        : '<button class="btn btn-ghost btn-sm" onclick="skipInvite(\'' + escapeAttr(g.id) + '\')" title="Skip for this session">Skip</button>';
+    }
+
+    return '<div id="invite-row-' + escapeAttr(g.id) + '" class="invite-row' + (isNext ? ' invite-row--next' : '') + (isSkipped ? ' invite-row--skipped' : '') + '" style="display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid rgba(0,0,0,.05);flex-wrap:wrap;gap:.4rem;">' +
       '<div style="flex:1;min-width:0;">' +
-        '<div class="guest-name-cell">' + fullName + ' ' + sentLabel + '</div>' +
+        '<div class="guest-name-cell">' + fullName + ' ' + badge + '</div>' +
         '<div class="guest-sub"><span class="code-pill">' + escapeAttr(g.invitation_code || '') + '</span> &middot; ' + escapeAttr(sanitiseValue(g.relationship)) + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0;">' +
@@ -2896,13 +3052,12 @@ function renderInviteList() {
         '<span id="' + flashId + '" style="font-size:.68rem;color:var(--green);opacity:0;transition:opacity .3s;min-width:0;"></span>' +
         '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'invite\')">Copy</button>' +
         (normalizePhoneForWhatsApp(g.phone) ? '<button class="btn btn-secondary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'invite\')" title="Send via WhatsApp">&#128172; ' + sendBtnLabel + '</button>' : '') +
-        clearBtn +
+        skipBtn +
+        clearSentBtn +
       '</div></div>';
   }).join('');
 
-  var summary = 'Showing ' + guests.length + ' of ' + allGuests.length +
-    ' &middot; ' + totalSent + ' sent, ' + totalUnsent + ' unsent';
-  container.innerHTML = '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem;">' + summary + '</div>' + rows;
+  container.innerHTML = rows;
 }
 
 </script>
