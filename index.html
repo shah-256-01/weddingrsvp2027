@@ -1573,7 +1573,7 @@ function startCountdown(){
    PETALS
 ══════════════════════════════════════════════ */
 ['#c97b84','#e8c87a','#b8924a','#f5e6da','#4a7c74'].forEach(c=>{
-  for(let i=0;i<2;i++){
+  for(let i=0;i<4;i++){
     const p=document.createElement('div'); p.className='petal';
     const sz=Math.random()*7+5;
     p.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz*1.4}px;background:${c};animation-duration:${7+Math.random()*8}s;animation-delay:${Math.random()*12}s;`;
