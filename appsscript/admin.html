@@ -354,13 +354,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     </div>
     <div class="admin-card" style="margin-top:1.2rem;">
       <div class="admin-card-title">Generate Invitation Code</div>
-      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Select events to generate a code:</p>
-      <div class="event-tick-grid" id="code-gen-ticks" style="margin-bottom:.9rem;"></div>
+      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Codes are unique per guest. Click Generate for a fresh one, then copy it onto a physical invite or into your message template.</p>
       <div style="background:var(--gold-pale);border:1px solid rgba(184,146,74,.3);padding:1rem;text-align:center;border-radius:2px;margin:.7rem 0;">
         <div style="font-family:'Cinzel',serif;font-size:1.55rem;letter-spacing:.3em;color:var(--wine);" id="gen-code-out">&mdash;</div>
-        <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Select events above</div>
+        <div style="font-size:.67rem;color:var(--muted);margin-top:.3rem;" id="gen-code-events">Click Generate</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="copyGenCode()">Copy Code</button>
+      <div style="display:flex;gap:.5rem;">
+        <button class="btn btn-secondary btn-sm" onclick="generateStandaloneCode()" style="flex:1;">Generate</button>
+        <button class="btn btn-primary btn-sm" onclick="copyGenCode()" style="flex:1;">Copy</button>
+      </div>
     </div>
   </div>
 
@@ -1711,16 +1713,6 @@ function exportGuestListCSV() {
 // ══════════════════════════════════════════════
 
 function renderCSVTab() {
-  // Render code generator event ticks
-  var grid = document.getElementById('code-gen-ticks');
-  if (grid && allEvents.length) {
-    grid.innerHTML = allEvents.map(function(ev) {
-      return '<label class="event-tick">' +
-        '<input type="checkbox" value="' + escapeAttr(ev.id) + '" onchange="updateGenCode()"/>' +
-        '<span>' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</span></label>';
-    }).join('');
-  }
-
   // Setup drag-and-drop
   var zone = document.getElementById('csv-drop-zone');
   if (zone && !zone._dragSetup) {
@@ -1735,27 +1727,32 @@ function renderCSVTab() {
   }
 }
 
-function updateGenCode() {
-  var ticks = document.querySelectorAll('#code-gen-ticks input:checked');
-  var ids = [];
-  ticks.forEach(function(cb) { ids.push(cb.value); });
-  ids.sort(function(a, b) { return a.localeCompare(b); });
-  var code = ids.length ? ids.join('') + '2026' : '\u2014';
-  document.getElementById('gen-code-out').textContent = code;
-  if (ids.length) {
-    var names = ids.map(function(id) {
-      var ev = allEvents.find(function(e) { return e.id === id; });
-      return ev ? ev.name : id;
-    });
-    document.getElementById('gen-code-events').textContent = names.join(', ');
-  } else {
-    document.getElementById('gen-code-events').textContent = 'Select events above';
-  }
+// Fetch a fresh unique code for the standalone generator panel.
+function generateStandaloneCode() {
+  var out = document.getElementById('gen-code-out');
+  var lbl = document.getElementById('gen-code-events');
+  if (!out) return;
+  lbl.textContent = 'Generating\u2026';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.code) {
+        out.textContent = res.code;
+        lbl.textContent = 'Unique code ready \u2014 click Copy';
+      } else {
+        out.textContent = '\u2014';
+        lbl.textContent = 'Could not generate a code. Try again.';
+      }
+    })
+    .withFailureHandler(function(err) {
+      out.textContent = '\u2014';
+      lbl.textContent = (err && err.message) || 'Could not generate a code. Try again.';
+    })
+    .generateCode();
 }
 
 function copyGenCode() {
   var code = document.getElementById('gen-code-out').textContent;
-  if (!code || code === '\u2014') { alert('Select events first.'); return; }
+  if (!code || code === '\u2014') { alert('Click Generate first.'); return; }
   if (navigator.clipboard) {
     navigator.clipboard.writeText(code).then(function() { alert('Copied: ' + code); });
   } else {
@@ -1764,9 +1761,12 @@ function copyGenCode() {
 }
 
 function downloadCSVTemplate() {
+  // invitation_code is optional: leave blank to auto-generate a unique 6-char
+  // code per guest. Populate only when you want to set a specific code (must
+  // be 6 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ — excludes 0/O/1/I/L).
   var headers = [
     'first_name','last_name','phone','email','relationship',
-    'notes','is_overseas','events',
+    'notes','is_overseas','events','invitation_code',
     'L_guests',
     'S_guests',
     'A_guests',
@@ -1776,7 +1776,7 @@ function downloadCSVTemplate() {
   ];
   var exampleRow = [
     'Priya','Sharma','+447700000000','priya@email.com',
-    "Bride's Family",'Any notes here','FALSE','"L,S,W"',
+    "Bride's Family",'Any notes here','FALSE','"L,S,W"','',
     '6','6','0','4','6','0'
   ];
   var csv  = [headers.join(','), exampleRow.join(',')].join('\n');
