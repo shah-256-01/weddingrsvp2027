@@ -85,30 +85,31 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 /* ════════════════════════════════════════════
    LANDING
 ════════════════════════════════════════════ */
-#page-landing{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:2rem 1.5rem;
-  background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(201,123,132,.18) 0%,transparent 65%),
-             radial-gradient(ellipse 60% 40% at 85% 85%,rgba(184,146,74,.12) 0%,transparent 60%),var(--cream);
+#page-landing{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:var(--s5) var(--s4);
+  background:radial-gradient(ellipse 70% 55% at 50% -10%,rgba(201,123,132,.18) 0%,transparent 60%),
+             radial-gradient(ellipse 60% 40% at 85% 110%,rgba(166,128,58,.12) 0%,transparent 60%),var(--cream);
   position:relative;overflow:hidden;}
-.landing-inner{position:relative;z-index:1;max-width:600px;width:100%;}
-.landing-eyebrow{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.35em;color:var(--gold);text-transform:uppercase;margin-bottom:1.4rem;opacity:0;animation:fadeUp .9s .2s forwards;}
-.landing-title{font-family:var(--serif);font-size:var(--display-xl);font-weight:300;font-style:italic;color:var(--wine);line-height:1.05;opacity:0;animation:fadeUp .9s .4s forwards;margin-bottom:.2rem;}
-.landing-sub{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui);letter-spacing:.2em;color:var(--ink);opacity:0;animation:fadeUp .9s .6s forwards;margin-bottom:1.7rem;}
-.landing-date{font-family:var(--serif);font-size:var(--display-sm);color:var(--wine);letter-spacing:.08em;opacity:0;animation:fadeUp .9s .8s forwards;margin-bottom:.4rem;}
-.landing-venue{font-family:var(--sans);font-weight:200;font-size:var(--ui);letter-spacing:.12em;color:var(--gold);opacity:0;animation:fadeUp .9s 1s forwards;margin-bottom:2rem;}
-.code-box{background:rgba(253,246,239,.95);backdrop-filter:blur(8px);border:1px solid var(--border);padding:2.2rem;max-width:480px;margin:0 auto;opacity:0;animation:fadeUp .9s 1.2s forwards;position:relative;}
-.code-box::before,.code-box::after{content:'';position:absolute;width:24px;height:24px;border-color:var(--gold);border-style:solid;opacity:.35;}
-.code-box::before{top:8px;left:8px;border-width:1px 0 0 1px;}
-.code-box::after{bottom:8px;right:8px;border-width:0 1px 1px 0;}
-.code-box-header{text-align:center;margin-bottom:1.5rem;}
-.code-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.22em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.5rem;}
-.code-hint{font-size:var(--ui-sm);color:var(--muted);line-height:1.6;}
-.entry-form{display:flex;flex-direction:column;gap:1rem;margin-bottom:1.4rem;}
+.landing-inner{position:relative;z-index:1;max-width:620px;width:100%;}
+.landing-eyebrow{margin-bottom:1.2rem;opacity:0;animation:fadeUp .9s .2s forwards;}
+.landing-couple{font-family:var(--serif);font-size:var(--display-xl);font-weight:300;font-style:italic;color:var(--wine);line-height:.98;letter-spacing:-.015em;margin-bottom:0;opacity:0;animation:fadeUp .9s .35s forwards;}
+.landing-couple .amp{display:inline-block;font-style:italic;color:var(--gold);font-weight:400;padding:0 .15em;}
+.landing-meta{font-family:var(--serif);font-size:1.25rem;font-style:italic;color:var(--ink);letter-spacing:.02em;margin-top:1.2rem;opacity:0;animation:fadeUp .9s .75s forwards;}
+.landing-meta small{display:block;font-size:.95rem;color:var(--muted);font-style:normal;margin-top:.2rem;letter-spacing:.05em;}
+.entry-card{margin-top:2.5rem;background:rgba(255,252,246,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--border);padding:2.2rem 2rem;max-width:460px;margin-inline:auto;opacity:0;animation:fadeUp .9s .95s forwards;position:relative;}
+.entry-card::before,.entry-card::after{content:'';position:absolute;width:14px;height:14px;border:1px solid var(--gold);opacity:.5;}
+.entry-card::before{top:-1px;left:-1px;border-right:none;border-bottom:none;}
+.entry-card::after{bottom:-1px;right:-1px;border-left:none;border-top:none;}
+.entry-heading{text-align:center;margin-bottom:1.5rem;}
+.entry-heading-title{font-family:var(--serif);font-style:italic;font-size:1.5rem;color:var(--wine);line-height:1.2;margin-bottom:.35rem;}
+.entry-heading-sub{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.3em;color:var(--muted);text-transform:uppercase;}
+.entry-form{display:flex;flex-direction:column;gap:1.1rem;margin-bottom:1.4rem;}
 .entry-field{display:flex;flex-direction:column;gap:.35rem;}
-.entry-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.16em;color:var(--wine);text-transform:uppercase;}
-.btn-enter{width:100%;justify-content:center;font-size:var(--ui);letter-spacing:.18em;}
+.entry-label{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-xs);letter-spacing:.22em;color:var(--muted);text-transform:uppercase;}
+.field-input{border:0;border-bottom:1px solid var(--border);background:transparent;padding:.7rem .1rem;font-family:var(--sans);font-size:var(--body);color:var(--ink);outline:none;transition:border-color .2s;min-height:44px;}
+.field-input:focus{border-bottom-color:var(--gold);}
+.field-input.code{font-family:var(--serif);font-style:italic;font-size:1.4rem;letter-spacing:.25em;text-transform:uppercase;color:var(--wine);}
+.btn-enter{width:100%;justify-content:center;font-size:var(--ui);letter-spacing:.22em;margin-top:.4rem;}
 .code-error{font-size:var(--ui);color:var(--red);margin-top:.6rem;min-height:1.2rem;display:block;text-align:center;line-height:1.5;}
-.code-input{border:1px solid var(--border);background:transparent;padding:0.9rem 1rem;font-family:var(--serif);font-size:var(--display-sm);letter-spacing:.25em;text-align:center;text-transform:uppercase;color:var(--wine);outline:none;transition:border-color .2s;min-height:52px;}
-.code-input:focus{border-color:var(--gold);}
 .name-input{border:1px solid var(--border);background:transparent;padding:0.9rem 1rem;font-family:var(--sans);font-size:var(--body);color:var(--ink);outline:none;transition:border-color .2s;min-height:52px;}
 .name-input:focus{border-color:var(--gold);}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
@@ -348,51 +349,52 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 <!-- ████  LANDING  ████ -->
 <div id="page-landing" class="page active">
   <div class="landing-inner">
-    <p class="landing-eyebrow">You are cordially invited to</p>
-    <h1 class="landing-title">Jaini & Shanay's Wedding</h1>
-    <p class="landing-sub">A Celebration of Love &amp; Joy</p>
-    <div class="ornament" style="margin-bottom:1.3rem;">
-      <div class="ornament-line rev" style="width:55px"></div>
-      <div class="ornament-diamond"></div>
-      <div class="ornament-line" style="width:55px"></div>
+    <p class="landing-eyebrow"><span class="label">You are cordially invited to the wedding of</span></p>
+    <h1 class="landing-couple">Jaini<span class="amp">&amp;</span>Shanay</h1>
+    <div class="ornament" style="margin:1.4rem 0 1rem;" aria-hidden="true">
+      <div class="ornament-line rev" style="width:60px"></div>
+      <svg viewBox="0 0 14 14" fill="none"><path d="M7 1 L9 5 L13 7 L9 9 L7 13 L5 9 L1 7 L5 5 Z" stroke="currentColor" stroke-width="1"/></svg>
+      <div class="ornament-line" style="width:60px"></div>
     </div>
-    <p class="landing-date" id="landing-date">28<sup>th</sup> December, 2026</p>
-    <p class="landing-venue" id="landing-venue">Park Avenue Grand · Kochi</p>
+    <p class="landing-meta">
+      <span id="landing-date">The twenty-eighth of December, Two thousand twenty-six</span>
+      <small id="landing-venue">Park Avenue Grand &#x2002;&#x2022;&#x2002; Kochi</small>
+    </p>
     <div id="landing-loader" class="hidden" style="padding:1rem 0;">
       <div class="loading-spinner"></div>
-      <p style="font-size:var(--ui-xs);color:var(--muted);margin-top:.5rem;">Loading events…</p>
+      <p style="font-size:var(--ui-xs);color:var(--muted);margin-top:.5rem;">Loading events&hellip;</p>
     </div>
     <div id="landing-error" class="hidden" style="padding:1rem 0;">
       <p style="font-size:var(--ui);color:var(--red);">Unable to load event data. Please refresh the page.</p>
       <button class="btn btn-secondary btn-sm" onclick="location.reload()" style="margin-top:.5rem;">Retry</button>
     </div>
-    <div class="code-box" id="code-box">
-      <div class="code-box-header">
-        <span class="code-label">Access Your Invitation</span>
-        <p class="code-hint">Enter the details exactly as they appear on your invitation.</p>
+    <div class="entry-card" id="code-box">
+      <div class="entry-heading">
+        <div class="entry-heading-title">Your invitation awaits</div>
+        <div class="entry-heading-sub">Enter your details exactly as they appear on your card</div>
       </div>
 
       <div class="entry-form">
         <div class="entry-field">
-          <label class="entry-label" for="first-name-input">First Name</label>
-          <input class="name-input" id="first-name-input" type="text"
-            placeholder="e.g. Priya" autocomplete="given-name"/>
+          <label class="entry-label" for="first-name-input">First name</label>
+          <input class="field-input" id="first-name-input" type="text"
+            placeholder="Priya" autocomplete="given-name"/>
         </div>
         <div class="entry-field">
-          <label class="entry-label" for="last-name-input">Last Name</label>
-          <input class="name-input" id="last-name-input" type="text"
-            placeholder="e.g. Sharma" autocomplete="family-name"/>
+          <label class="entry-label" for="last-name-input">Last name</label>
+          <input class="field-input" id="last-name-input" type="text"
+            placeholder="Sharma" autocomplete="family-name"/>
         </div>
         <div class="entry-field">
-          <label class="entry-label" for="code-input">Invitation Code</label>
-          <input class="code-input" id="code-input" type="text"
-            maxlength="12" placeholder="e.g. LSW2026" autocomplete="off"
+          <label class="entry-label" for="code-input">Invitation code</label>
+          <input class="field-input code" id="code-input" type="text"
+            maxlength="12" placeholder="LSW2026" autocomplete="off"
             inputmode="text"/>
         </div>
       </div>
 
       <button class="btn btn-primary btn-enter" id="enter-btn" onclick="submitEntry()">
-        View My Invitation ✦
+        View my invitation
       </button>
       <span class="code-error" id="entry-error"></span>
     </div>
@@ -856,33 +858,53 @@ document.addEventListener('DOMContentLoaded', function() {
   // Update deadline text from constant
   var noteEl = document.querySelector('.submit-note');
   if (noteEl) {
-    noteEl.textContent = 'Please confirm by ' + formatDeadlineDate(RSVP_DEADLINE_DATE);
+    noteEl.textContent = 'Kindly submit by ' + formatDeadlineDate(RSVP_DEADLINE_DATE);
   }
   var welcomeDeadline = document.getElementById('welcome-deadline');
   if (welcomeDeadline) {
-    welcomeDeadline.innerHTML = '&#128197; Please respond by <strong>' + escapeHtml(formatDeadlineDate(RSVP_DEADLINE_DATE)) + '</strong>';
+    welcomeDeadline.innerHTML = 'Kindly respond by <strong>' + escapeHtml(formatDeadlineDate(RSVP_DEADLINE_DATE)) + '</strong>';
   }
   // Populate landing page from constants
   var venueEl = document.getElementById('landing-venue');
-  if (venueEl) venueEl.textContent = WEDDING_VENUE;
+  if (venueEl) venueEl.innerHTML = escapeHtml(WEDDING_VENUE).replace(/\s*\u00b7\s*/g, '\u2002\u2022\u2002');
   var dateEl = document.getElementById('landing-date');
-  if (dateEl) dateEl.innerHTML = formatWeddingDate(WEDDING_DATETIME);
+  if (dateEl) dateEl.textContent = formatWeddingDate(WEDDING_DATETIME);
 });
+
+var DAY_WORDS = ['', 'first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth',
+  'eleventh','twelfth','thirteenth','fourteenth','fifteenth','sixteenth','seventeenth','eighteenth','nineteenth','twentieth',
+  'twenty-first','twenty-second','twenty-third','twenty-fourth','twenty-fifth','twenty-sixth','twenty-seventh','twenty-eighth','twenty-ninth','thirtieth','thirty-first'];
+function dayToWords(n){ return DAY_WORDS[n] || String(n); }
+function yearToWords(y){
+  if (y >= 2000 && y < 3000) {
+    var tail = y - 2000;
+    var ONES = ['','one','two','three','four','five','six','seven','eight','nine'];
+    var TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+    var TEENS = ['ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+    var tailStr;
+    if (tail === 0) tailStr = '';
+    else if (tail < 10) tailStr = ONES[tail];
+    else if (tail < 20) tailStr = TEENS[tail - 10];
+    else {
+      var t = Math.floor(tail / 10), u = tail % 10;
+      tailStr = TENS[t] + (u ? '-' + ONES[u] : '');
+    }
+    return 'Two thousand' + (tailStr ? ' ' + tailStr : '');
+  }
+  return String(y);
+}
 
 function formatDeadlineDate(dateStr) {
   var parts = dateStr.split('-');
   var d = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  var month = d.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' });
+  return 'the ' + dayToWords(d.getUTCDate()) + ' of ' + month + ', ' + yearToWords(d.getUTCFullYear());
 }
 
 function formatWeddingDate(isoStr) {
   var d = new Date(isoStr);
-  var day = d.getDate();
-  var suffix = (day === 1 || day === 21 || day === 31) ? 'st'
-    : (day === 2 || day === 22) ? 'nd'
-    : (day === 3 || day === 23) ? 'rd' : 'th';
   var month = d.toLocaleString('en-GB', { month: 'long' });
-  return day + '<sup>' + suffix + '</sup> ' + month + ', ' + d.getFullYear();
+  return 'The ' + dayToWords(d.getDate()) + ' of ' + month + ', ' + yearToWords(d.getFullYear());
 }
 
 async function submitEntry() {
@@ -907,7 +929,7 @@ async function submitEntry() {
     loadGuestPage();
   } catch (err) {
     errEl.textContent = err.message || 'Invalid details. Please check and try again.';
-    btn.textContent   = 'View My Invitation ✦';
+    btn.textContent   = 'View my invitation';
     btn.disabled      = false;
   } finally {
     clearTimeout(timeoutId);
