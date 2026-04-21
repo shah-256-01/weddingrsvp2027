@@ -83,7 +83,7 @@ function doPost(e) {
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
-      'generateCode', 'markInviteSent',
+      'generateCode', 'markInviteSent', 'updateRSVP',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -118,6 +118,7 @@ function doPost(e) {
     else if (action === 'getRSVPsByFamily') result = getRSVPsByFamily();
     else if (action === 'generateCode')     result = generateCode();
     else if (action === 'markInviteSent')   result = markInviteSent(payload.guestId, !!payload.clear);
+    else if (action === 'updateRSVP')       result = updateRSVP(payload);
     else if (action === 'getMessageConfig') result = getMessageConfig();
     else if (action === 'saveMessageConfig') result = saveMessageConfig(payload);
     else if (action === 'checkPin')         result = { ok: true };
@@ -979,6 +980,72 @@ function submitRSVP(payload) {
   }
 
   return { submitted: true };
+}
+
+// ── updateRSVP ──────────────────────────────────────────
+// Admin-only: correct a previously-submitted RSVP in place on the
+// RSVPs_by_family sheet. Distinct from submitRSVP because:
+//   - no deadline check (admins correct post-deadline too)
+//   - no name validation against the guest list
+//   - only touches the _by_family wide sheet — the _by_event append-only
+//     log is intentionally left alone as a submission audit trail
+//
+// payload shape: {
+//   invitationCode: 'XXXXX',
+//   submissionName: 'Guest Name',   // used to disambiguate when multiple
+//                                   // submissions exist for the same code
+//   events: [{ id, attending: true|false, guests: N, notes? }]
+// }
+function updateRSVP(payload) {
+  const code = String(payload && payload.invitationCode || '').toUpperCase().trim();
+  const submissionName = String(payload && payload.submissionName || '').trim();
+  const events = Array.isArray(payload && payload.events) ? payload.events : [];
+  if (!code) throw new Error('invitationCode required');
+  const validEvents = events.filter(ev => ev && EVENT_IDS.includes(ev.id));
+  if (!validEvents.length) throw new Error('No valid events in update payload');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = getSheet(TABS.rsvpByFamily);
+    if (sheet.getLastRow() < 2) throw new Error('No RSVP rows to update');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const codeCol = headers.indexOf('invitation_code');
+    const nameCol = headers.indexOf('submission_name');
+    const statusCol = headers.indexOf('status');
+    if (codeCol < 0 || nameCol < 0) throw new Error('RSVPs_by_family headers missing code/name columns');
+
+    // Find the target row — match by code + (optional) submissionName,
+    // skipping DELETED rows. If several match, pick the newest timestamp
+    // (last one with matching code+name).
+    let targetRow = -1;
+    for (let r = 1; r < data.length; r++) {
+      if (statusCol > -1 && String(data[r][statusCol] || '').toUpperCase() === 'DELETED') continue;
+      if (String(data[r][codeCol] || '').toUpperCase().trim() !== code) continue;
+      if (submissionName &&
+          normaliseName(String(data[r][nameCol] || '')) !== normaliseName(submissionName)) continue;
+      targetRow = r;  // keep iterating so the last match wins (newest if sheet is append-only)
+    }
+    if (targetRow < 0) throw new Error('RSVP row not found for ' + code + (submissionName ? ' · ' + submissionName : ''));
+
+    const sheetRow = targetRow + 1; // convert 0-indexed array -> 1-indexed sheet
+    validEvents.forEach(ev => {
+      const attCol = headers.indexOf(ev.id + ' Attending');
+      const gCol   = headers.indexOf(ev.id + ' Guests');
+      const nCol   = headers.indexOf(ev.id + ' Notes');
+      const attending = ev.attending ? 'Yes' : 'No';
+      const guests = ev.attending ? (Number(ev.guests) || 0) : 0;
+      if (attCol > -1) sheet.getRange(sheetRow, attCol + 1).setValue(attending);
+      if (gCol   > -1) sheet.getRange(sheetRow, gCol   + 1).setValue(guests);
+      if (nCol   > -1 && typeof ev.notes === 'string') {
+        sheet.getRange(sheetRow, nCol + 1).setValue(sanitizeForSheet(ev.notes.slice(0, 500)));
+      }
+    });
+    return { ok: true, updated: true, row: sheetRow };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── sendRSVPNotification ─────────────────────────────────

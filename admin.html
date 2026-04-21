@@ -326,6 +326,50 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .session-warning-text{line-height:1.5;}
 .session-warning-extend{background:var(--gold);color:var(--wine);border:none;padding:.45rem 1rem;font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-tight);cursor:pointer;border-radius:1px;white-space:nowrap;flex-shrink:0;}
+/* Toast host + toast — replaces browser alert() for success / error / info
+   feedback. Sits above modals (z-index 300) so errors from save flows stay
+   visible. Stacks from the bottom-right on desktop, slides from top on mobile
+   to avoid the jainishanay.com pill + home indicator safe area. */
+.toast-host{position:fixed;bottom:1.5rem;right:1.5rem;z-index:300;display:flex;flex-direction:column;gap:.55rem;pointer-events:none;max-width:min(420px, calc(100% - 1.5rem));}
+.toast{pointer-events:auto;background:var(--card-bg);border:1px solid var(--border);border-left:4px solid var(--muted);border-radius:3px;padding:.85rem 1rem;display:flex;gap:.7rem;align-items:flex-start;box-shadow:0 6px 22px rgba(0,0,0,.14);animation:toastIn .22s ease;font-size:var(--fs-md);line-height:1.4;color:var(--ink);}
+.toast--success{border-left-color:var(--green);}
+.toast--error{border-left-color:var(--red);}
+.toast--info{border-left-color:var(--gold);}
+.toast__eyebrow{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);text-transform:uppercase;color:var(--muted);margin-bottom:.2rem;}
+.toast--success .toast__eyebrow{color:var(--green);}
+.toast--error   .toast__eyebrow{color:var(--red);}
+.toast--info    .toast__eyebrow{color:var(--gold);}
+.toast__body{flex:1;min-width:0;word-wrap:break-word;}
+.toast__close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1rem;line-height:1;padding:0 .1rem;flex-shrink:0;}
+.toast__close:hover{color:var(--wine);}
+.toast--leaving{animation:toastOut .2s ease forwards;}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes toastOut{to{opacity:0;transform:translateY(8px);}}
+@media(max-width:640px){
+  .toast-host{top:calc(.75rem + env(safe-area-inset-top,0px));right:.75rem;left:.75rem;bottom:auto;max-width:none;}
+}
+/* Inline field errors in forms (replaces alert() for add/edit guest modal) */
+.form-row__error{display:none;font-size:var(--fs-2xs);color:var(--red);margin-top:.3rem;letter-spacing:.02em;}
+.form-row__error.visible{display:block;}
+.form-row.has-error input,.form-row.has-error select,.form-row.has-error textarea{border-color:var(--red);}
+/* RSVP edit form (inside view modal) — per-event rows with Yes/No select,
+   guest count, inline notes. Keeps modal width under control. */
+.rsvp-edit-header{display:flex;justify-content:space-between;align-items:center;gap:.8rem;padding-bottom:.8rem;margin-bottom:1rem;border-bottom:1px solid rgba(184,146,74,.2);flex-wrap:wrap;}
+.rsvp-edit-header__sub{font-size:var(--fs-md);color:var(--muted);}
+.rsvp-edit-list{display:flex;flex-direction:column;gap:.7rem;margin-bottom:1.2rem;}
+.rsvp-edit-row{display:grid;grid-template-columns:1fr auto;column-gap:.9rem;row-gap:.45rem;padding:.75rem .85rem;background:#faf8f5;border:1px solid rgba(0,0,0,.06);border-radius:3px;}
+.rsvp-edit-row__event{display:flex;align-items:center;gap:.5rem;font-size:var(--fs-md);color:var(--ink);}
+.rsvp-edit-row__icon{font-size:1.25rem;line-height:1;}
+.rsvp-edit-row__fields{display:flex;gap:.4rem;align-items:center;}
+.rsvp-edit-row__fields select{font-size:var(--fs-md);padding:.4rem .55rem;border:1px solid var(--border);border-radius:2px;background:#fff;min-width:90px;}
+.rsvp-edit-row__fields input[type="number"]{width:68px;text-align:center;font-family:'Cormorant Garamond',serif;font-size:var(--fs-lg);color:var(--wine);padding:.35rem .4rem;border:1px solid var(--border);border-radius:2px;background:#fff;}
+.rsvp-edit-row__fields input[disabled]{opacity:.45;background:#f0ebe4;}
+.rsvp-edit-row textarea{grid-column:1 / -1;font-family:'Jost',sans-serif;font-size:var(--fs-md);line-height:1.4;padding:.45rem .6rem;border:1px solid var(--border);border-radius:2px;background:#fff;resize:vertical;min-height:2.2em;}
+.rsvp-edit-footer{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem;flex-wrap:wrap;}
+@media(max-width:520px){
+  .rsvp-edit-row{grid-template-columns:1fr;}
+  .rsvp-edit-row__fields{justify-content:flex-start;}
+}
 .seating-input{width:55px;text-align:center;padding:.2rem .4rem;font-size:.78rem;border:1px solid #e0d6cc;border-radius:3px;}
 .rsvp-evt-inline{display:inline-block;font-size:.74rem;margin:.15rem .55rem .15rem 0;white-space:nowrap;}
 .rsvp-evt-wrap{display:flex;flex-wrap:wrap;gap:.1rem .3rem;}
@@ -403,6 +447,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 }
 </style></head>
 <body>
+
+<!-- Toast host (populated by showToast) -->
+<div class="toast-host" id="toast-host" aria-live="polite" aria-atomic="false"></div>
 
 <!-- PIN Login Screen -->
 <div id="admin-login-screen">
@@ -667,13 +714,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <div class="modal-body">
       <input type="hidden" id="m-id"/>
       <div class="form-grid-2">
-        <div class="form-row">
+        <div class="form-row" id="m-first-name-row">
           <label>First Name *</label>
           <input type="text" id="m-first-name" placeholder="e.g. Priya" required/>
+          <div class="form-row__error" id="m-first-name-err">First name is required.</div>
         </div>
-        <div class="form-row">
+        <div class="form-row" id="m-last-name-row">
           <label>Last Name *</label>
           <input type="text" id="m-last-name" placeholder="e.g. Sharma" required/>
+          <div class="form-row__error" id="m-last-name-err">Last name is required.</div>
         </div>
         <div class="form-row">
           <label>Phone / WhatsApp</label>
@@ -704,15 +753,16 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <span style="font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;">&#127757; Overseas Guest</span>
         </label>
       </div>
-      <div class="form-row" style="margin-top:.3rem;">
+      <div class="form-row" id="m-events-row" style="margin-top:.3rem;">
         <label>Invited to Events *</label>
         <div class="event-tick-grid" id="modal-event-ticks"></div>
+        <div class="form-row__error" id="m-events-err">Select at least one event.</div>
       </div>
       <div id="modal-alloc-section" class="hidden" style="margin-top:.6rem;">
         <label style="font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.17em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.35rem;">Guest Allocations Per Event</label>
         <div class="alloc-grid" id="modal-alloc-grid"></div>
       </div>
-      <div style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;" id="modal-code-preview">
+      <div class="form-row" id="modal-code-row" style="margin-top:.8rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;" id="modal-code-preview">
         <label style="font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.5rem;text-align:center;">Invitation Code</label>
         <div style="display:flex;gap:.4rem;align-items:stretch;">
           <input id="modal-code-input" type="text" maxlength="6" autocomplete="off" spellcheck="false"
@@ -721,6 +771,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <button type="button" class="btn btn-secondary btn-sm" onclick="requestGeneratedCode()" id="modal-code-generate-btn" title="Generate a fresh unique code" style="flex-shrink:0;">&#8634; Generate</button>
         </div>
         <div id="modal-code-status" style="font-family:'Jost',sans-serif;font-size:var(--fs-2xs);margin-top:.5rem;min-height:1em;text-align:center;color:var(--muted);"></div>
+        <div class="form-row__error" id="modal-code-err" style="text-align:center;">Invitation code must be 6 characters (no 0/O/1/I/L).</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1569,6 +1620,7 @@ function sanitiseValue(val) {
 
 function openAddGuest() {
   editingGuestId = null;
+  if (typeof clearGuestFormErrors === 'function') clearGuestFormErrors();
   document.getElementById('m-id').value = '';
   document.getElementById('modal-title').textContent = 'Add Guest';
   document.getElementById('m-first-name').value = '';
@@ -1591,6 +1643,7 @@ function openAddGuest() {
 function openEditGuest(id) {
   var g = allGuests.find(function(x) { return x.id === id; });
   if (!g) return;
+  if (typeof clearGuestFormErrors === 'function') clearGuestFormErrors();
   editingGuestId = id;
   document.getElementById('m-id').value = g.id;
   document.getElementById('modal-title').textContent = 'Edit Guest';
@@ -1734,29 +1787,55 @@ function closeGuestModal() {
   editingGuestId = null;
 }
 
+// Inline validation helpers — show/hide a .form-row__error under the given
+// row id, and return a boolean so the caller can short-circuit on first failure.
+function setFieldError(rowId, errId, show, msg) {
+  var row = document.getElementById(rowId);
+  var err = document.getElementById(errId);
+  if (!row || !err) return !show;
+  if (show) {
+    row.classList.add('has-error');
+    err.classList.add('visible');
+    if (msg) err.textContent = msg;
+  } else {
+    row.classList.remove('has-error');
+    err.classList.remove('visible');
+  }
+  return !show;
+}
+function clearGuestFormErrors() {
+  ['m-first-name','m-last-name','m-events','modal-code'].forEach(function(id) {
+    var err = document.getElementById(id + '-err');
+    var row = document.getElementById(id + '-row');
+    if (err) err.classList.remove('visible');
+    if (row) row.classList.remove('has-error');
+  });
+}
+
 var _guestSaving = false;
 function saveGuest() {
   if (_guestSaving) return;
+  clearGuestFormErrors();
+
   var firstName = document.getElementById('m-first-name').value.trim();
   var lastName = document.getElementById('m-last-name').value.trim();
-  if (!firstName || !lastName) { alert('First and last name are required.'); return; }
-
   var ticks = document.querySelectorAll('#modal-event-ticks input:checked');
   var eventIds = [];
   ticks.forEach(function(cb) { eventIds.push(cb.value); });
-  if (!eventIds.length) { alert('Select at least one event.'); return; }
-
   var codeVal = String(document.getElementById('modal-code-input').value || '').toUpperCase().trim();
-  if (!CODE_CHARSET_RE.test(codeVal)) {
-    alert('Invitation code must be 6 characters (no 0/O/1/I/L). Click Generate to get a fresh one.');
-    return;
-  }
   var currentId = document.getElementById('m-id').value;
   var clash = allGuests.some(function(g) {
     return String(g.invitation_code || '').toUpperCase() === codeVal && g.id !== currentId;
   });
-  if (clash) {
-    alert('Invitation code "' + codeVal + '" is already in use by another guest.');
+
+  var ok = true;
+  if (!firstName) ok = setFieldError('m-first-name-row','m-first-name-err', true) && ok;
+  if (!lastName)  ok = setFieldError('m-last-name-row', 'm-last-name-err',  true) && ok;
+  if (!eventIds.length) ok = setFieldError('m-events-row','m-events-err', true) && ok;
+  if (!CODE_CHARSET_RE.test(codeVal)) ok = setFieldError('modal-code-row','modal-code-err', true, 'Code must be 6 chars (no 0/O/1/I/L). Click Generate for a fresh one.') && ok;
+  else if (clash)                      ok = setFieldError('modal-code-row','modal-code-err', true, 'This code is already in use by another guest.') && ok;
+  if (!ok) {
+    showToast('Please fix the highlighted fields.', 'error', 3200);
     return;
   }
 
@@ -1800,11 +1879,12 @@ function saveGuest() {
         closeGuestModal();
         loadGuests();
         loadStats();
+        showToast('Guest updated', 'success');
       })
       .withFailureHandler(function(err) {
         _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
-        alert('Error: ' + (err.message || 'Failed to update guest'));
+        showToast(err.message || 'Failed to update guest', 'error');
       })
       .updateGuest(payload);
   } else {
@@ -1815,11 +1895,12 @@ function saveGuest() {
         closeGuestModal();
         loadGuests();
         loadStats();
+        showToast('Guest added', 'success');
       })
       .withFailureHandler(function(err) {
         _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
-        alert('Error: ' + (err.message || 'Failed to add guest'));
+        showToast(err.message || 'Failed to add guest', 'error');
       })
       .addGuest(payload);
   }
@@ -1832,7 +1913,7 @@ function removeGuest(id) {
       setTimeout(function() { loadGuests(); loadStats(); }, 1000);
     })
     .withFailureHandler(function(err) {
-      alert('Error deleting guest: ' + (err.message || 'Unknown error'));
+      showToast('Delete failed: ' + (err.message || 'Unknown error'), 'error');
     })
     .deleteGuest({ id: id });
 }
@@ -1845,7 +1926,7 @@ function doRestoreGuest(id) {
       loadStats();
     })
     .withFailureHandler(function(err) {
-      alert('Error restoring guest: ' + (err.message || 'Unknown error'));
+      showToast('Restore failed: ' + (err.message || 'Unknown error'), 'error');
     })
     .restoreGuest({ id: id });
 }
@@ -1985,25 +2066,116 @@ function openViewGuest(id) {
   document.getElementById('view-modal-overlay').classList.remove('hidden');
 }
 
+// Holds the RSVP currently open in the edit modal so saveRSVPEdits can read
+// submission name + code back out without re-querying.
+var _rsvpEditing = null;
+
 function openViewRSVP(code) {
   var rsvps = allRSVPs.filter(function(r) { return r.invitation_code === code; });
-  if (!rsvps.length) { alert('No RSVP found for this code.'); return; }
+  if (!rsvps.length) { showToast('No RSVP found for this code.', 'info'); return; }
+  // If multiple submissions share this code (e.g. edits pre-dedupe), edit
+  // the newest one. submitRSVP appends, so the last row is freshest.
+  rsvps.sort(function(a, b) { return new Date(b.timestamp || 0) - new Date(a.timestamp || 0); });
+  var r = rsvps[0];
+  _rsvpEditing = r;
 
-  var html = rsvps.map(function(r) {
-    var details = '';
-    Object.keys(r).forEach(function(key) {
-      if (['timestamp','submission_name','invitation_code'].indexOf(key) > -1) return;
-      details += '<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:.76rem;">' +
-        '<span style="color:var(--muted);">' + escapeAttr(key) + '</span><span>' + escapeAttr(r[key] || '') + '</span></div>';
-    });
-    return '<div style="margin-bottom:1rem;">' +
-      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem;">Submitted: ' + escapeAttr(r.timestamp || '') + ' by ' + escapeAttr(r.submission_name || '') + '</div>' +
-      details + '</div>';
-  }).join('<hr style="border:none;border-top:1px solid rgba(0,0,0,.07);margin:.8rem 0;">');
+  var eventRows = allEvents.map(function(ev) {
+    var att   = r[ev.id + ' Attending'];
+    var guests = Number(r[ev.id + ' Guests']) || 0;
+    var notes = String(r[ev.id + ' Notes'] || '');
+    // Treat anything other than 'Yes' or 'No' as unset (admin can still save as No).
+    var selected = att === 'Yes' ? 'Yes' : att === 'No' ? 'No' : '';
+    return '<div class="rsvp-edit-row">' +
+      '<div class="rsvp-edit-row__event">' +
+        '<span class="rsvp-edit-row__icon">' + escapeAttr(ev.icon || '') + '</span>' +
+        '<span>' + escapeAttr(ev.name) + '</span>' +
+      '</div>' +
+      '<div class="rsvp-edit-row__fields">' +
+        '<select data-ev="' + escapeAttr(ev.id) + '" data-role="attending" onchange="onRSVPEditToggle(this)">' +
+          '<option value="Yes"' + (selected === 'Yes' ? ' selected' : '') + '>Yes</option>' +
+          '<option value="No"'  + (selected === 'No'  ? ' selected' : '') + '>No</option>' +
+        '</select>' +
+        '<input type="number" min="0" max="20" step="1" value="' + escapeAttr(String(guests)) + '" ' +
+          'data-ev="' + escapeAttr(ev.id) + '" data-role="guests" ' +
+          (selected === 'No' ? 'disabled' : '') + '/>' +
+      '</div>' +
+      '<textarea rows="1" placeholder="Notes for this event…" data-ev="' + escapeAttr(ev.id) + '" data-role="notes">' + escapeAttr(notes) + '</textarea>' +
+    '</div>';
+  }).join('');
 
-  document.getElementById('view-modal-title').textContent = 'RSVP: ' + code;
+  var html =
+    '<div class="rsvp-edit-header">' +
+      '<div class="rsvp-edit-header__sub">Submitted ' + escapeAttr(r.timestamp || '—') +
+      (r.submission_name ? ' by <strong>' + escapeAttr(r.submission_name) + '</strong>' : '') + '</div>' +
+      '<div class="rsvp-edit-header__code"><span class="code-pill">' + escapeAttr(code) + '</span></div>' +
+    '</div>' +
+    '<div class="view-guest-section-title">Per-event response</div>' +
+    '<div class="rsvp-edit-list" id="rsvp-edit-list">' + eventRows + '</div>' +
+    '<div class="rsvp-edit-footer">' +
+      '<button type="button" class="btn btn-ghost" onclick="closeViewModal()">Cancel</button>' +
+      '<button type="button" class="btn btn-primary" id="save-rsvp-btn" onclick="saveRSVPEdits()">Save changes</button>' +
+    '</div>';
+
+  document.getElementById('view-modal-title').textContent = 'RSVP · ' + code;
   document.getElementById('view-modal-body').innerHTML = html;
   document.getElementById('view-modal-overlay').classList.remove('hidden');
+}
+
+// Disable the guest-count input when an event is marked No.
+function onRSVPEditToggle(sel) {
+  var evId = sel.getAttribute('data-ev');
+  var input = document.querySelector('#rsvp-edit-list input[data-ev="' + evId + '"][data-role="guests"]');
+  if (!input) return;
+  input.disabled = sel.value === 'No';
+  if (sel.value === 'No') input.value = '0';
+}
+
+function saveRSVPEdits() {
+  if (!_rsvpEditing) return;
+  var btn = document.getElementById('save-rsvp-btn');
+  var events = [];
+  var totalYes = 0;
+  allEvents.forEach(function(ev) {
+    var attEl = document.querySelector('#rsvp-edit-list select[data-ev="' + ev.id + '"][data-role="attending"]');
+    var gEl   = document.querySelector('#rsvp-edit-list input[data-ev="'  + ev.id + '"][data-role="guests"]');
+    var nEl   = document.querySelector('#rsvp-edit-list textarea[data-ev="' + ev.id + '"][data-role="notes"]');
+    if (!attEl) return;
+    var attending = attEl.value === 'Yes';
+    if (attending) totalYes++;
+    events.push({
+      id: ev.id,
+      attending: attending,
+      guests: attending ? Math.max(0, Number(gEl && gEl.value) || 0) : 0,
+      notes: nEl ? String(nEl.value || '').slice(0, 500) : '',
+    });
+  });
+
+  if (totalYes === 0 && !confirm('This will mark every event as No. Continue?')) return;
+
+  btn.disabled = true; btn.textContent = 'Saving...';
+  google.script.run
+    .withSuccessHandler(function() {
+      btn.disabled = false; btn.textContent = 'Save changes';
+      closeViewModal();
+      showToast('RSVP updated', 'success');
+      // Refresh local caches so the Submissions view reflects the change.
+      if (typeof loadStats === 'function') loadStats();
+      Promise.all([
+        gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
+        gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {})
+      ]).then(function() {
+        if (typeof applyRSVPFilters === 'function') applyRSVPFilters();
+      });
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false; btn.textContent = 'Save changes';
+      showToast(err && err.message ? err.message : 'Failed to update RSVP', 'error');
+    })
+    .updateRSVP({
+      invitationCode: _rsvpEditing.invitation_code || '',
+      submissionName: _rsvpEditing.submission_name || '',
+      events: events,
+    });
 }
 
 function closeViewModal() {
@@ -2027,7 +2199,7 @@ document.addEventListener('keydown', function(e) {
 function exportGuestListCSV() {
   google.script.run
     .withSuccessHandler(function(guests) {
-      if (!guests || !guests.length) { alert('No guests to export.'); return; }
+      if (!guests || !guests.length) { showToast('No guests to export.', 'info'); return; }
       var fixedHeaders = [
         'first_name','last_name','phone','email','relationship',
         'notes','is_overseas','events','invitation_code','status'
@@ -2062,7 +2234,7 @@ function exportGuestListCSV() {
       URL.revokeObjectURL(url);
     })
     .withFailureHandler(function(err) {
-      alert('Export failed: ' + err.message);
+      showToast('Export failed: ' + err.message, 'error');
     })
     .getGuests();
 }
@@ -2111,9 +2283,9 @@ function generateStandaloneCode() {
 
 function copyGenCode() {
   var code = document.getElementById('gen-code-out').textContent;
-  if (!code || code === '\u2014') { alert('Click Generate first.'); return; }
+  if (!code || code === '\u2014') { showToast('Click Generate first.', 'info'); return; }
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(code).then(function() { alert('Copied: ' + code); });
+    navigator.clipboard.writeText(code).then(function() { showToast("Copied " + code, "success"); });
   } else {
     fallbackCopy(code);
   }
@@ -2275,7 +2447,7 @@ function renderCSVPreview(rows) {
 }
 
 function uploadCSV() {
-  if (!parsedCSVRows.length) { alert('No rows to upload.'); return; }
+  if (!parsedCSVRows.length) { showToast('No rows to upload.', 'info'); return; }
 
   // If the admin picked a bulk relationship, apply it to every row before
   // upload (overrides whatever was in the CSV `relationship` column).
@@ -2624,7 +2796,7 @@ function renderRSVPMatrixView(filtered) {
 
 function exportFilteredRSVPsCSV() {
   var filtered = getFilteredRSVPs();
-  if (!filtered.length) { alert('No RSVPs to export.'); return; }
+  if (!filtered.length) { showToast('No RSVPs to export.', 'info'); return; }
   var byCode = _rsvpGuestsByCode();
 
   var esc = function(v) {
@@ -3098,7 +3270,7 @@ function switchMsgMode(mode) {
 function sendNextMessage() {
   var next = findNextMessage(msgMode);
   if (!next) {
-    alert('Nothing left to send in this list. Reset the session to include skipped guests.');
+    showToast('Nothing left to send in this list. Reset the session to include skipped guests.', 'info');
     return;
   }
   openWhatsApp(next.id, msgMode);
@@ -3129,7 +3301,7 @@ function resetMessageSession() {
   var rel = getCurrentMsgRel();
   var label = rel || 'All Relationships';
   var count = getMsgSkips(msgMode, rel).size;
-  if (!count) { alert('No skipped guests to reset in "' + label + '".'); return; }
+  if (!count) { showToast('No skipped guests to reset in "' + label + '".', 'info'); return; }
   if (!confirm('Reset skip list for "' + label + '"? ' + count + ' guest(s) will reappear in the queue.' + (msgMode === 'invite' ? ' Already-sent guests stay as sent.' : ''))) return;
   clearMsgSkipsFor(msgMode, rel);
   renderMessagesList();
@@ -3143,7 +3315,7 @@ function clearInviteSent(guestId) {
       if (g) g.invite_sent_at = '';
       renderMessagesList();
     })
-    .withFailureHandler(function(err) { alert('Could not clear: ' + (err && err.message)); })
+    .withFailureHandler(function(err) { showToast('Could not clear: ' + (err && err.message), 'error'); })
     .markInviteSent({ guestId: guestId, clear: true });
 }
 
@@ -3171,7 +3343,7 @@ function fallbackCopy(text) {
   ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
   document.body.appendChild(ta);
   ta.select();
-  try { document.execCommand('copy'); alert('Copied to clipboard!'); }
+  try { document.execCommand('copy'); showToast('Copied to clipboard', 'success'); }
   catch (e) { prompt('Copy this message:', text); }
   document.body.removeChild(ta);
 }
@@ -3182,6 +3354,36 @@ function showFlash(flashId) {
   el.textContent = 'Copied!';
   el.style.opacity = '1';
   setTimeout(function() { el.style.opacity = '0'; }, 1500);
+}
+
+// ── Toast (replaces browser alert() across the admin) ──────────
+// variant: 'success' | 'error' | 'info'. Errors stick longer because they
+// usually carry a server message the admin needs to read.
+function showToast(message, variant, durationMs) {
+  var host = document.getElementById('toast-host');
+  if (!host) { console.warn('toast host missing:', message); return; }
+  var v = (variant === 'success' || variant === 'error') ? variant : 'info';
+  var eyebrow = v === 'success' ? 'Done' : v === 'error' ? 'Error' : 'Heads up';
+  var duration = typeof durationMs === 'number' ? durationMs
+    : v === 'error' ? 6000 : v === 'success' ? 2400 : 3500;
+
+  var el = document.createElement('div');
+  el.className = 'toast toast--' + v;
+  el.setAttribute('role', v === 'error' ? 'alert' : 'status');
+  el.innerHTML =
+    '<div class="toast__body">' +
+      '<div class="toast__eyebrow">' + escapeAttr(eyebrow) + '</div>' +
+      escapeAttr(String(message == null ? '' : message)) +
+    '</div>' +
+    '<button class="toast__close" type="button" aria-label="Dismiss">✕</button>';
+  var close = function() {
+    if (el.classList.contains('toast--leaving')) return;
+    el.classList.add('toast--leaving');
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+  };
+  el.querySelector('.toast__close').addEventListener('click', close);
+  host.appendChild(el);
+  if (duration > 0) setTimeout(close, duration);
 }
 
 function renderMessagesList() {
