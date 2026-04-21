@@ -83,7 +83,7 @@ function doPost(e) {
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
-      'generateCode', 'markInviteSent', 'updateRSVP',
+      'generateCode', 'markInviteSent', 'updateRSVP', 'getBootstrap',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -119,6 +119,7 @@ function doPost(e) {
     else if (action === 'generateCode')     result = generateCode();
     else if (action === 'markInviteSent')   result = markInviteSent(payload.guestId, !!payload.clear);
     else if (action === 'updateRSVP')       result = updateRSVP(payload);
+    else if (action === 'getBootstrap')     result = getBootstrap();
     else if (action === 'getMessageConfig') result = getMessageConfig();
     else if (action === 'saveMessageConfig') result = saveMessageConfig(payload);
     else if (action === 'checkPin')         result = { ok: true };
@@ -626,12 +627,19 @@ function updateGuest(payload) {
   }
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  // Batched write: read the whole row once, patch only the payload fields,
+  // write back in a single setValues call. Replaces a 20-call setValue loop.
+  const range = sheet.getRange(rowNum, 1, 1, headers.length);
+  const row   = range.getValues()[0];
+  let changed = false;
   headers.forEach((h, i) => {
     if (h === 'id') return;
     if (payload[h] !== undefined) {
-      sheet.getRange(rowNum, i + 1).setValue(sanitizeForSheet(payload[h]));
+      row[i] = sanitizeForSheet(payload[h]);
+      changed = true;
     }
   });
+  if (changed) range.setValues([row]);
   return { ...payload };
 }
 
@@ -1075,18 +1083,23 @@ function updateRSVP(payload) {
     if (targetRow < 0) throw new Error('RSVP row not found for ' + code + (submissionName ? ' · ' + submissionName : ''));
 
     const sheetRow = targetRow + 1; // convert 0-indexed array -> 1-indexed sheet
+    // Batched write — patch the target row in-memory then write it back
+    // in a single setValues call instead of N setValue calls per event.
+    const range = sheet.getRange(sheetRow, 1, 1, headers.length);
+    const row   = range.getValues()[0];
     validEvents.forEach(ev => {
       const attCol = headers.indexOf(ev.id + ' Attending');
       const gCol   = headers.indexOf(ev.id + ' Guests');
       const nCol   = headers.indexOf(ev.id + ' Notes');
       const attending = ev.attending ? 'Yes' : 'No';
       const guests = ev.attending ? (Number(ev.guests) || 0) : 0;
-      if (attCol > -1) sheet.getRange(sheetRow, attCol + 1).setValue(attending);
-      if (gCol   > -1) sheet.getRange(sheetRow, gCol   + 1).setValue(guests);
+      if (attCol > -1) row[attCol] = attending;
+      if (gCol   > -1) row[gCol]   = guests;
       if (nCol   > -1 && typeof ev.notes === 'string') {
-        sheet.getRange(sheetRow, nCol + 1).setValue(sanitizeForSheet(ev.notes.slice(0, 500)));
+        row[nCol] = sanitizeForSheet(ev.notes.slice(0, 500));
       }
     });
+    range.setValues([row]);
     return { ok: true, updated: true, row: sheetRow };
   } finally {
     lock.releaseLock();
@@ -1265,6 +1278,23 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
 // ── getRSVPsByFamily ──────────────────────────────────────
 function getRSVPsByFamily() {
   return sheetToObjects(getSheet(TABS.rsvpByFamily));
+}
+
+// ── getBootstrap ──────────────────────────────────────────
+// One-shot admin boot payload. Collapses five separate fetches (guests,
+// rsvps by family, submitted codes, duplicates, deleted guests) into a
+// single doPost round-trip. Each piece is wrapped in try/catch so a single
+// sheet read failing doesn't tank the whole boot — the client will fall back
+// to empty state for the missing piece rather than erroring out.
+function getBootstrap() {
+  function safe(fn) { try { return fn(); } catch (e) { return null; } }
+  return {
+    guests:         safe(function() { return getGuests(); })         || [],
+    rsvps:          safe(function() { return getRSVPsByFamily(); })  || [],
+    submittedCodes: safe(function() { return getSubmittedCodes(); }) || [],
+    duplicates:     safe(function() { return getDuplicates(); })     || [],
+    deletedGuests:  safe(function() { return getDeletedGuests(); })  || [],
+  };
 }
 
 // ── getStats ──────────────────────────────────────────────

@@ -1102,18 +1102,30 @@ function gasAsync(fnName) {
 
 function loadGuests() {
   document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
-  // All five fetches fan out in one round-trip rather than waterfall-ing
-  // getGuests → [4 siblings]. Render happens when every required piece is in.
-  Promise.all([
-    gasAsync('getGuests').then(function(d) { allGuests = d || []; }),
-    gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
-    gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {}),
-    gasAsync('getDuplicates').then(function(d) { allDuplicates = d || []; }).catch(function() {}),
-    gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
-  ]).then(function() {
+  // Single bootstrap round-trip: one doPost returns guests + rsvps + codes
+  // + duplicates + deleted in one payload. Falls back to the legacy 5-call
+  // fan-out if the server hasn't been redeployed with getBootstrap yet.
+  gasAsync('getBootstrap').then(function(data) {
+    if (!data || typeof data !== 'object') throw new Error('Empty bootstrap');
+    allGuests          = data.guests         || [];
+    allRSVPs           = data.rsvps          || [];
+    allSubmittedCodes  = new Set(data.submittedCodes || []);
+    allDuplicates      = data.duplicates     || [];
+    allDeletedGuests   = data.deletedGuests  || [];
     renderGuestView();
-  }).catch(function(err) {
-    showLoadError('guest-view-container', 'Load failed: ' + (err.message || 'Unknown error') + '. Tap Retry.', 'loadGuests');
+  }).catch(function() {
+    // Fallback path for old deployments — parallel fan-out, render when all done.
+    Promise.all([
+      gasAsync('getGuests').then(function(d) { allGuests = d || []; }),
+      gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
+      gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {}),
+      gasAsync('getDuplicates').then(function(d) { allDuplicates = d || []; }).catch(function() {}),
+      gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
+    ]).then(function() {
+      renderGuestView();
+    }).catch(function(err) {
+      showLoadError('guest-view-container', 'Load failed: ' + (err.message || 'Unknown error') + '. Tap Retry.', 'loadGuests');
+    });
   });
 }
 
