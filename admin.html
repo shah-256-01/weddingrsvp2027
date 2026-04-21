@@ -867,6 +867,15 @@ var ADMIN_PIN_KEY = 'adminAuth';
 
 // ── State Variables ────────────────────────
 var allEvents = [];
+// Pre-computed lookup map so hot render paths can do O(1) event lookups
+// instead of eventsById[id] on every row. Rebuilt whenever
+// setAllEvents() is called.
+var eventsById = {};
+function setAllEvents(list) {
+  allEvents = Array.isArray(list) ? list : [];
+  eventsById = {};
+  allEvents.forEach(function(e) { eventsById[e.id] = e; });
+}
 var allGuests = [];
 var allRSVPs = [];
 var allDuplicates = [];
@@ -948,7 +957,7 @@ let   warningTimer       = null;
 function buildEventDots(g) {
   var evIds = String(g.events || '').split(',').map(s => s.trim()).filter(Boolean);
   return evIds.map(function(id) {
-    var ev = allEvents.find(e => e.id === id);
+    var ev = eventsById[id];
     if (!ev) return '';
     return '<span title="' + escapeAttr(ev.name) + '" style="font-size:.9rem;">' + escapeAttr(ev.icon) + '</span>';
   }).join(' ');
@@ -1046,10 +1055,20 @@ function loadDashboard() {
   document.getElementById('admin-dashboard').classList.remove('hidden');
   startSessionTimer();
   startActivityListeners();
+  // Hydrate events from localStorage if available so renders don't have to
+  // wait on the network for the first paint. loadEvents() will overwrite
+  // asynchronously with the fresh server state.
+  try {
+    var cached = JSON.parse(localStorage.getItem('weddingAdmin:events:v1') || 'null');
+    if (cached && Array.isArray(cached.data) && cached.data.length) setAllEvents(cached.data);
+  } catch (e) {}
   loadEvents();
-  loadStats();
   loadGuests();
   loadMessageConfigFromServer();
+  // Background populate of allStats.perEvent for the By-Event view. Header
+  // stats are computed client-side from the bootstrap payload, so this is
+  // never on the critical path.
+  loadStats();
 }
 
 // ── Data Loading Functions ─────────────────
@@ -1059,7 +1078,10 @@ function loadEvents() {
     .then(function(r) { return r.json(); })
     .then(function(json) {
       if (json && json.ok) {
-        allEvents = json.data || [];
+        setAllEvents(json.data || []);
+        // Cache events locally — they change rarely, and this lets the next
+        // admin load render events immediately without a server round-trip.
+        try { localStorage.setItem('weddingAdmin:events:v1', JSON.stringify({ at: Date.now(), data: allEvents })); } catch (e) {}
         renderCSVTab();
         renderSettingsTab();
         if (allGuests.length) renderGuestView();
@@ -1070,24 +1092,63 @@ function loadEvents() {
     });
 }
 
+// ── Client-side stats ─────────────────────────────────────
+// All header stats are derivable from the bootstrap payload (allGuests +
+// allRSVPs + allSubmittedCodes + allDuplicates) so we compute them on the
+// client and skip the getStats round-trip entirely on boot + after every
+// save/delete. getStats server endpoint still exists and is refreshed in
+// the background on boot to populate allStats.perEvent for the By-Event
+// view, but it is NOT on the critical path.
+function computeClientStats() {
+  var total = allGuests.length;
+  var rsvpd = 0;
+  allGuests.forEach(function(g) {
+    if (allSubmittedCodes && allSubmittedCodes.has(String(g.invitation_code || ''))) rsvpd++;
+  });
+  var confirmed = 0;
+  (allRSVPs || []).forEach(function(r) {
+    if (String(r.status || '').toUpperCase() === 'DELETED') return;
+    (allEvents || []).forEach(function(ev) {
+      if (String(r[ev.id + ' Attending'] || '').toLowerCase() === 'yes') {
+        confirmed += Number(r[ev.id + ' Guests']) || 0;
+      }
+    });
+  });
+  return {
+    totalGuests:     total,
+    rsvpd:           rsvpd,
+    pending:         Math.max(0, total - rsvpd),
+    confirmedGuests: confirmed,
+    duplicates:      (allDuplicates || []).length,
+  };
+}
+
+function refreshStats() {
+  var el = document.getElementById('guest-stats');
+  if (!el) return;
+  var s = computeClientStats();
+  // Preserve any server-only fields (e.g. perEvent) the by-event view uses.
+  allStats = Object.assign({}, allStats, s);
+  var dupCls = s.duplicates > 0 ? ' danger' : '';
+  el.innerHTML =
+    '<div class="stat-card"><div class="stat-num">' + s.totalGuests     + '</div><div class="stat-lbl">Total Guests</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + s.rsvpd           + '</div><div class="stat-lbl">RSVPd</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + s.pending         + '</div><div class="stat-lbl">Pending</div></div>' +
+    '<div class="stat-card"><div class="stat-num">' + s.confirmedGuests + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
+    '<div class="stat-card"><div class="stat-num' + dupCls + '">' + s.duplicates + '</div><div class="stat-lbl">Duplicates</div></div>';
+}
+
+// Background fetch of the server perEvent breakdown. Not on the critical
+// path — header stats are already on screen via refreshStats(). We only
+// need this when the user opens the By-Event view.
 function loadStats() {
-  document.getElementById('guest-stats').innerHTML =
-    '<div class="stat-card"><div class="stat-num">...</div><div class="stat-lbl">Loading</div></div>';
   google.script.run
     .withSuccessHandler(function(data) {
       var s = data || {};
-      allStats = s;
-      var dupCls = s.duplicates > 0 ? ' danger' : '';
-      document.getElementById('guest-stats').innerHTML =
-        '<div class="stat-card"><div class="stat-num">' + (s.totalGuests || 0) + '</div><div class="stat-lbl">Total Guests</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + (s.rsvpd || 0) + '</div><div class="stat-lbl">RSVPd</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + (s.pending || 0) + '</div><div class="stat-lbl">Pending</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + (s.confirmedGuests || 0) + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
-        '<div class="stat-card"><div class="stat-num' + dupCls + '">' + (s.duplicates || 0) + '</div><div class="stat-lbl">Duplicates</div></div>';
+      // Merge server values (esp. perEvent) without stomping client top-line.
+      allStats = Object.assign({}, computeClientStats(), { perEvent: s.perEvent || [] }, s);
     })
-    .withFailureHandler(function(err) {
-      showLoadError('guest-stats', err.message || 'Failed to load stats', 'loadStats');
-    })
+    .withFailureHandler(function() { /* silent — client stats still rendered */ })
     .getStats();
 }
 
@@ -1112,6 +1173,7 @@ function loadGuests() {
     allSubmittedCodes  = new Set(data.submittedCodes || []);
     allDuplicates      = data.duplicates     || [];
     allDeletedGuests   = data.deletedGuests  || [];
+    refreshStats();
     renderGuestView();
   }).catch(function() {
     // Fallback path for old deployments — parallel fan-out, render when all done.
@@ -1122,6 +1184,7 @@ function loadGuests() {
       gasAsync('getDuplicates').then(function(d) { allDuplicates = d || []; }).catch(function() {}),
       gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
     ]).then(function() {
+      refreshStats();
       renderGuestView();
     }).catch(function(err) {
       showLoadError('guest-view-container', 'Load failed: ' + (err.message || 'Unknown error') + '. Tap Retry.', 'loadGuests');
@@ -1136,6 +1199,10 @@ function setGuestView(view) {
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
   var activeBtn = document.querySelector('.view-btn[onclick*="' + view + '"]');
   if (activeBtn) activeBtn.classList.add('active');
+  // Refresh perEvent stats only when user actually opens the By-Event view
+  // so we don't pay for it on every save. getStats is cached server-side
+  // for 30s so successive opens are cheap.
+  if (view === 'event') loadStats();
   renderGuestView();
 }
 
@@ -1289,7 +1356,7 @@ function renderGroupedView(guests, container) {
   var html = Object.keys(groups).map(function(code) {
     var group = groups[code];
     var eventDots = group.events.map(function(id) {
-      var ev = allEvents.find(function(e) { return e.id === id; });
+      var ev = eventsById[id];
       if (!ev) return '';
       return '<span class="event-chip"><span class="event-chip__icon">' + escapeAttr(ev.icon) + '</span>' + escapeAttr(ev.name) + '</span>';
     }).join(' ');
@@ -1388,7 +1455,7 @@ function renderEventView(guests, stats) {
   }
 
   var eventTabs = perEvent.map(function(ev) {
-    var evtConfig = allEvents.find(function(e) { return e.id === ev.id; }) || {};
+    var evtConfig = eventsById[ev.id] || {};
     return '<button class="event-filter-btn" id="efbtn-' + escapeAttr(ev.id) + '" onclick="selectEventFilter(\'' + escapeAttr(ev.id) + '\')">' +
       escapeAttr(evtConfig.icon || '') + ' ' + escapeAttr(evtConfig.name || ev.id) + '</button>';
   }).join('');
@@ -1404,7 +1471,7 @@ function selectEventFilter(eventId) {
   var activeBtn = document.getElementById('efbtn-' + eventId);
   if (activeBtn) activeBtn.classList.add('active');
 
-  var evtConfig = allEvents.find(function(e) { return e.id === eventId; }) || {};
+  var evtConfig = eventsById[eventId] || {};
   var evtStats = (_eventViewStats.perEvent || []).find(function(e) { return e.id === eventId; }) || {};
   var seatingEnabled = String(evtConfig.seating || '').toUpperCase() === 'TRUE';
 
@@ -1511,7 +1578,7 @@ function saveTableAssignment(input) {
 }
 
 function exportSeatingCSV(eventId) {
-  var evtConfig = allEvents.find(function(e) { return e.id === eventId; }) || {};
+  var evtConfig = eventsById[eventId] || {};
   var invitedGuests = allGuests.filter(function(g) {
     return String(g.events || '').split(',').map(function(s) { return s.trim(); }).indexOf(eventId) > -1 &&
       getRSVPStatus(g).label === 'Submitted';
@@ -1794,7 +1861,7 @@ function updateModalAllocations(existingGuest) {
   var html = '<span></span><span class="alloc-hdr">Guests</span>';
 
   ids.forEach(function(id) {
-    var ev = allEvents.find(function(e) { return e.id === id; });
+    var ev = eventsById[id];
     var evLabel = ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(id);
     var gVal = 2;
     if (existingGuest) {
@@ -1904,7 +1971,6 @@ function saveGuest() {
         btn.textContent = 'Save Guest'; btn.disabled = false;
         closeGuestModal();
         loadGuests();
-        loadStats();
         showToast('Guest updated', 'success');
       })
       .withFailureHandler(function(err) {
@@ -1920,7 +1986,6 @@ function saveGuest() {
         btn.textContent = 'Save Guest'; btn.disabled = false;
         closeGuestModal();
         loadGuests();
-        loadStats();
         showToast('Guest added', 'success');
       })
       .withFailureHandler(function(err) {
@@ -1936,10 +2001,9 @@ function removeGuest(id) {
   if (!confirm('Remove this guest? They will be moved to the Deleted section and can be restored later.')) return;
   google.script.run
     .withSuccessHandler(function() {
-      // Fire both refreshes without an artificial setTimeout; they're
-      // independent HTTP calls and will race + resolve in parallel.
+      // loadGuests refetches every dependency and runs refreshStats on
+      // success — no need for a separate loadStats round-trip here.
       loadGuests();
-      loadStats();
       showToast('Guest moved to Deleted', 'success');
     })
     .withFailureHandler(function(err) {
@@ -1953,7 +2017,7 @@ function doRestoreGuest(id) {
   google.script.run
     .withSuccessHandler(function() {
       loadGuests();
-      loadStats();
+      showToast('Guest restored', 'success');
     })
     .withFailureHandler(function(err) {
       showToast('Restore failed: ' + (err.message || 'Unknown error'), 'error');
@@ -2037,7 +2101,7 @@ function openViewGuest(id) {
     ? '<div class="view-guest-section-title">Allocations</div>' +
       '<div class="view-guest-alloc-list">' +
       evIds.map(function(eid) {
-        var ev = allEvents.find(function(e) { return e.id === eid; });
+        var ev = eventsById[eid];
         var icon = ev ? escapeAttr(ev.icon) : '';
         var name = escapeAttr(ev ? ev.name : eid);
         var count = Number(g[eid + '_guests']) || 0;
@@ -2188,12 +2252,13 @@ function saveRSVPEdits() {
       btn.disabled = false; btn.textContent = 'Save changes';
       closeViewModal();
       showToast('RSVP updated', 'success');
-      // Refresh local caches so the Submissions view reflects the change.
-      if (typeof loadStats === 'function') loadStats();
+      // Targeted refetch: just the RSVP tables + submitted codes. Stats are
+      // re-computed client-side from the fresh data — no getStats round-trip.
       Promise.all([
         gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
         gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {})
       ]).then(function() {
+        refreshStats();
         if (typeof applyRSVPFilters === 'function') applyRSVPFilters();
       });
     })
@@ -2510,7 +2575,6 @@ function uploadCSV() {
       document.getElementById('csv-results').innerHTML = html;
       clearCSV();
       loadGuests();
-      loadStats();
     })
     .withFailureHandler(function(err) {
       btn.textContent = 'Upload Guests'; btn.disabled = false;
