@@ -499,7 +499,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     </div>
 
     <div class="filter-bar">
-      <input type="text" id="guest-search" placeholder="Search name, contact, notes..." oninput="applyFilters()"/>
+      <input type="text" id="guest-search" placeholder="Search name, contact, notes..." oninput="debouncedApplyFilters()"/>
       <select id="filter-relationship" onchange="applyFilters()">
         <option value="">All Relationships</option>
         <option value="Bride's Family">Bride's Family</option>
@@ -570,7 +570,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   <div class="admin-panel" id="tab-rsvps">
     <!-- Filters -->
     <div class="filter-bar" id="rsvp-filter-bar">
-      <input type="text" id="rsvp-search" placeholder="Search name or code..." oninput="applyRSVPFilters()"/>
+      <input type="text" id="rsvp-search" placeholder="Search name or code..." oninput="debouncedApplyRSVPFilters()"/>
       <select id="rsvp-event-filter" onchange="applyRSVPFilters()">
         <option value="">All events</option>
       </select>
@@ -880,6 +880,21 @@ var _eventViewGuests = [];
 var _eventViewStats = {};
 var _activityEvents = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'];
 
+// ── Debounce (for search inputs so re-render doesn't fire per keystroke) ──
+function debounce(fn, ms) {
+  var t = null;
+  return function() {
+    var args = arguments, ctx = this;
+    if (t) clearTimeout(t);
+    t = setTimeout(function() { t = null; fn.apply(ctx, args); }, ms);
+  };
+}
+// Created lazily so they exist before applyFilters / applyRSVPFilters are defined.
+var debouncedApplyFilters     = function() { if (typeof applyFilters === 'function') _dApplyFilters(); };
+var debouncedApplyRSVPFilters = function() { if (typeof applyRSVPFilters === 'function') _dApplyRSVPFilters(); };
+var _dApplyFilters     = debounce(function() { applyFilters(); }, 180);
+var _dApplyRSVPFilters = debounce(function() { applyRSVPFilters(); }, 180);
+
 // ── HTML escaping for safe interpolation ──
 function escapeAttr(str) {
   return String(str || '').replace(/&/g, '&amp;').replace(/'/g, '&#39;')
@@ -1087,16 +1102,15 @@ function gasAsync(fnName) {
 
 function loadGuests() {
   document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
-  // Fetch guests first (required), then remaining data in parallel
-  gasAsync('getGuests').then(function(data) {
-    allGuests = data || [];
-    return Promise.all([
-      gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
-      gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {}),
-      gasAsync('getDuplicates').then(function(d) { allDuplicates = d || []; }).catch(function() {}),
-      gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
-    ]);
-  }).then(function() {
+  // All five fetches fan out in one round-trip rather than waterfall-ing
+  // getGuests → [4 siblings]. Render happens when every required piece is in.
+  Promise.all([
+    gasAsync('getGuests').then(function(d) { allGuests = d || []; }),
+    gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
+    gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {}),
+    gasAsync('getDuplicates').then(function(d) { allDuplicates = d || []; }).catch(function() {}),
+    gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
+  ]).then(function() {
     renderGuestView();
   }).catch(function(err) {
     showLoadError('guest-view-container', 'Load failed: ' + (err.message || 'Unknown error') + '. Tap Retry.', 'loadGuests');
@@ -1910,7 +1924,11 @@ function removeGuest(id) {
   if (!confirm('Remove this guest? They will be moved to the Deleted section and can be restored later.')) return;
   google.script.run
     .withSuccessHandler(function() {
-      setTimeout(function() { loadGuests(); loadStats(); }, 1000);
+      // Fire both refreshes without an artificial setTimeout; they're
+      // independent HTTP calls and will race + resolve in parallel.
+      loadGuests();
+      loadStats();
+      showToast('Guest moved to Deleted', 'success');
     })
     .withFailureHandler(function(err) {
       showToast('Delete failed: ' + (err.message || 'Unknown error'), 'error');

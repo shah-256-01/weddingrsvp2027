@@ -134,6 +134,18 @@ function doPost(e) {
       );
     }
     else throw new Error('Unknown action: ' + action);
+
+    // Any mutating action invalidates the admin read cache so the next
+    // getStats / getSubmittedCodes / getDuplicates reflects the new state.
+    const MUTATING_ACTIONS = [
+      'addGuest', 'updateGuest', 'deleteGuest', 'restoreGuest',
+      'bulkAddGuests', 'updateSeating', 'updateContact',
+      'submitRSVP', 'updateRSVP', 'markInviteSent',
+    ];
+    if (MUTATING_ACTIONS.indexOf(action) > -1) {
+      try { bumpAdminCacheVersion(); } catch (e) { /* best-effort */ }
+    }
+
     return jsonResponse({ ok: true, data: result });
   } catch (err) {
     return jsonResponse({ ok: false, error: err.message });
@@ -161,6 +173,39 @@ function sheetToObjects(sheet) {
   return data.slice(1).map(row =>
     Object.fromEntries(headers.map((h, i) => [h, row[i]]))
   );
+}
+
+// ── Admin read cache ─────────────────────────────────────
+// CacheService memoises the hottest read-only endpoints for 30 s so a burst
+// of admin clicks (open tab, switch view, save) doesn't re-scan the sheet
+// every time. Every mutation invalidates with bumpAdminCacheVersion() so
+// stale reads don't outlast the change.
+const ADMIN_CACHE_TTL_SEC = 30;
+const ADMIN_CACHE_VERSION_KEY = 'admin_cache_version';
+function _adminCacheVersion() {
+  const cache = CacheService.getScriptCache();
+  let v = cache.get(ADMIN_CACHE_VERSION_KEY);
+  if (!v) { v = String(Date.now()); cache.put(ADMIN_CACHE_VERSION_KEY, v, 21600); }
+  return v;
+}
+function bumpAdminCacheVersion() {
+  CacheService.getScriptCache().put(ADMIN_CACHE_VERSION_KEY, String(Date.now()), 21600);
+}
+function cachedRead(keyPrefix, fn) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const key = keyPrefix + ':' + _adminCacheVersion();
+    const hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+    const val = fn();
+    // CacheService has a 100KB limit per key — drop silently if oversize.
+    const json = JSON.stringify(val);
+    if (json.length < 95000) cache.put(key, json, ADMIN_CACHE_TTL_SEC);
+    return val;
+  } catch (e) {
+    // On any cache hiccup, fall through to a live read rather than erroring.
+    return fn();
+  }
 }
 
 // Prevent Google Sheets formula injection — prefix dangerous leading chars
@@ -1224,6 +1269,9 @@ function getRSVPsByFamily() {
 
 // ── getStats ──────────────────────────────────────────────
 function getStats() {
+  return cachedRead('getStats', _getStats);
+}
+function _getStats() {
   const guests   = getGuests();                // already excludes DELETED
   const activeGuestCodes = new Set(guests.map(g => String(g.invitation_code || '').toUpperCase().trim()));
 
@@ -1352,6 +1400,9 @@ function getStats() {
 // this report stays the same; the label in the admin UI reads "Duplicate
 // submissions" rather than "Families with multiple submissions".
 function getDuplicates() {
+  return cachedRead('getDuplicates', _getDuplicates);
+}
+function _getDuplicates() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
   const rows    = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
@@ -1392,6 +1443,9 @@ function getDuplicates() {
 // ── getSubmittedCodes ─────────────────────────────────────
 // Returns deduped list of invitation codes that have at least one active RSVP
 function getSubmittedCodes() {
+  return cachedRead('getSubmittedCodes', _getSubmittedCodes);
+}
+function _getSubmittedCodes() {
   const sheet = getSheet(TABS.rsvpByFamily);
   if (sheet.getLastRow() < 2) return [];
   const rows = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
