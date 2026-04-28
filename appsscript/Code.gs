@@ -1671,7 +1671,7 @@ function _templateRebuildEventsTab(ss, log) {
 
   const headers = ['id', 'name', 'date', 'time', 'venue', 'icon', 'active', 'seating'];
   const notes = {
-    id:      'Short letter code (e.g. L, S, A, G, W, B). Used throughout the system — do not change after guests have been added.',
+    id:      'Short event code (e.g. Lg, MS, Ma, MG, We, BT). Set by rebuildSheetToTemplate — don\'t edit by hand after guests have been added.',
     name:    'Full event name shown to guests on the website (e.g. Mehndi & Sangeet).',
     date:    'Human-readable date (e.g. 25 Dec 2026). Shown on guest cards. "TBC" is fine while planning.',
     time:    'Human-readable time (e.g. 4:00 PM). Shown on guest cards. "TBC" is fine while planning.',
@@ -1863,6 +1863,165 @@ function _templateRebuildRSVPEventTab(ss, log) {
 }
 
 // ── migrateToV2 ──────────────────────────────────────────
+// ── migrateEventIdsToV5 ───────────────────────────────────
+// One-shot, idempotent migration that rewrites legacy single-letter event
+// IDs (L, S, A, G, W, B) to their two-letter replacements (Lg, MS, Ma,
+// MG, We, BT) across every tab. Needed because _templateRebuildEventsTab
+// preserves Events-sheet rows by default, so a rebuildSheetToTemplate
+// after the ID rename leaves the Events sheet on the old IDs while the
+// rest of the schema (column names, EVENT_IDS constant) moves to the new
+// ones. Symptoms of the mismatch: admins add a guest, the guest visits
+// the RSVP page and sees no events.
+//
+// Safe to re-run — every step checks "is the old key still present?"
+// before mutating, so a second run is a no-op.
+function migrateEventIdsToV5() {
+  const OLD_TO_NEW = { L: 'Lg', S: 'MS', A: 'Ma', G: 'MG', W: 'We', B: 'BT' };
+  const log = [];
+  const errors = [];
+
+  function tryStep(label, fn) {
+    try { fn(); }
+    catch (e) { errors.push(label + ': ' + e.message); log.push('✗ ' + label + ' — ' + e.message); }
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    // ── Events.id ───────────────────────────────────────
+    tryStep('Events.id', function() {
+      const sheet = getSheet(TABS.events);
+      if (sheet.getLastRow() < 2) { log.push('Events: empty, nothing to migrate.'); return; }
+      const lastRow = sheet.getLastRow();
+      const range = sheet.getRange(2, 1, lastRow - 1, 1);
+      const ids = range.getValues();
+      let n = 0;
+      for (let i = 0; i < ids.length; i++) {
+        const v = String(ids[i][0] || '').trim();
+        if (OLD_TO_NEW[v]) { ids[i][0] = OLD_TO_NEW[v]; n++; }
+      }
+      if (n > 0) range.setValues(ids);
+      log.push('Events.id: ' + n + ' rows migrated.');
+    });
+
+    // ── Guests.events column + per-event allocation columns ──
+    tryStep('Guests', function() {
+      const sheet = getSheet(TABS.guests);
+      if (sheet.getLastRow() < 2) { log.push('Guests: empty, nothing to migrate.'); return; }
+      const lastCol = sheet.getLastColumn();
+      const lastRow = sheet.getLastRow();
+      const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      const data    = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+      const evCol = headers.indexOf('events');
+
+      // Remap events-list cells.
+      let eventsRemapped = 0;
+      if (evCol > -1) {
+        for (let r = 0; r < data.length; r++) {
+          const before = String(data[r][evCol] || '');
+          if (!before) continue;
+          const after = before.split(',').map(function(s) {
+            const id = s.trim();
+            return OLD_TO_NEW[id] || id;
+          }).filter(Boolean).join(',');
+          if (after !== before) { data[r][evCol] = after; eventsRemapped++; }
+        }
+      }
+
+      // Copy {old}_guests / {old}_table values into {new}_guests / {new}_table
+      // when both columns exist. Don't overwrite a non-empty new-named cell.
+      let allocCopied = 0;
+      Object.keys(OLD_TO_NEW).forEach(function(oldId) {
+        const newId = OLD_TO_NEW[oldId];
+        ['_guests', '_table'].forEach(function(suffix) {
+          const oldCol = headers.indexOf(oldId + suffix);
+          const newCol = headers.indexOf(newId + suffix);
+          if (oldCol < 0 || newCol < 0) return;
+          for (let r = 0; r < data.length; r++) {
+            const oldVal = data[r][oldCol];
+            if (oldVal === '' || oldVal === null || oldVal === undefined) continue;
+            if (data[r][newCol] === '' || data[r][newCol] === null || data[r][newCol] === undefined) {
+              data[r][newCol] = oldVal;
+              allocCopied++;
+            }
+            data[r][oldCol] = '';
+          }
+        });
+      });
+
+      if (eventsRemapped > 0 || allocCopied > 0) {
+        sheet.getRange(2, 1, lastRow - 1, lastCol).setValues(data);
+      }
+      log.push('Guests.events: ' + eventsRemapped + ' rows remapped; allocations copied: ' + allocCopied + ' cells.');
+    });
+
+    // ── RSVPs_by_family per-event columns ──
+    tryStep('RSVPs_by_family', function() {
+      const sheet = getSheet(TABS.rsvpByFamily);
+      if (sheet.getLastRow() < 2) { log.push('RSVPs_by_family: empty, nothing to migrate.'); return; }
+      const lastCol = sheet.getLastColumn();
+      const lastRow = sheet.getLastRow();
+      const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      const data    = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+      const SUFFIXES = [' Attending', ' Guests', ' Notes', ' Names'];
+      let copied = 0;
+      Object.keys(OLD_TO_NEW).forEach(function(oldId) {
+        const newId = OLD_TO_NEW[oldId];
+        SUFFIXES.forEach(function(suffix) {
+          const oldCol = headers.indexOf(oldId + suffix);
+          const newCol = headers.indexOf(newId + suffix);
+          if (oldCol < 0 || newCol < 0) return;
+          for (let r = 0; r < data.length; r++) {
+            const oldVal = data[r][oldCol];
+            if (oldVal === '' || oldVal === null || oldVal === undefined) continue;
+            if (data[r][newCol] === '' || data[r][newCol] === null || data[r][newCol] === undefined) {
+              data[r][newCol] = oldVal;
+              copied++;
+            }
+            data[r][oldCol] = '';
+          }
+        });
+      });
+
+      if (copied > 0) sheet.getRange(2, 1, lastRow - 1, lastCol).setValues(data);
+      log.push('RSVPs_by_family: ' + copied + ' cells migrated.');
+    });
+
+    // ── RSVPs_by_event.event_id ──
+    tryStep('RSVPs_by_event', function() {
+      const sheet = getSheet(TABS.rsvpByEvent);
+      if (sheet.getLastRow() < 2) { log.push('RSVPs_by_event: empty, nothing to migrate.'); return; }
+      const lastCol = sheet.getLastColumn();
+      const lastRow = sheet.getLastRow();
+      const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      const idCol = headers.indexOf('event_id');
+      if (idCol < 0) { log.push('RSVPs_by_event: no event_id column, skipping.'); return; }
+      const range = sheet.getRange(2, idCol + 1, lastRow - 1, 1);
+      const ids = range.getValues();
+      let n = 0;
+      for (let i = 0; i < ids.length; i++) {
+        const v = String(ids[i][0] || '').trim();
+        if (OLD_TO_NEW[v]) { ids[i][0] = OLD_TO_NEW[v]; n++; }
+      }
+      if (n > 0) range.setValues(ids);
+      log.push('RSVPs_by_event.event_id: ' + n + ' rows migrated.');
+    });
+
+    bumpAdminCacheVersion();
+    log.push('Cache version bumped — next admin read is fresh.');
+  } finally {
+    lock.releaseLock();
+  }
+
+  if (errors.length) {
+    Logger.log('migrateEventIdsToV5 finished with errors:\n' + log.join('\n'));
+    throw new Error('Migration completed with errors: ' + errors.join(' | '));
+  }
+  Logger.log('migrateEventIdsToV5 OK:\n' + log.join('\n'));
+  return log;
+}
+
 // One-shot migration to add new columns for name capture + seating features.
 // Safe to run multiple times — only adds missing columns, never overwrites.
 // Run once from Apps Script editor, then you can delete this function.

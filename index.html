@@ -1038,8 +1038,20 @@ function loadGuestPage() {
 function showRSVPFlow() {
   document.getElementById('contact-screen').classList.add('hidden');
 
-  // Filter out event IDs that don't exist in EVENTS array
-  currentEventIds = currentEventIds.filter(id => EVENTS.find(e => e.id === id));
+  // Filter out event IDs that don't exist in EVENTS array. Log dropped IDs
+  // so the next time we hit a sheet/code event-ID mismatch (e.g. legacy
+  // single-letter IDs in Events sheet vs new 2-letter EVENT_IDS) the
+  // diagnosis takes 30s in the browser console instead of a code dive.
+  var _knownEventIds = new Set(EVENTS.map(function(e) { return e.id; }));
+  var _droppedEventIds = currentEventIds.filter(function(id) { return !_knownEventIds.has(id); });
+  if (_droppedEventIds.length) {
+    console.warn(
+      'Guest event IDs not found in EVENTS — likely a sheet/code ID mismatch. ' +
+      'Run migrateEventIdsToV5() in Apps Script.',
+      'dropped:', _droppedEventIds, 'known:', Array.from(_knownEventIds)
+    );
+  }
+  currentEventIds = currentEventIds.filter(id => _knownEventIds.has(id));
 
   // Edge case: guest has no valid events to RSVP for
   if (currentEventIds.length === 0) {

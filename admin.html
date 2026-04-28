@@ -1082,6 +1082,20 @@ function loadEvents() {
         // Cache events locally — they change rarely, and this lets the next
         // admin load render events immediately without a server round-trip.
         try { localStorage.setItem('weddingAdmin:events:v1', JSON.stringify({ at: Date.now(), data: allEvents })); } catch (e) {}
+        // Detect a stale Events-sheet that still has legacy single-letter
+        // IDs (L/S/A/G/W/B). If we add guests against those IDs they'll
+        // silently disappear when the guest tries to RSVP — surface this
+        // loudly the moment the admin lands on the dashboard.
+        var legacyIds = (allEvents || [])
+          .map(function(ev) { return String(ev.id || '').trim(); })
+          .filter(function(id) { return /^[LSAGWB]$/.test(id); });
+        if (legacyIds.length && typeof showToast === 'function') {
+          showToast(
+            'Events sheet still has legacy IDs (' + legacyIds.join(', ') + '). ' +
+            'Run migrateEventIdsToV5() in Apps Script before adding guests.',
+            'error', 12000
+          );
+        }
         renderCSVTab();
         renderSettingsTab();
         if (allGuests.length) renderGuestView();
