@@ -2401,11 +2401,12 @@ function copyGenCode() {
 }
 
 function downloadCSVTemplate() {
-  // Column order mirrors the Guests tab after rebuildSheetToTemplate(): all
-  // fixed identity/contact columns first, then one _guests column per event,
-  // then one _table column per event. invitation_code is optional: leave
-  // blank to auto-generate a unique 6-char code per guest; populate only
-  // when you want a specific code (6 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ,
+  // Column order: fixed identity/contact columns first, then one
+  // "{Event Name} Guests" column per event, then one "{Event Name} Table"
+  // column per event. The CSV uses friendly event names; the parser remaps
+  // them to internal "{id}_guests" / "{id}_table" sheet keys on upload.
+  // invitation_code is optional: leave blank to auto-generate a unique
+  // 6-char code per guest (6 chars from 23456789ABCDEFGHJKMNPQRSTUVWXYZ,
   // excludes 0/O/1/I/L).
   var events = (allEvents && allEvents.length) ? allEvents : [
     { id: 'Lg', name: 'Lagnotri' },
