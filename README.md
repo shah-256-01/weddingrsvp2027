@@ -34,24 +34,36 @@ Admin panel: `YOUR_WEB_APP_URL?page=admin`
 
 ## Managing Guests
 
-- Use admin panel → **CSV Upload** tab for bulk guest import
+- Use admin panel → **CSV Upload** tab for bulk guest import, or click **Download Template** to get a pre-formatted file
 - Or add rows directly to the **Guests** tab in the sheet
-- Invitation codes = event IDs joined + `2027` (e.g. `LSW2027`)
 
 ### CSV Upload Format
 
+Fixed columns (must appear in this order):
+
 ```
-first_name, last_name, phone, email, relationship, notes, events, L_adults, L_children, S_adults, S_children, A_adults, A_children, G_adults, G_children, W_adults, W_children, B_adults, B_children
+first_name, last_name, phone, email, relationship, is_overseas, notes, events, invitation_code
 ```
 
-Example:
+Followed by one `{Event Name} Guests` column and one `{Event Name} Table` column per event:
+
 ```
-Priya, Sharma, +91 98765 43210, priya@email.com, Bride's Family, VIP guest, "L,S,W", 2, 1, 2, 1, 0, 0, 0, 0, 3, 1, 0, 0
+Lagnotri Guests, Mehendi & Sangeet Guests, Mandvo Guests, Meet & Greet Guests, Wedding Guests, Black Tie Guests,
+Lagnotri Table, Mehendi & Sangeet Table, Mandvo Table, Meet & Greet Table, Wedding Table, Black Tie Table
 ```
 
-- `events` column — comma-separated event IDs (e.g. `L,S,W`)
-- `invitation_code` is auto-generated from the events column
-- Allocation columns — max adults/children for each event (0 = not invited)
+Example row:
+```
+Priya,Sharma,+254700000000,priya@email.com,Bride's Family,FALSE,Vegetarian,"MS,We,BT",,0,2,0,0,2,2,,,,,,
+```
+
+- `is_overseas` — `TRUE` or `FALSE` (overseas badge shown in admin and RSVP UI)
+- `events` — comma-separated event IDs (e.g. `MS,We,BT`); auto-derived from whichever `Guests` columns are > 0
+- `invitation_code` — leave blank to auto-generate; or supply a 6-char code (from `23456789ABCDEFGHJKMNPQRSTUVWXYZ`)
+- `{Event Name} Guests` — max guest count for that event; 0 means not invited
+- `{Event Name} Table` — optional table assignment (leave blank if not needed)
+
+A ready-to-use template file is included at `guest-import-template.csv`.
 
 ## Updating Events
 
