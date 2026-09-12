@@ -779,15 +779,21 @@ function escapeAttr(str) {
 /* ══════════════════════════════════════════════
    BACKEND COMMUNICATION
 ══════════════════════════════════════════════ */
-async function fetchEvents() {
+async function postAction(action, payload) {
   const controller = new AbortController();
   const timeout = setTimeout(function() { controller.abort(); }, 25000);
   try {
-    const res = await fetch(SCRIPT_URL, { signal: controller.signal });
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: action, payload: payload || {} }),
+      signal: controller.signal,
+    });
     clearTimeout(timeout);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'Failed to load events');
+    if (!json.ok) throw new Error(json.error || (action + ' failed'));
     return json.data;
   } catch (err) {
     clearTimeout(timeout);
@@ -796,24 +802,24 @@ async function fetchEvents() {
   }
 }
 
+async function fetchEvents() {
+  return postAction('getEvents', {});
+}
+
 async function validateGuest(firstName, lastName, code) {
-  const params = new URLSearchParams({
-    action: 'validate',
+  return postAction('validate', {
     code: code.toUpperCase(),
     firstName: firstName.trim(),
     lastName: lastName.trim(),
   });
-  const res = await fetch(SCRIPT_URL + '?' + params);
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Validation failed');
-  return json.data;
 }
 
 async function saveContactDetails(email, whatsapp) {
   try {
     await fetch(SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'updateContact',
         payload: {
@@ -825,7 +831,6 @@ async function saveContactDetails(email, whatsapp) {
           lastName:  currentGuest.lastName,
         },
       }),
-      mode: 'no-cors',
     });
   } catch (err) {
     console.warn('Contact save post failed:', err);
@@ -835,15 +840,8 @@ async function saveContactDetails(email, whatsapp) {
   for (var i = 0; i < delays.length; i++) {
     await new Promise(function(r) { setTimeout(r, delays[i]); });
     try {
-      var params = new URLSearchParams({
-        action: 'validate', code: currentCode,
-        firstName: currentGuest.firstName, lastName: currentGuest.lastName,
-      });
-      var res = await fetch(SCRIPT_URL + '?' + params);
-      var json = await res.json();
-      if (json.ok && json.data && json.data.email) {
-        return json.data;
-      }
+      var data = await validateGuest(currentGuest.firstName, currentGuest.lastName, currentCode);
+      if (data && data.email) return data;
     } catch (e) {}
   }
   throw new Error('Could not verify contact details were saved. Please try again.');
@@ -852,9 +850,9 @@ async function saveContactDetails(email, whatsapp) {
 function postRSVP(payload) {
   return fetch(SCRIPT_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'omit',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: 'submitRSVP', payload }),
-    mode: 'no-cors',
   });
 }
 
@@ -1741,16 +1739,8 @@ async function submitRSVP() {
   for (var i = 0; i < delays.length; i++) {
     await new Promise(function(r) { setTimeout(r, delays[i]); });
     try {
-      var params = new URLSearchParams({
-        action: 'validate', code: currentCode,
-        firstName: currentGuest.firstName, lastName: currentGuest.lastName,
-      });
-      var res = await fetch(SCRIPT_URL + '?' + params);
-      var json = await res.json();
-      if (json.ok && json.data && json.data.existingRSVP) {
-        verified = true;
-        break;
-      }
+      var data = await validateGuest(currentGuest.firstName, currentGuest.lastName, currentCode);
+      if (data && data.existingRSVP) { verified = true; break; }
     } catch (e) {}
   }
 

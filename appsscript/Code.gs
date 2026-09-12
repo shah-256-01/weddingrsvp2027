@@ -123,6 +123,16 @@ function doPost(e) {
     else if (action === 'getMessageConfig') result = getMessageConfig();
     else if (action === 'saveMessageConfig') result = saveMessageConfig(payload);
     else if (action === 'checkPin')         result = { ok: true };
+    else if (action === 'validate') {
+      const rateKey = 'validate_' + String(payload.code || '').toUpperCase().trim();
+      const cache = CacheService.getScriptCache();
+      const attempts = parseInt(cache.get(rateKey) || '0', 10);
+      if (attempts >= 10) throw new Error('Too many attempts. Please wait a minute and try again.');
+      cache.put(rateKey, String(attempts + 1), 60);
+      result = validateGuest(
+        payload.code || '', payload.firstName || '', payload.lastName || ''
+      );
+    }
     else if (action === 'updateContact') {
       const rateKey = 'contact_' + String(payload.guestId || '').trim();
       const cache = CacheService.getScriptCache();
