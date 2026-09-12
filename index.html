@@ -780,11 +780,20 @@ function escapeAttr(str) {
    BACKEND COMMUNICATION
 ══════════════════════════════════════════════ */
 async function fetchEvents() {
-  const res = await fetch(SCRIPT_URL);
-  if (!res.ok) throw new Error('Failed to load events');
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Failed to load events');
-  return json.data;
+  const controller = new AbortController();
+  const timeout = setTimeout(function() { controller.abort(); }, 25000);
+  try {
+    const res = await fetch(SCRIPT_URL, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Failed to load events');
+    return json.data;
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') throw new Error('Request timed out after 25s');
+    throw err;
+  }
 }
 
 async function validateGuest(firstName, lastName, code) {
@@ -869,7 +878,8 @@ async function init() {
     hideLoadingSpinner();
   } catch (err) {
     hideLoadingSpinner();
-    showEventLoadError('Unable to load event data. Please refresh the page.');
+    console.error('Event load failed:', err);
+    showEventLoadError('Unable to load event data (' + (err.message || 'unknown') + '). Please refresh the page.');
   }
 }
 
