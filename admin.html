@@ -1228,11 +1228,20 @@ function setGuestView(view) {
   renderGuestView();
 }
 
+var _lastGuestFilterFingerprint = '';
 function rebuildFilteredGuests() {
   var q = (document.getElementById('guest-search').value || '').toLowerCase();
   var relFilter = document.getElementById('filter-relationship').value;
   var rsvpFilter = document.getElementById('filter-rsvp').value;
   var overseasFilter = document.getElementById('filter-overseas').value;
+
+  // Reset pagination counters if the filter/search changed since last render.
+  var fp = [q, relFilter, rsvpFilter, overseasFilter].join('|');
+  if (fp !== _lastGuestFilterFingerprint) {
+    _lastGuestFilterFingerprint = fp;
+    _rsvpStatusShown = { submitted: RSVP_STATUS_PAGE, pending: RSVP_STATUS_PAGE };
+    _msgListShown = MSG_LIST_PAGE;
+  }
 
   return allGuests.filter(function(g) {
     if (q && !([g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
@@ -1412,6 +1421,12 @@ function renderGroupedView(guests, container) {
 }
 
 // ── RSVP Status View ───────────────────────
+var RSVP_STATUS_PAGE = 50;
+var _rsvpStatusShown = { submitted: RSVP_STATUS_PAGE, pending: RSVP_STATUS_PAGE };
+function showMoreRSVPStatus(which) {
+  _rsvpStatusShown[which] += RSVP_STATUS_PAGE;
+  renderGuestView();
+}
 function renderRSVPStatusView(guests, container) {
   var duplicateCodes = {};
   allDuplicates.forEach(function(d) { duplicateCodes[d.code] = true; });
@@ -1438,6 +1453,18 @@ function renderRSVPStatusView(guests, container) {
     '</div>';
   }
 
+  function renderColumn(list, which) {
+    var shown = Math.min(_rsvpStatusShown[which], list.length);
+    var rows = list.slice(0, shown).map(guestRow).join('');
+    var more = list.length - shown;
+    if (more > 0) {
+      rows += '<div style="padding:.6rem;text-align:center;">' +
+        '<button class="btn btn-secondary btn-sm" onclick="showMoreRSVPStatus(\'' + which + '\')">' +
+        'Show ' + Math.min(more, RSVP_STATUS_PAGE) + ' more (' + more + ' hidden)</button></div>';
+    }
+    return rows;
+  }
+
   var dupHtml = '';
   if (allDuplicates.length > 0) {
     var dupItems = allDuplicates.map(function(d) {
@@ -1462,9 +1489,9 @@ function renderRSVPStatusView(guests, container) {
   container.innerHTML =
     '<div class="status-grid">' +
     '<div class="admin-card"><div class="status-col-title" style="color:var(--green);">\u2713 Submitted <span class="status-col-count">(' + submitted.length + ')</span></div>' +
-    (submitted.length ? submitted.map(guestRow).join('') : emptyState) + '</div>' +
+    (submitted.length ? renderColumn(submitted, 'submitted') : emptyState) + '</div>' +
     '<div class="admin-card"><div class="status-col-title" style="color:var(--gold);">\u23F3 Pending <span class="status-col-count">(' + pending.length + ')</span></div>' +
-    (pending.length ? pending.map(guestRow).join('') : emptyDone) + '</div></div>' + dupHtml;
+    (pending.length ? renderColumn(pending, 'pending') : emptyDone) + '</div></div>' + dupHtml;
 }
 
 // ── By Event View ─────────────────────────────
@@ -3620,7 +3647,32 @@ function renderMessagesList() {
     return;
   }
 
-  container.innerHTML = guests.map(function(g) { return buildMsgRow(g, mode, skips, nextUp); }).join('');
+  // Reset the visible-row counter whenever the messages filter/mode changes
+  // (independent of the Guests-tab filter fingerprint so switching between
+  // Invite and Chase also resets).
+  var msgFp = mode + '|' + rel + '|' + (mode === 'invite' ? (document.getElementById('msg-filter-sent') || {}).value || '' : '');
+  if (msgFp !== _lastMsgFingerprint) {
+    _lastMsgFingerprint = msgFp;
+    _msgListShown = MSG_LIST_PAGE;
+  }
+
+  var shown = Math.min(_msgListShown, guests.length);
+  var html  = guests.slice(0, shown).map(function(g) { return buildMsgRow(g, mode, skips, nextUp); }).join('');
+  var more  = guests.length - shown;
+  if (more > 0) {
+    html += '<div style="padding:.8rem;text-align:center;">' +
+      '<button class="btn btn-secondary btn-sm" onclick="showMoreMessages()">' +
+      'Show ' + Math.min(more, MSG_LIST_PAGE) + ' more (' + more + ' hidden)</button></div>';
+  }
+  container.innerHTML = html;
+}
+
+var MSG_LIST_PAGE = 50;
+var _msgListShown = MSG_LIST_PAGE;
+var _lastMsgFingerprint = '';
+function showMoreMessages() {
+  _msgListShown += MSG_LIST_PAGE;
+  renderMessagesList();
 }
 
 function buildMsgProgress(opts) {
