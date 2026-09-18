@@ -1984,8 +1984,17 @@ function saveGuest() {
         _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
         closeGuestModal();
-        loadGuests();
+        // Optimistic UI: merge payload into local guest and rerender
+        // immediately, then refresh in background.
+        for (var i = 0; i < allGuests.length; i++) {
+          if (allGuests[i].id === guestId) {
+            for (var k in payload) if (Object.prototype.hasOwnProperty.call(payload, k)) allGuests[i][k] = payload[k];
+            break;
+          }
+        }
+        try { renderGuestView(); refreshStats(); } catch (e) {}
         showToast('Guest updated', 'success');
+        setTimeout(function() { loadGuests(); }, 100);
       })
       .withFailureHandler(function(err) {
         _guestSaving = false;
@@ -1995,12 +2004,20 @@ function saveGuest() {
       .updateGuest(payload);
   } else {
     google.script.run
-      .withSuccessHandler(function() {
+      .withSuccessHandler(function(newGuest) {
         _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
         closeGuestModal();
-        loadGuests();
+        // Optimistic UI: push the returned guest into local state and
+        // rerender immediately so the admin sees it without waiting for
+        // a full loadGuests round-trip. Refresh in the background so
+        // derived data (duplicates, stats) catches up.
+        if (newGuest && newGuest.id) {
+          allGuests.push(newGuest);
+          try { renderGuestView(); refreshStats(); } catch (e) {}
+        }
         showToast('Guest added', 'success');
+        setTimeout(function() { loadGuests(); }, 100);
       })
       .withFailureHandler(function(err) {
         _guestSaving = false;
