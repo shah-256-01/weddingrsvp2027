@@ -1920,48 +1920,70 @@ function migrateEventIdsToV5() {
       if (sheet.getLastRow() < 2) { log.push('Guests: empty, nothing to migrate.'); return; }
       const lastCol = sheet.getLastColumn();
       const lastRow = sheet.getLastRow();
+      const numRows = lastRow - 1;
       const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-      const data    = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
-      const evCol = headers.indexOf('events');
 
-      // Remap events-list cells.
+      // Remap events-list cells (single column).
       let eventsRemapped = 0;
+      const evCol = headers.indexOf('events');
       if (evCol > -1) {
-        for (let r = 0; r < data.length; r++) {
-          const before = String(data[r][evCol] || '');
-          if (!before) continue;
+        const evRange = sheet.getRange(2, evCol + 1, numRows, 1);
+        const evVals = evRange.getValues();
+        const evOut = new Array(numRows);
+        let touched = false;
+        for (let r = 0; r < numRows; r++) {
+          const before = String(evVals[r][0] || '');
+          if (!before) { evOut[r] = [evVals[r][0]]; continue; }
           const after = before.split(',').map(function(s) {
             const id = s.trim();
             return OLD_TO_NEW[id] || id;
           }).filter(Boolean).join(',');
-          if (after !== before) { data[r][evCol] = after; eventsRemapped++; }
+          if (after !== before) { evOut[r] = [after]; eventsRemapped++; touched = true; }
+          else { evOut[r] = [before]; }
         }
+        if (touched) evRange.setValues(evOut);
       }
 
       // Copy {old}_guests / {old}_table values into {new}_guests / {new}_table
-      // when both columns exist. Don't overwrite a non-empty new-named cell.
+      // column-by-column to avoid triggering validation on unrelated columns.
       let allocCopied = 0;
       Object.keys(OLD_TO_NEW).forEach(function(oldId) {
         const newId = OLD_TO_NEW[oldId];
         ['_guests', '_table'].forEach(function(suffix) {
-          const oldCol = headers.indexOf(oldId + suffix);
-          const newCol = headers.indexOf(newId + suffix);
-          if (oldCol < 0 || newCol < 0) return;
-          for (let r = 0; r < data.length; r++) {
-            const oldVal = data[r][oldCol];
-            if (oldVal === '' || oldVal === null || oldVal === undefined) continue;
-            if (data[r][newCol] === '' || data[r][newCol] === null || data[r][newCol] === undefined) {
-              data[r][newCol] = oldVal;
-              allocCopied++;
+          const oldColIdx = headers.indexOf(oldId + suffix);
+          const newColIdx = headers.indexOf(newId + suffix);
+          if (oldColIdx < 0 || newColIdx < 0) return;
+          const oldRange = sheet.getRange(2, oldColIdx + 1, numRows, 1);
+          const newRange = sheet.getRange(2, newColIdx + 1, numRows, 1);
+          const oldVals = oldRange.getValues();
+          const newVals = newRange.getValues();
+          const outNew = new Array(numRows);
+          const outOld = new Array(numRows);
+          let touched = false;
+          for (let r = 0; r < numRows; r++) {
+            const ov = oldVals[r][0];
+            const nv = newVals[r][0];
+            if (ov === '' || ov === null || ov === undefined) {
+              outNew[r] = [nv];
+              outOld[r] = [ov];
+              continue;
             }
-            data[r][oldCol] = '';
+            if (nv === '' || nv === null || nv === undefined) {
+              outNew[r] = [ov];
+              allocCopied++;
+            } else {
+              outNew[r] = [nv];
+            }
+            outOld[r] = [''];
+            touched = true;
+          }
+          if (touched) {
+            newRange.setValues(outNew);
+            oldRange.setValues(outOld);
           }
         });
       });
 
-      if (eventsRemapped > 0 || allocCopied > 0) {
-        sheet.getRange(2, 1, lastRow - 1, lastCol).setValues(data);
-      }
       log.push('Guests.events: ' + eventsRemapped + ' rows remapped; allocations copied: ' + allocCopied + ' cells.');
     });
 
@@ -1971,30 +1993,48 @@ function migrateEventIdsToV5() {
       if (sheet.getLastRow() < 2) { log.push('RSVPs_by_family: empty, nothing to migrate.'); return; }
       const lastCol = sheet.getLastColumn();
       const lastRow = sheet.getLastRow();
+      const numRows = lastRow - 1;
       const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-      const data    = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
       const SUFFIXES = [' Attending', ' Guests', ' Notes', ' Names'];
       let copied = 0;
       Object.keys(OLD_TO_NEW).forEach(function(oldId) {
         const newId = OLD_TO_NEW[oldId];
         SUFFIXES.forEach(function(suffix) {
-          const oldCol = headers.indexOf(oldId + suffix);
-          const newCol = headers.indexOf(newId + suffix);
-          if (oldCol < 0 || newCol < 0) return;
-          for (let r = 0; r < data.length; r++) {
-            const oldVal = data[r][oldCol];
-            if (oldVal === '' || oldVal === null || oldVal === undefined) continue;
-            if (data[r][newCol] === '' || data[r][newCol] === null || data[r][newCol] === undefined) {
-              data[r][newCol] = oldVal;
-              copied++;
+          const oldColIdx = headers.indexOf(oldId + suffix);
+          const newColIdx = headers.indexOf(newId + suffix);
+          if (oldColIdx < 0 || newColIdx < 0) return;
+          const oldRange = sheet.getRange(2, oldColIdx + 1, numRows, 1);
+          const newRange = sheet.getRange(2, newColIdx + 1, numRows, 1);
+          const oldVals = oldRange.getValues();
+          const newVals = newRange.getValues();
+          const outNew = new Array(numRows);
+          const outOld = new Array(numRows);
+          let touched = false;
+          for (let r = 0; r < numRows; r++) {
+            const ov = oldVals[r][0];
+            const nv = newVals[r][0];
+            if (ov === '' || ov === null || ov === undefined) {
+              outNew[r] = [nv];
+              outOld[r] = [ov];
+              continue;
             }
-            data[r][oldCol] = '';
+            if (nv === '' || nv === null || nv === undefined) {
+              outNew[r] = [ov];
+              copied++;
+            } else {
+              outNew[r] = [nv];
+            }
+            outOld[r] = [''];
+            touched = true;
+          }
+          if (touched) {
+            newRange.setValues(outNew);
+            oldRange.setValues(outOld);
           }
         });
       });
 
-      if (copied > 0) sheet.getRange(2, 1, lastRow - 1, lastCol).setValues(data);
       log.push('RSVPs_by_family: ' + copied + ' cells migrated.');
     });
 
