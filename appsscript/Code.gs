@@ -85,6 +85,7 @@ function doPost(e) {
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
       'generateCode', 'markInviteSent', 'updateRSVP', 'getBootstrap',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
+      'deleteRSVPSubmission',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -126,6 +127,7 @@ function doPost(e) {
     else if (action === 'bulkDelete')       result = bulkDelete(payload);
     else if (action === 'bulkUpdate')       result = bulkUpdate(payload);
     else if (action === 'bulkMarkInviteSent') result = bulkMarkInviteSent(payload);
+    else if (action === 'deleteRSVPSubmission') result = deleteRSVPSubmission(payload);
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'validate') {
       const rateKey = 'validate_' + String(payload.code || '').toUpperCase().trim();
@@ -157,6 +159,7 @@ function doPost(e) {
       'bulkAddGuests', 'updateSeating', 'updateContact',
       'submitRSVP', 'updateRSVP', 'markInviteSent',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
+      'deleteRSVPSubmission',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
       try { bumpAdminCacheVersion(); } catch (e) { /* best-effort */ }
@@ -1093,6 +1096,59 @@ function bulkMarkInviteSent(payload) {
     });
     range.setValues(patched);
     return { updated: Object.keys(resolved.rows).length, cleared: clear, missing: resolved.missing };
+  } finally { lock.releaseLock(); }
+}
+
+// Admin utility: mark one specific submission row (identified by invitation
+// code + timestamp) as DELETED in RSVPs_by_family AND matching rows in
+// RSVPs_by_event. Used by the duplicate resolver in the RSVP-status view so
+// admins don't have to hand-edit the sheet.
+function deleteRSVPSubmission(payload) {
+  const code = String((payload && payload.code) || '').toUpperCase().trim();
+  const ts   = String((payload && payload.timestamp) || '').trim();
+  if (!code || !ts) throw new Error('code and timestamp required.');
+
+  function markSheet(tabName) {
+    const sheet = getSheet(tabName);
+    if (sheet.getLastRow() < 2) return 0;
+    const lastCol = sheet.getLastColumn();
+    const lastRow = sheet.getLastRow();
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    const codeIdx   = headers.indexOf('invitation_code');
+    const tsIdx     = headers.indexOf('timestamp');
+    const statusIdx = headers.indexOf('status');
+    if (codeIdx === -1 || tsIdx === -1 || statusIdx === -1) return 0;
+    const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    // Compare timestamps as ISO strings — client sends what it received
+    // from the server originally so string equality works for both real
+    // ISO strings and Sheets-stored Date objects (Date.toString differs
+    // from ISO, so fall back to comparing as Date-ms if the raw string
+    // match misses).
+    const targetMs = Date.parse(ts);
+    const statusCol = sheet.getRange(2, statusIdx + 1, lastRow - 1, 1);
+    const statusVals = statusCol.getValues();
+    let updated = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][codeIdx] || '').toUpperCase().trim() !== code) continue;
+      if (String(statusVals[i][0] || '').toUpperCase() === 'DELETED') continue;
+      const rowTs = data[i][tsIdx];
+      const rowStr = String(rowTs || '').trim();
+      const rowMs  = rowTs instanceof Date ? rowTs.getTime() : Date.parse(rowStr);
+      if (rowStr === ts || (isFinite(targetMs) && isFinite(rowMs) && rowMs === targetMs)) {
+        statusVals[i][0] = 'DELETED';
+        updated++;
+      }
+    }
+    if (updated > 0) statusCol.setValues(statusVals);
+    return updated;
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const famDeleted = markSheet(TABS.rsvpByFamily);
+    const evtDeleted = markSheet(TABS.rsvpByEvent);
+    return { rowsDeleted: famDeleted + evtDeleted, byFamily: famDeleted, byEvent: evtDeleted };
   } finally { lock.releaseLock(); }
 }
 

@@ -517,6 +517,14 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <option value="overseas">Overseas Only</option>
         <option value="local">Local Only</option>
       </select>
+      <select id="guest-sort" onchange="applyFilters()" title="Sort order">
+        <option value="added-desc">Recently added</option>
+        <option value="added-asc">Oldest first</option>
+        <option value="name-asc">A &rarr; Z</option>
+        <option value="name-desc">Z &rarr; A</option>
+        <option value="invited-desc">Last invited</option>
+        <option value="invited-asc">Not-yet invited first</option>
+      </select>
     </div>
 
     <div id="guest-view-container">
@@ -936,6 +944,18 @@ function _refreshBulkBar() {
   var cnt = document.getElementById('bulk-count');
   if (cnt) cnt.textContent = String(_bulkCount());
 }
+function deleteDupSubmission(code, timestamp) {
+  if (!code || !timestamp) return;
+  if (!confirm('Mark this earlier submission as deleted? Stats will refresh.')) return;
+  google.script.run
+    .withSuccessHandler(function(res) {
+      showToast('Deleted ' + (res && res.rowsDeleted || 0) + ' submission row(s).', 'success');
+      loadGuests();
+    })
+    .withFailureHandler(function(err) { showToast('Delete failed: ' + (err && err.message), 'error'); })
+    .deleteRSVPSubmission({ code: code, timestamp: timestamp });
+}
+
 function _renderBulkBar() {
   var relOptions = ["Bride’s Family","Groom’s Family","Bride’s Friend","Groom’s Friend"]
     .map(function(r) { return '<option value="' + escapeAttr(r) + '">' + escapeAttr(r) + '</option>'; }).join('');
@@ -1013,7 +1033,7 @@ function debounce(fn, ms) {
 // Created lazily so they exist before applyFilters / applyRSVPFilters are defined.
 var debouncedApplyFilters     = function() { if (typeof applyFilters === 'function') _dApplyFilters(); };
 var debouncedApplyRSVPFilters = function() { if (typeof applyRSVPFilters === 'function') _dApplyRSVPFilters(); };
-var _dApplyFilters     = debounce(function() { applyFilters(); }, 180);
+var _dApplyFilters     = debounce(function() { applyFilters(); }, 250);
 var _dApplyRSVPFilters = debounce(function() { applyRSVPFilters(); }, 180);
 
 // ── HTML escaping for safe interpolation ──
@@ -1157,6 +1177,7 @@ function checkLogin() {
 var _SS_KEYS = {
   tab: 'wa:tab', view: 'wa:view',
   q: 'wa:search', rel: 'wa:relFilter', rsvp: 'wa:rsvpFilter', overseas: 'wa:overseasFilter',
+  sort: 'wa:sort',
 };
 function _ssSet(k, v) { try { if (v == null || v === '') sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {} }
 function _ssGet(k)    { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
@@ -1166,19 +1187,23 @@ function persistGuestFilters() {
   var r  = (document.getElementById('filter-relationship')|| {}).value || '';
   var s  = (document.getElementById('filter-rsvp')        || {}).value || '';
   var o  = (document.getElementById('filter-overseas')    || {}).value || '';
+  var so = (document.getElementById('guest-sort')         || {}).value || '';
   _ssSet(_SS_KEYS.q, q); _ssSet(_SS_KEYS.rel, r); _ssSet(_SS_KEYS.rsvp, s); _ssSet(_SS_KEYS.overseas, o);
+  _ssSet(_SS_KEYS.sort, so);
 }
 function restoreGuestFilters() {
   var q = _ssGet(_SS_KEYS.q), r = _ssGet(_SS_KEYS.rel),
-      s = _ssGet(_SS_KEYS.rsvp), o = _ssGet(_SS_KEYS.overseas);
+      s = _ssGet(_SS_KEYS.rsvp), o = _ssGet(_SS_KEYS.overseas), so = _ssGet(_SS_KEYS.sort);
   var qEl = document.getElementById('guest-search');
   var rEl = document.getElementById('filter-relationship');
   var sEl = document.getElementById('filter-rsvp');
   var oEl = document.getElementById('filter-overseas');
+  var sortEl = document.getElementById('guest-sort');
   if (qEl && q) qEl.value = q;
   if (rEl && r) rEl.value = r;
   if (sEl && s) sEl.value = s;
   if (oEl && o) oEl.value = o;
+  if (sortEl && so) sortEl.value = so;
 }
 
 function switchTab(name, btn) {
@@ -1408,9 +1433,16 @@ function rebuildFilteredGuests() {
     _msgListShown = MSG_LIST_PAGE;
   }
 
-  return allGuests.filter(function(g) {
-    if (q && !([g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
-      .filter(Boolean).join(' ').toLowerCase().includes(q))) return false;
+  var filtered = allGuests.filter(function(g) {
+    if (q) {
+      // Cache the lowercase searchable string per guest so re-filtering doesn't
+      // rebuild a fresh joined-lowercase per keystroke × per row.
+      if (g._search == null) {
+        g._search = [g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
+          .filter(Boolean).join(' ').toLowerCase();
+      }
+      if (g._search.indexOf(q) === -1) return false;
+    }
     if (relFilter && g.relationship !== relFilter) return false;
     if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
     if (rsvpFilter === 'pending'   &&  allSubmittedCodes.has(g.invitation_code)) return false;
@@ -1419,6 +1451,30 @@ function rebuildFilteredGuests() {
     if (overseasFilter === 'local'    &&  isOverseas) return false;
     return true;
   });
+
+  var sort = (document.getElementById('guest-sort') || {}).value || 'added-desc';
+  var nameOf = function(g) { return ((g.first_name || '') + ' ' + (g.last_name || '')).trim().toLowerCase(); };
+  var invitedAt = function(g) {
+    var t = g.invite_sent_at; if (!t) return 0;
+    var d = new Date(t); return isNaN(d) ? 0 : d.getTime();
+  };
+  // Guest sheet rows are appended chronologically, so the sheet's arrival
+  // order is our "added" order. allGuests preserves that order from the
+  // bootstrap payload, so index-in-allGuests = insertion order.
+  var addedIdx = new Map();
+  allGuests.forEach(function(g, i) { addedIdx.set(g.id, i); });
+  filtered.sort(function(a, b) {
+    switch (sort) {
+      case 'name-asc':      return nameOf(a).localeCompare(nameOf(b));
+      case 'name-desc':     return nameOf(b).localeCompare(nameOf(a));
+      case 'invited-desc':  return invitedAt(b) - invitedAt(a);
+      case 'invited-asc':   return invitedAt(a) - invitedAt(b);
+      case 'added-asc':     return (addedIdx.get(a.id) || 0) - (addedIdx.get(b.id) || 0);
+      case 'added-desc':
+      default:              return (addedIdx.get(b.id) || 0) - (addedIdx.get(a.id) || 0);
+    }
+  });
+  return filtered;
 }
 
 function renderGuestView() {
@@ -1642,16 +1698,24 @@ function renderRSVPStatusView(guests, container) {
     var dupItems = allDuplicates.map(function(d) {
       var subs = (d.submissions || []).map(function(s, i) {
         var prefix = i === 0 ? '\u2605 Latest (counted): ' : '\u25CB Earlier: ';
-        var ts = s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
-        return '<div class="dup-sub">' + prefix + escapeAttr(s.name || 'Unknown') + ' \u00B7 ' + escapeAttr(ts) + '</div>';
+        var ts    = s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
+        // Only earlier duplicates get a Delete button \u2014 the latest is what
+        // stats already reflect, so deleting it would misalign counts.
+        var delBtn = i === 0
+          ? ''
+          : '<button class="btn btn-danger-ghost btn-sm" style="margin-left:.5rem;" onclick="deleteDupSubmission(\'' + escapeAttr(d.code) + '\',\'' + escapeAttr(s.timestamp || '') + '\')">Delete this submission</button>';
+        return '<div class="dup-sub" style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;">' +
+          '<span>' + prefix + escapeAttr(s.name || 'Unknown') + ' \u00B7 ' + escapeAttr(ts) + '</span>' +
+          delBtn +
+        '</div>';
       }).join('');
       return '<div class="dup-item">' +
         '<div class="dup-code">' + escapeAttr(d.code) + ' \u2014 ' + escapeAttr(String(d.count)) + ' submissions</div>' +
         subs + '</div>';
     }).join('');
     dupHtml = '<div class="dup-section" style="margin-top:1.2rem;">' +
-      '<div class="dup-title">\u26A0 Duplicate Submissions \u2014 Resolve Manually</div>' +
-      '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">These codes have more than one submission for the same name. This may have occurred before duplicate protection was enabled. Only the most recent is counted in stats. To correct, edit the RSVPs_by_family sheet directly and mark the unwanted row status as DELETED.</p>' +
+      '<div class="dup-title">\u26A0 Duplicate Submissions</div>' +
+      '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.8rem;">These codes have more than one submission for the same name. Only the most recent (starred) is counted in stats. Use "Delete this submission" on the earlier rows to clean them up.</p>' +
       dupItems + '</div>';
   }
 
@@ -1973,7 +2037,9 @@ function openAddGuest() {
   codeInput.value = '';
   codeInput.readOnly = false;
   setModalCodeStatus('', '');
-  document.getElementById('guest-modal-overlay').classList.remove('hidden');
+  var overlay = document.getElementById('guest-modal-overlay');
+  overlay.classList.remove('hidden');
+  _installModalFocusTrap(overlay);
   requestGeneratedCode(); // auto-prefill a fresh unique code for new guests
 }
 
@@ -1998,7 +2064,9 @@ function openEditGuest(id) {
   codeInput.value = String(g.invitation_code || '').toUpperCase();
   codeInput.readOnly = false; // admins can rotate a code if they need to
   setModalCodeStatus('Code is assigned. Click Generate to rotate \u2014 old links will stop working.', 'muted');
-  document.getElementById('guest-modal-overlay').classList.remove('hidden');
+  var overlay = document.getElementById('guest-modal-overlay');
+  overlay.classList.remove('hidden');
+  _installModalFocusTrap(overlay);
 }
 
 function buildModalEventTicks(selected) {
@@ -2122,6 +2190,40 @@ function updateModalAllocations(existingGuest) {
 function closeGuestModal() {
   document.getElementById('guest-modal-overlay').classList.add('hidden');
   editingGuestId = null;
+  _teardownModalFocusTrap();
+}
+
+// ── Modal focus trap ─────────────────────────
+// Prevents Tab / Shift+Tab from escaping the guest modal into the dashboard
+// underneath. Attaches on open; detaches on close so keyboard behaves
+// normally everywhere else.
+var _focusTrapHandler = null;
+function _installModalFocusTrap(overlayEl) {
+  _teardownModalFocusTrap();
+  if (!overlayEl) return;
+  _focusTrapHandler = function(e) {
+    if (e.key !== 'Tab') return;
+    var focusable = overlayEl.querySelectorAll(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    var visible = Array.prototype.filter.call(focusable, function(el) {
+      return el.offsetParent !== null && !el.hasAttribute('hidden');
+    });
+    if (visible.length === 0) return;
+    var first = visible[0], last = visible[visible.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  };
+  document.addEventListener('keydown', _focusTrapHandler);
+}
+function _teardownModalFocusTrap() {
+  if (_focusTrapHandler) {
+    document.removeEventListener('keydown', _focusTrapHandler);
+    _focusTrapHandler = null;
+  }
 }
 
 // Inline validation helpers — show/hide a .form-row__error under the given
@@ -2218,6 +2320,7 @@ function saveGuest() {
         for (var i = 0; i < allGuests.length; i++) {
           if (allGuests[i].id === guestId) {
             for (var k in payload) if (Object.prototype.hasOwnProperty.call(payload, k)) allGuests[i][k] = payload[k];
+            delete allGuests[i]._search;   // any patched field could affect the searchable string
             break;
           }
         }
@@ -2256,13 +2359,19 @@ function saveGuest() {
 }
 
 function removeGuest(id) {
-  if (!confirm('Remove this guest? They will be moved to the Deleted section and can be restored later.')) return;
+  // No confirm dialog — the action is reversible via the Undo toast and
+  // the row can also be restored from the Deleted section indefinitely.
+  var guest = allGuests.find(function(g) { return g.id === id; });
+  var name = guest ? ((guest.first_name || '') + ' ' + (guest.last_name || '')).trim() : 'Guest';
   google.script.run
     .withSuccessHandler(function() {
-      // loadGuests refetches every dependency and runs refreshStats on
-      // success — no need for a separate loadStats round-trip here.
       loadGuests();
-      showToast('Guest moved to Deleted', 'success');
+      showActionToast('Deleted ' + name + '.', 'Undo', function(dismiss) {
+        google.script.run
+          .withSuccessHandler(function() { loadGuests(); showToast('Restored ' + name + '.', 'success'); dismiss(); })
+          .withFailureHandler(function(err) { showToast('Undo failed: ' + (err.message || 'Unknown'), 'error'); dismiss(); })
+          .restoreGuest({ id: id });
+      }, 8000);
     })
     .withFailureHandler(function(err) {
       showToast('Delete failed: ' + (err.message || 'Unknown error'), 'error');
@@ -3296,7 +3405,10 @@ function renderMessageSettingsUI() {
     '<div class="form-grid-2">' +
       '<div class="form-row">' +
         '<label>RSVP Website URL</label>' +
-        '<input type="text" id="msg-rsvp-url" value="' + escapeAttr(s.rsvpUrl || '') + '" placeholder="https://your-deployed-url.com" oninput="onMsgSettingChange()"/>' +
+        '<div style="display:flex;gap:.4rem;align-items:stretch;">' +
+          '<input type="text" id="msg-rsvp-url" value="' + escapeAttr(s.rsvpUrl || '') + '" placeholder="https://your-deployed-url.com" oninput="onMsgSettingChange()" style="flex:1;"/>' +
+          '<button type="button" class="btn btn-secondary btn-sm" onclick="copyRsvpUrl(this)" title="Copy URL">Copy</button>' +
+        '</div>' +
       '</div>' +
       '<div class="form-row">' +
         '<label>Chase-Up Deadline</label>' +
@@ -3322,6 +3434,26 @@ function onMsgSettingChange() {
   messageConfig.settings.inviteDeadline = (document.getElementById('msg-invite-deadline') || {}).value || '';
   messageConfig.settings.defaultCountryCode = (document.getElementById('msg-default-country-code') || {}).value || '';
   saveConfigToServer();
+}
+
+function copyRsvpUrl(btn) {
+  var input = document.getElementById('msg-rsvp-url');
+  if (!input) return;
+  var url = String(input.value || '').trim();
+  if (!url) { showToast('URL is empty.', 'error'); return; }
+  var done = function() {
+    var orig = btn.textContent;
+    btn.textContent = 'Copied✓'; btn.disabled = true;
+    setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 1600);
+  };
+  var fail = function() { showToast('Copy failed — long-press the field to copy.', 'error'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(function() {
+      try { input.select(); document.execCommand('copy'); done(); } catch (e) { fail(); }
+    });
+  } else {
+    try { input.select(); document.execCommand('copy'); done(); } catch (e) { fail(); }
+  }
 }
 
 // ── Settings tab: Template CRUD ────────────
@@ -3562,13 +3694,64 @@ function openWhatsApp(guestId, section) {
     google.script.run
       .withSuccessHandler(function(res) {
         g.invite_sent_at = res.invite_sent_at;
-        renderMessagesList();
+        // Patch just this row + the progress card instead of re-rendering
+        // all 700 rows.
+        patchMsgRow(guestId);
       })
       .withFailureHandler(function(err) {
         console.warn('markInviteSent failed:', err && err.message);
       })
       .markInviteSent({ guestId: guestId });
   }
+}
+
+// Rebuild a single message row and the top-of-list progress card so a
+// "mark sent" / "skip" click doesn't repaint every row on the page.
+function patchMsgRow(guestId) {
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  if (!g) { renderMessagesList(); return; }
+  var rowEl = document.getElementById('msg-row-' + guestId);
+  var mode  = msgMode;
+  var rel   = getCurrentMsgRel();
+  var skips = getMsgSkips(mode, rel);
+  var nextUp = findNextMessage(mode);
+  if (rowEl) {
+    var wrap = document.createElement('div');
+    wrap.innerHTML = buildMsgRow(g, mode, skips, nextUp);
+    if (wrap.firstElementChild) rowEl.parentNode.replaceChild(wrap.firstElementChild, rowEl);
+  }
+  // Also refresh the progress card since sent count changed.
+  _updateMsgProgressOnly(mode, rel, skips, nextUp);
+}
+
+function _updateMsgProgressOnly(mode, rel, skips, nextUp) {
+  var scope = msgScopeGuests(mode, rel);
+  var scopeLabel = rel || 'All Relationships';
+  var progressHTML;
+  if (mode === 'invite') {
+    var sentCount    = scope.filter(function(g) { return !!sanitiseValue(g.invite_sent_at); }).length;
+    var skippedCount = scope.filter(function(g) { return skips.has(g.id); }).length;
+    var remaining    = scope.length - sentCount - skippedCount;
+    var pct          = scope.length ? Math.round((sentCount / scope.length) * 100) : 0;
+    progressHTML = buildMsgProgress({
+      titleLeft:  'Initial Invite &middot; ' + scopeLabel,
+      subline:    sentCount + ' sent &middot; ' + skippedCount + ' skipped &middot; <strong>' + remaining + ' remaining</strong>',
+      pct: pct, nextUp: nextUp, skippedCount: skippedCount,
+    });
+  } else {
+    var allForRel = allGuests.filter(function(g) { return !rel || g.relationship === rel; });
+    var submitted     = allForRel.length - scope.length;
+    var skippedCountC = scope.filter(function(g) { return skips.has(g.id); }).length;
+    var remainingC    = scope.length - skippedCountC;
+    var pctC          = allForRel.length ? Math.round((submitted / allForRel.length) * 100) : 0;
+    progressHTML = buildMsgProgress({
+      titleLeft:  'Chase-Up &middot; ' + scopeLabel,
+      subline:    submitted + ' responded &middot; ' + skippedCountC + ' skipped &middot; <strong>' + remainingC + ' pending</strong>',
+      pct: pctC, nextUp: nextUp, skippedCount: skippedCountC,
+    });
+  }
+  var progEl = document.getElementById('msg-progress');
+  if (progEl) progEl.innerHTML = progressHTML;
 }
 
 function formatSentAt(iso) {
@@ -3696,12 +3879,26 @@ function resetMessageSession() {
 }
 
 function clearInviteSent(guestId) {
-  if (!confirm('Mark this guest as not-yet-sent? (clears the timestamp so it reappears in the Unsent list.)')) return;
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  var prevStamp = g ? (g.invite_sent_at || '') : '';
   google.script.run
     .withSuccessHandler(function() {
-      var g = allGuests.find(function(x) { return x.id === guestId; });
       if (g) g.invite_sent_at = '';
       renderMessagesList();
+      var name = g ? ((g.first_name || '') + ' ' + (g.last_name || '')).trim() : 'Guest';
+      showActionToast('Cleared invite-sent for ' + name + '.', 'Undo', function(dismiss) {
+        // Restore previous stamp — if there was none, this is effectively a
+        // fresh mark-as-sent; either way we hand markInviteSent the original.
+        google.script.run
+          .withSuccessHandler(function() {
+            if (g) g.invite_sent_at = prevStamp || new Date().toISOString();
+            renderMessagesList();
+            showToast('Restored invite-sent stamp.', 'success');
+            dismiss();
+          })
+          .withFailureHandler(function(err) { showToast('Undo failed: ' + (err && err.message), 'error'); dismiss(); })
+          .markInviteSent({ guestId: guestId, clear: false });
+      }, 8000);
     })
     .withFailureHandler(function(err) { showToast('Could not clear: ' + (err && err.message), 'error'); })
     .markInviteSent({ guestId: guestId, clear: true });
@@ -3772,6 +3969,36 @@ function showToast(message, variant, durationMs) {
   el.querySelector('.toast__close').addEventListener('click', close);
   host.appendChild(el);
   if (duration > 0) setTimeout(close, duration);
+}
+
+// A toast variant with an inline action button (e.g. "Undo"). onAction
+// receives a dismiss callback so the handler can close the toast when it's
+// done. Persists for durationMs (default 8s) before auto-dismissing.
+function showActionToast(message, actionLabel, onAction, durationMs) {
+  var host = document.getElementById('toast-host');
+  if (!host) { console.warn('toast host missing:', message); return; }
+  var duration = typeof durationMs === 'number' ? durationMs : 8000;
+  var el = document.createElement('div');
+  el.className = 'toast toast--info';
+  el.setAttribute('role', 'status');
+  el.innerHTML =
+    '<div class="toast__body">' +
+      '<div class="toast__eyebrow">Done</div>' +
+      escapeAttr(String(message == null ? '' : message)) +
+    '</div>' +
+    '<button class="btn btn-secondary btn-sm toast__action" type="button" style="margin-left:.5rem;">' + escapeAttr(actionLabel || 'Undo') + '</button>' +
+    '<button class="toast__close" type="button" aria-label="Dismiss">✕</button>';
+  var dismiss = function() {
+    if (el.classList.contains('toast--leaving')) return;
+    el.classList.add('toast--leaving');
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+  };
+  el.querySelector('.toast__close').addEventListener('click', dismiss);
+  el.querySelector('.toast__action').addEventListener('click', function() {
+    try { onAction(dismiss); } catch (e) { console.warn(e); dismiss(); }
+  });
+  host.appendChild(el);
+  if (duration > 0) setTimeout(dismiss, duration);
 }
 
 function renderMessagesList() {
