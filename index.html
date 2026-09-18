@@ -802,6 +802,20 @@ async function fetchEvents() {
   return postAction('getEvents', {});
 }
 
+var EVENTS_CACHE_KEY = 'jainishanay_events_v1';
+function loadCachedEvents() {
+  try {
+    var raw = localStorage.getItem(EVENTS_CACHE_KEY);
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.events) || !parsed.events.length) return null;
+    return parsed.events;
+  } catch (e) { return null; }
+}
+function saveCachedEvents(events) {
+  try { localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify({ events: events, at: Date.now() })); } catch (e) {}
+}
+
 async function validateGuest(firstName, lastName, code) {
   return postAction('validate', {
     code: code.toUpperCase(),
@@ -875,6 +889,24 @@ let currentCode = '', currentEventIds = [], eventRSVPs = {};
    INIT
 ══════════════════════════════════════════════ */
 async function init() {
+  // Stale-while-revalidate: if we've loaded events before, use them
+  // immediately so the code entry is usable, then refresh in the
+  // background. First-time visitors see the spinner as before.
+  var cached = loadCachedEvents();
+  if (cached) {
+    EVENTS = cached;
+    hideLoadingSpinner();
+    fetchEvents()
+      .then(function(fresh) {
+        if (Array.isArray(fresh) && fresh.length) {
+          EVENTS = fresh;
+          saveCachedEvents(fresh);
+        }
+      })
+      .catch(function(err) { console.warn('Background events refresh failed:', err); });
+    return;
+  }
+
   showLoadingSpinner();
   try {
     EVENTS = await fetchEvents();
@@ -883,6 +915,7 @@ async function init() {
       showEventLoadError('Events are not yet configured. Please contact the wedding team.');
       return;
     }
+    saveCachedEvents(EVENTS);
     hideLoadingSpinner();
   } catch (err) {
     hideLoadingSpinner();

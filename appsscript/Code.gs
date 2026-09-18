@@ -356,15 +356,28 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
 }
 
 // ── getEvents ─────────────────────────────────────────────
+let _eventsCache = null;
 function getEvents() {
+  if (_eventsCache) return _eventsCache;
+  const cache = CacheService.getScriptCache();
+  const ver = String(cache.get(ADMIN_CACHE_VERSION_KEY) || '0');
+  const key = 'events_active_v' + ver;
+  const raw = cache.get(key);
+  if (raw) {
+    try { _eventsCache = JSON.parse(raw); return _eventsCache; } catch (e) {}
+  }
   const sheet = getSheet(TABS.events);
   if (sheet.getLastRow() < 2) {
     Logger.log('Warning: Events tab is empty. Run setupSheet() to seed events.');
-    return [];
+    _eventsCache = [];
+    return _eventsCache;
   }
-  return sheetToObjects(sheet)
+  const list = sheetToObjects(sheet)
     .filter(r => String(r.active).toUpperCase() === 'TRUE')
     .sort((a, b) => EVENT_IDS.indexOf(String(a.id)) - EVENT_IDS.indexOf(String(b.id)));
+  _eventsCache = list;
+  try { cache.put(key, JSON.stringify(list), 300); } catch (e) {}
+  return _eventsCache;
 }
 
 // ── Name normalisation ───────────────────────────────────
