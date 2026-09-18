@@ -1056,9 +1056,10 @@ function submitRSVP(payload) {
     }
 
     // ── Server-side allocation validation ─────────────────
-    const guestSheet  = getSheet(TABS.guests);
-    const allGuests   = sheetToObjects(guestSheet);
-    const guestRecord = allGuests.find(g =>
+    // Reuse the guest list we already read for name validation — the sheet
+    // hasn't been mutated by anyone else (we're inside the script lock) so
+    // a second full read here would be redundant.
+    const guestRecord = guestsForValidation.find(g =>
       String(g.invitation_code || '').toUpperCase().trim() === invitationCode
     );
     if (guestRecord) {
