@@ -396,19 +396,15 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 
       <div class="entry-form">
         <div class="entry-field">
-          <label class="entry-label" for="first-name-input">First name</label>
+          <label class="entry-label" for="first-name-input">Name</label>
           <input class="field-input" id="first-name-input" type="text"
-            placeholder="Priya" autocomplete="given-name"/>
-        </div>
-        <div class="entry-field">
-          <label class="entry-label" for="last-name-input">Last name <span style="font-weight:400;opacity:.7;">(optional)</span></label>
-          <input class="field-input" id="last-name-input" type="text"
-            placeholder="Sharma" autocomplete="family-name"/>
+            placeholder="Name from your invite" autocomplete="name"/>
+          <div class="entry-hint" style="font-size:.7rem;color:var(--muted);margin-top:.25rem;">Enter the name exactly as it appears on your invitation.</div>
         </div>
         <div class="entry-field">
           <label class="entry-label" for="code-input">Invitation code</label>
           <input class="field-input code" id="code-input" type="text"
-            maxlength="12" placeholder="LSW2026" autocomplete="off"
+            maxlength="12" placeholder="ABC234" autocomplete="off"
             inputmode="text"/>
         </div>
       </div>
@@ -930,7 +926,7 @@ function showPage(name) {
    LANDING — ENTRY
 ══════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', function() {
-  ['first-name-input','last-name-input','code-input'].forEach(function(id) {
+  ['first-name-input','code-input'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitEntry(); });
   });
@@ -973,7 +969,7 @@ function formatWeddingDate(isoStr) {
 
 async function submitEntry() {
   var firstName = document.getElementById('first-name-input').value.trim();
-  var lastName  = document.getElementById('last-name-input').value.trim();
+  var lastName  = '';
   var code      = document.getElementById('code-input').value.trim().toUpperCase();
   var errEl     = document.getElementById('entry-error');
   var btn       = document.getElementById('enter-btn');

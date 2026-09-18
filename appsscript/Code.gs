@@ -2352,7 +2352,9 @@ const DEFAULT_MSG_CONFIG = {
         'Jaini & Shanay would love for you to join them in celebrating their wedding this December.\n\n' +
         'You can see the full programme of events and RSVP here:\n' +
         '{{url}}\n\n' +
-        'Your personal invitation code: {{code}}\n\n' +
+        'To sign in, use:\n' +
+        '  Name: {{name}}\n' +
+        '  Code: {{code}}\n\n' +
         'Please respond by {{deadline}} so we can finalise everything.\n\n' +
         'Any questions, just reply here.\n\n' +
         'With love,\nJaini & Shanay',
@@ -2363,8 +2365,10 @@ const DEFAULT_MSG_CONFIG = {
       body:
         'Hi {{name}} \u{1F490}\n\n' +
         'Just a gentle nudge about our wedding RSVP \u2014 we\u2019d hate to miss you!\n\n' +
-        'RSVP link: {{url}}\n' +
-        'Your code: {{code}}\n\n' +
+        'RSVP link: {{url}}\n\n' +
+        'To sign in, use:\n' +
+        '  Name: {{name}}\n' +
+        '  Code: {{code}}\n\n' +
         'Please try to respond by {{deadline}}. A quick yes or no on the site really helps us lock in numbers.\n\n' +
         'Thank you!\nJaini & Shanay',
     },
@@ -2375,8 +2379,10 @@ const DEFAULT_MSG_CONFIG = {
         'Hi {{name}} \u{23F0}\n\n' +
         'Final reminder \u2014 our RSVP deadline is {{deadline}}.\n\n' +
         'If you haven\u2019t yet, please take a moment to respond:\n' +
-        '{{url}}\n' +
-        'Code: {{code}}\n\n' +
+        '{{url}}\n\n' +
+        'To sign in, use:\n' +
+        '  Name: {{name}}\n' +
+        '  Code: {{code}}\n\n' +
         'Thank you so much!\nJaini & Shanay',
     },
     {
