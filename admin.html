@@ -690,6 +690,23 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <div class="admin-card">
       <div class="admin-card-title">Messages</div>
 
+      <!-- Sender profile: who's sending this batch. Auto-restricts the queue
+           to their relationship so, e.g., the groom's mum can only see and
+           send to Groom's Family. Can be handed off between family members
+           via a URL hash (#sender=grooms-family). -->
+      <div id="sender-bar" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem;padding:.55rem .8rem;background:var(--gold-pale);border:1px solid var(--gold);border-radius:2px;">
+        <label for="sender-select" style="font-size:.75rem;font-weight:600;">Sending as:</label>
+        <select id="sender-select" onchange="onSenderChange()">
+          <option value="">Anyone (all guests)</option>
+          <option value="Bride&#8217;s Friend">Bride &mdash; sending to Bride&#8217;s Friends</option>
+          <option value="Groom&#8217;s Friend">Groom &mdash; sending to Groom&#8217;s Friends</option>
+          <option value="Bride&#8217;s Family">Bride&#8217;s Family &mdash; sending to Bride&#8217;s Family</option>
+          <option value="Groom&#8217;s Family">Groom&#8217;s Family &mdash; sending to Groom&#8217;s Family</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="copySenderLink()" title="Copy a shareable link that pre-selects this sender">Share link</button>
+        <span id="sender-lock-note" style="font-size:.7rem;color:var(--muted);"></span>
+      </div>
+
       <!-- Mode switcher: Invite vs Chase-Up share the same flow, this flips them -->
       <div class="msg-mode-switcher" role="tablist">
         <button class="msg-mode-btn active" id="msg-mode-invite" onclick="switchMsgMode('invite')" type="button">&#9993; Initial Invite</button>
@@ -1291,8 +1308,11 @@ function loadDashboard() {
   // never on the critical path.
   loadStats();
 
-  // Reopen the last-active tab if it isn't the default Guests tab.
+  // Reopen the last-active tab if it isn't the default Guests tab. A
+  // `#sender=...` URL hash forces Messages so a shared sender link lands
+  // the family member directly on their queue.
   var savedTab = _ssGet(_SS_KEYS.tab);
+  if (_senderFromHash()) savedTab = 'messages';
   if (savedTab && savedTab !== 'guests') {
     var tabBtn = document.querySelector('.admin-tab[data-tab="' + savedTab + '"]');
     if (tabBtn) switchTab(savedTab, tabBtn);
@@ -3660,8 +3680,10 @@ function onRelDefaultChange(rel, templateId) {
 
 function loadMessagesTab() {
   populateRelationshipFilters();
+  restoreSender();
   applyMsgModeUI(msgMode);
   renderMessagesList();
+  _refreshSendPill();
 }
 
 function getUniqueRelationships() {
@@ -3851,6 +3873,88 @@ function toggleSendSession() {
   showToast(_sendSessionActive ? 'Auto-advance on — next preview opens after each send.' : 'Auto-advance off.', 'info', 2000);
 }
 
+// ── Sender profile (multi-person sending) ─────────
+// A "sender" is the person currently working through the queue. Selecting a
+// sender locks the relationship filter to their assigned group so the bride
+// can't accidentally message groom's family and vice versa. Persists per
+// browser tab via sessionStorage, or via a `#sender=slug` URL hash so the
+// couple can hand a specific link to each family member.
+var _SENDER_KEY = 'wa:sender';
+var _SENDER_LABELS = {
+  "Bride’s Friend": "Bride",
+  "Groom’s Friend": "Groom",
+  "Bride’s Family": "Bride’s Family",
+  "Groom’s Family": "Groom’s Family",
+};
+// URL-safe slug map for shareable links.
+var _SENDER_SLUGS = {
+  'brides-friends': "Bride’s Friend",
+  'grooms-friends': "Groom’s Friend",
+  'brides-family':  "Bride’s Family",
+  'grooms-family':  "Groom’s Family",
+};
+function _slugForSender(rel) {
+  for (var k in _SENDER_SLUGS) if (_SENDER_SLUGS[k] === rel) return k;
+  return '';
+}
+function _senderFromHash() {
+  var h = String(window.location.hash || '').replace(/^#/, '');
+  var m = /(?:^|&)sender=([^&]+)/.exec(h);
+  if (!m) return null;
+  return _SENDER_SLUGS[decodeURIComponent(m[1]).toLowerCase()] || null;
+}
+function getCurrentSender() {
+  var sel = document.getElementById('sender-select');
+  return sel ? (sel.value || '') : '';
+}
+function _applySender(rel) {
+  var sel = document.getElementById('sender-select');
+  if (sel && sel.value !== rel) sel.value = rel;
+  var relFilter = document.getElementById('msg-filter-rel');
+  var note = document.getElementById('sender-lock-note');
+  if (rel) {
+    if (relFilter) { relFilter.value = rel; relFilter.disabled = true; }
+    if (note) note.textContent = 'Queue locked to ' + rel + '.';
+  } else {
+    if (relFilter) { relFilter.disabled = false; }
+    if (note) note.textContent = '';
+  }
+}
+function onSenderChange() {
+  var rel = getCurrentSender();
+  _ssSet(_SENDER_KEY, rel);
+  _applySender(rel);
+  renderMessagesList();
+  _refreshSendPill();
+}
+function restoreSender() {
+  // Precedence: URL hash > sessionStorage > default (none).
+  var fromHash = _senderFromHash();
+  var stored   = _ssGet(_SENDER_KEY) || '';
+  var rel = fromHash || stored;
+  if (rel && _SENDER_LABELS[rel]) {
+    _applySender(rel);
+    _ssSet(_SENDER_KEY, rel);
+  }
+}
+function copySenderLink() {
+  var rel = getCurrentSender();
+  if (!rel) { showToast('Pick a sender first, then Share link.', 'error'); return; }
+  var slug = _slugForSender(rel);
+  if (!slug) { showToast('Unknown sender.', 'error'); return; }
+  var url = window.location.origin + window.location.pathname + '#sender=' + slug;
+  var done = function() { showToast('Sender link copied.', 'success', 2000); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(function() { showToast('Copy failed.', 'error'); });
+  } else {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = url; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta); done();
+    } catch (e) { showToast('Copy failed.', 'error'); }
+  }
+}
+
 // Master "Send next" button: preview the first unsent (or first pending in
 // chase mode) guest.
 function msgSendNext() {
@@ -3887,9 +3991,17 @@ function _refreshSendPill() {
   // hide in chase mode.
   if (mode !== 'invite') { pill.classList.add('hidden'); return; }
   pill.classList.remove('hidden');
+  var sender = getCurrentSender();
+  // Count sent-today scoped to the sender's relationship so bride's stats
+  // don't inflate with groom's mum's sends.
   var v = _readSentToday();
+  var idsInScope = v.ids;
+  if (sender) {
+    var inScopeSet = new Set(allGuests.filter(function(g) { return g.relationship === sender; }).map(function(g) { return g.id; }));
+    idsInScope = v.ids.filter(function(id) { return inScopeSet.has(id); });
+  }
   var todayEl = document.getElementById('msg-sent-today');
-  if (todayEl) todayEl.textContent = String(v.ids.length);
+  if (todayEl) todayEl.textContent = String(idsInScope.length);
   var next = findNextMessage(mode);
   var scope = msgScopeGuests(mode, getCurrentMsgRel());
   var skips = getMsgSkips(mode, getCurrentMsgRel());
