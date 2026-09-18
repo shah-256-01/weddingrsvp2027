@@ -815,8 +815,10 @@ async function validateGuest(firstName, lastName, code) {
 }
 
 async function saveContactDetails(email, whatsapp) {
+  const controller = new AbortController();
+  const timeout = setTimeout(function() { controller.abort(); }, 25000);
   try {
-    await fetch(SCRIPT_URL, {
+    const res = await fetch(SCRIPT_URL, {
       method: 'POST',
       credentials: 'omit',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -831,29 +833,41 @@ async function saveContactDetails(email, whatsapp) {
           lastName:  currentGuest.lastName,
         },
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Contact save failed');
+    return json.data;
   } catch (err) {
-    console.warn('Contact save post failed:', err);
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') throw new Error('Contact save timed out after 25s');
+    throw new Error('Could not save contact details. Please try again.');
   }
-
-  var delays = [2000, 3000, 4000];
-  for (var i = 0; i < delays.length; i++) {
-    await new Promise(function(r) { setTimeout(r, delays[i]); });
-    try {
-      var data = await validateGuest(currentGuest.firstName, currentGuest.lastName, currentCode);
-      if (data && data.email) return data;
-    } catch (e) {}
-  }
-  throw new Error('Could not verify contact details were saved. Please try again.');
 }
 
-function postRSVP(payload) {
-  return fetch(SCRIPT_URL, {
-    method: 'POST',
-    credentials: 'omit',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'submitRSVP', payload }),
-  });
+async function postRSVP(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(function() { controller.abort(); }, 25000);
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'submitRSVP', payload }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'RSVP submission failed');
+    return json.data;
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') throw new Error('Request timed out after 25s');
+    throw err;
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -1727,21 +1741,14 @@ async function submitRSVP() {
     // Not critical — submission still goes through, but no local backup exists
   }
 
-  // Submit to Apps Script (no-cors — opaque response)
-  try { await postRSVP(payload); } catch (err) {
-    console.warn('RSVP post failed:', err);
-  }
-
-  // Verify the RSVP was recorded before showing success
-  btn.textContent = 'Verifying\u2026';
+  // Submit to Apps Script. Success means the server confirmed the RSVP
+  // was written to the sheet, so we can skip the extra verify round-trips.
   var verified = false;
-  var delays = [2500, 3000, 4000];
-  for (var i = 0; i < delays.length; i++) {
-    await new Promise(function(r) { setTimeout(r, delays[i]); });
-    try {
-      var data = await validateGuest(currentGuest.firstName, currentGuest.lastName, currentCode);
-      if (data && data.existingRSVP) { verified = true; break; }
-    } catch (e) {}
+  try {
+    await postRSVP(payload);
+    verified = true;
+  } catch (err) {
+    console.warn('RSVP post failed:', err);
   }
 
   if (verified) {
