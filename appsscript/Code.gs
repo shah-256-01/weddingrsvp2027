@@ -324,56 +324,66 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
     throw new Error('Please enter a valid email address.');
   }
 
-  const sheet   = getSheet(TABS.guests);
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  let rowNum = guestId ? findRowById(sheet, guestId) : -1;
-  if (rowNum === -1) {
-    // Fallback: locate by invitation_code + combined name. Handles legacy rows
-    // where the id column is blank / manually added rows / clients that don't
-    // carry an id.
-    const codeIdx = headers.indexOf('invitation_code');
-    const fnIdx   = headers.indexOf('first_name');
-    const lnIdx   = headers.indexOf('last_name');
-    if (codeIdx > -1 && fnIdx > -1) {
-      const lastRow = sheet.getLastRow();
-      if (lastRow >= 2) {
-        const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
-        const normCode = String(invitationCode).toUpperCase().trim();
-        const typed = normaliseName((firstName || '') + ' ' + (lastName || ''));
-        for (let i = 0; i < data.length; i++) {
-          if (String(data[i][codeIdx] || '').toUpperCase().trim() !== normCode) continue;
-          const stored = normaliseName((data[i][fnIdx] || '') + ' ' + (lnIdx > -1 ? (data[i][lnIdx] || '') : ''));
-          if (stored === typed) { rowNum = i + 2; break; }
+  const sheet = getSheet(TABS.guests);
+
+  // Lock the identity check + write. Two guests hitting Save on the same
+  // invite (rare but possible with shared-link invites) or an admin
+  // editing the guest at the same moment would otherwise last-write-wins.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    let rowNum = guestId ? findRowById(sheet, guestId) : -1;
+    if (rowNum === -1) {
+      // Fallback: locate by invitation_code + combined name. Handles legacy rows
+      // where the id column is blank / manually added rows / clients that don't
+      // carry an id.
+      const codeIdx = headers.indexOf('invitation_code');
+      const fnIdx   = headers.indexOf('first_name');
+      const lnIdx   = headers.indexOf('last_name');
+      if (codeIdx > -1 && fnIdx > -1) {
+        const lastRow = sheet.getLastRow();
+        if (lastRow >= 2) {
+          const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+          const normCode = String(invitationCode).toUpperCase().trim();
+          const typed = normaliseName((firstName || '') + ' ' + (lastName || ''));
+          for (let i = 0; i < data.length; i++) {
+            if (String(data[i][codeIdx] || '').toUpperCase().trim() !== normCode) continue;
+            const stored = normaliseName((data[i][fnIdx] || '') + ' ' + (lnIdx > -1 ? (data[i][lnIdx] || '') : ''));
+            if (stored === typed) { rowNum = i + 2; break; }
+          }
         }
       }
+      if (rowNum === -1) throw new Error('Guest record not found.');
     }
-    if (rowNum === -1) throw new Error('Guest record not found.');
+
+    const row      = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
+    const codeCol  = headers.indexOf('invitation_code');
+    const fnCol    = headers.indexOf('first_name');
+    const lnCol    = headers.indexOf('last_name');
+    if (codeCol === -1 || fnCol === -1) throw new Error('Invalid sheet configuration.');
+
+    const storedCode = String(row[codeCol] || '').toUpperCase().trim();
+    if (storedCode !== String(invitationCode).toUpperCase().trim()) {
+      throw new Error('Identity verification failed.');
+    }
+    // Match on combined name so invites like "Paul & Mehreen" (blank last_name)
+    // still verify. Client may pass firstName as the full display name and
+    // lastName as ''; server rebuilds normalized full name from either shape.
+    const storedFull = normaliseName((row[fnCol] || '') + ' ' + (lnCol > -1 ? (row[lnCol] || '') : ''));
+    const typedFull  = normaliseName((firstName || '') + ' ' + (lastName || ''));
+    if (storedFull !== typedFull) {
+      throw new Error('Identity verification failed.');
+    }
+
+    const emailCol = headers.indexOf('email');
+    const phoneCol = headers.indexOf('phone');
+
+    if (emailCol > -1) sheet.getRange(rowNum, emailCol + 1).setValue(sanitizeForSheet(email.trim()));
+    if (phoneCol > -1) sheet.getRange(rowNum, phoneCol + 1).setValue(sanitizeForSheet(whatsapp.trim()));
+  } finally {
+    lock.releaseLock();
   }
-
-  const row      = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
-  const codeCol  = headers.indexOf('invitation_code');
-  const fnCol    = headers.indexOf('first_name');
-  const lnCol    = headers.indexOf('last_name');
-  if (codeCol === -1 || fnCol === -1) throw new Error('Invalid sheet configuration.');
-
-  const storedCode = String(row[codeCol] || '').toUpperCase().trim();
-  if (storedCode !== String(invitationCode).toUpperCase().trim()) {
-    throw new Error('Identity verification failed.');
-  }
-  // Match on combined name so invites like "Paul & Mehreen" (blank last_name)
-  // still verify. Client may pass firstName as the full display name and
-  // lastName as ''; server rebuilds normalized full name from either shape.
-  const storedFull = normaliseName((row[fnCol] || '') + ' ' + (lnCol > -1 ? (row[lnCol] || '') : ''));
-  const typedFull  = normaliseName((firstName || '') + ' ' + (lastName || ''));
-  if (storedFull !== typedFull) {
-    throw new Error('Identity verification failed.');
-  }
-
-  const emailCol = headers.indexOf('email');
-  const phoneCol = headers.indexOf('phone');
-
-  if (emailCol > -1) sheet.getRange(rowNum, emailCol + 1).setValue(sanitizeForSheet(email.trim()));
-  if (phoneCol > -1) sheet.getRange(rowNum, phoneCol + 1).setValue(sanitizeForSheet(whatsapp.trim()));
 
   Logger.log('Updated contact for guest ' + guestId + ': ' + email);
   return { updated: true, guestId };
@@ -687,12 +697,11 @@ function addGuest(payload) {
 // regenerate the code. Callers wishing to rotate a code should do so
 // explicitly via payload.invitation_code (validated for uniqueness).
 function updateGuest(payload) {
-  const sheet  = getSheet(TABS.guests);
-  const rowNum = findRowById(sheet, payload.id);
-  if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
+  const sheet = getSheet(TABS.guests);
 
   // Normalise events to sorted, comma-separated — same shape as before,
-  // just without regenerating the code.
+  // just without regenerating the code. Doing this outside the lock is
+  // cheap and pure.
   if (payload.events !== undefined) {
     const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
       .map(s => s.trim()).filter(Boolean)
@@ -700,45 +709,57 @@ function updateGuest(payload) {
     payload.events = sortedIds.join(',');
   }
 
-  // If the caller is explicitly rotating the code, validate it.
-  if (payload.invitation_code !== undefined) {
-    const headers0 = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const codeIdx  = headers0.indexOf('invitation_code');
-    const currentCode = codeIdx > -1
-      ? String(sheet.getRange(rowNum, codeIdx + 1).getValue() || '').toUpperCase().trim()
-      : '';
-    const requested = String(payload.invitation_code || '').toUpperCase().trim();
-    if (!requested) {
-      // Treat blank as "keep existing"
-      delete payload.invitation_code;
-    } else if (requested !== currentCode) {
-      if (!validateCodeFormat(requested)) {
-        throw new Error('Invalid invitation code format. Use 6 characters, excluding 0/O/1/I/L.');
-      }
-      const used = collectExistingCodes();
-      if (used[requested]) {
-        throw new Error('Invitation code "' + requested + '" is already in use.');
-      }
-      payload.invitation_code = requested;
-    } else {
-      payload.invitation_code = currentCode;
-    }
-  }
+  // Serialise the read+validate+write cycle so two concurrent admin edits
+  // (or an admin edit racing a bulk import / code rotation) can't clobber
+  // each other or double-allocate the same invitation code.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const rowNum = findRowById(sheet, payload.id);
+    if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
 
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  // Batched write: read the whole row once, patch only the payload fields,
-  // write back in a single setValues call. Replaces a 20-call setValue loop.
-  const range = sheet.getRange(rowNum, 1, 1, headers.length);
-  const row   = range.getValues()[0];
-  let changed = false;
-  headers.forEach((h, i) => {
-    if (h === 'id') return;
-    if (payload[h] !== undefined) {
-      row[i] = sanitizeForSheet(payload[h]);
-      changed = true;
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+    // If the caller is explicitly rotating the code, validate uniqueness
+    // inside the lock so we can't lose a race with another writer.
+    if (payload.invitation_code !== undefined) {
+      const codeIdx = headers.indexOf('invitation_code');
+      const currentCode = codeIdx > -1
+        ? String(sheet.getRange(rowNum, codeIdx + 1).getValue() || '').toUpperCase().trim()
+        : '';
+      const requested = String(payload.invitation_code || '').toUpperCase().trim();
+      if (!requested) {
+        delete payload.invitation_code;   // blank = keep existing
+      } else if (requested !== currentCode) {
+        if (!validateCodeFormat(requested)) {
+          throw new Error('Invalid invitation code format. Use 6 characters, excluding 0/O/1/I/L.');
+        }
+        const used = collectExistingCodes();
+        if (used[requested]) {
+          throw new Error('Invitation code "' + requested + '" is already in use.');
+        }
+        payload.invitation_code = requested;
+      } else {
+        payload.invitation_code = currentCode;
+      }
     }
-  });
-  if (changed) range.setValues([row]);
+
+    // Batched write: read the whole row once, patch only the payload fields,
+    // write back in a single setValues call.
+    const range = sheet.getRange(rowNum, 1, 1, headers.length);
+    const row   = range.getValues()[0];
+    let changed = false;
+    headers.forEach((h, i) => {
+      if (h === 'id') return;
+      if (payload[h] !== undefined) {
+        row[i] = sanitizeForSheet(payload[h]);
+        changed = true;
+      }
+    });
+    if (changed) range.setValues([row]);
+  } finally {
+    lock.releaseLock();
+  }
   return { ...payload };
 }
 
