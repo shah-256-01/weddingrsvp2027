@@ -563,7 +563,13 @@ function validateGuest(code, firstName, lastName) {
 // (code) — the name is kept as belt-and-braces against any data anomalies.
 // Returns null if no matching submission exists.
 // Fails open — returns null on any error so guest flow is never blocked by a check failure.
-function getExistingRSVP(code, familyName) {
+// Look up a prior RSVP for a given code + name. If `strict` is true, a sheet
+// read error re-throws so the caller can decide how to handle it (submitRSVP
+// uses this so it never silently allows a duplicate on a read hiccup). If
+// `strict` is false / omitted, errors return null so callers on the guest
+// login path stay fail-open (worst case: user sees the RSVP form when they
+// could have seen the "already submitted" screen).
+function getExistingRSVP(code, familyName, strict) {
   try {
     const sheet = getSheet(TABS.rsvpByFamily);
     if (sheet.getLastRow() < 2) return null;
@@ -612,7 +618,10 @@ function getExistingRSVP(code, familyName) {
     };
   } catch (err) {
     Logger.log('getExistingRSVP error: ' + err.message);
-    return null; // fail open — never block login due to a check error
+    if (strict) {
+      throw new Error('Could not verify whether this RSVP was already submitted. Please try again.');
+    }
+    return null;
   }
 }
 
@@ -1034,8 +1043,11 @@ function submitRSVP(payload) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
-    // ── Duplicate check — name + code (inside lock to prevent race) ──
-    const existing = getExistingRSVP(normCode, payload.submissionName);
+    // ── Duplicate check — name + code (inside lock to prevent race).
+    // strict:true so a sheet-read hiccup surfaces as a "try again" error
+    // instead of silently returning null (which would let a duplicate row
+    // through).
+    const existing = getExistingRSVP(normCode, payload.submissionName, true);
     if (existing) {
       throw new Error(
         'An RSVP has already been received for this name and invitation code. ' +
