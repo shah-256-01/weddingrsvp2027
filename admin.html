@@ -1053,11 +1053,44 @@ function checkLogin() {
 })();
 
 // ── Tab Switching ──────────────────────────
+// ── Filter / view persistence (per browser tab) ─────
+// sessionStorage keys are scoped to this tab so two admins on different
+// devices — or the same laptop in different windows — don't clobber each
+// other's filter view. Everything below is best-effort: a private / no-storage
+// window just gets fresh defaults.
+var _SS_KEYS = {
+  tab: 'wa:tab', view: 'wa:view',
+  q: 'wa:search', rel: 'wa:relFilter', rsvp: 'wa:rsvpFilter', overseas: 'wa:overseasFilter',
+};
+function _ssSet(k, v) { try { if (v == null || v === '') sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {} }
+function _ssGet(k)    { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+
+function persistGuestFilters() {
+  var q  = (document.getElementById('guest-search')       || {}).value || '';
+  var r  = (document.getElementById('filter-relationship')|| {}).value || '';
+  var s  = (document.getElementById('filter-rsvp')        || {}).value || '';
+  var o  = (document.getElementById('filter-overseas')    || {}).value || '';
+  _ssSet(_SS_KEYS.q, q); _ssSet(_SS_KEYS.rel, r); _ssSet(_SS_KEYS.rsvp, s); _ssSet(_SS_KEYS.overseas, o);
+}
+function restoreGuestFilters() {
+  var q = _ssGet(_SS_KEYS.q), r = _ssGet(_SS_KEYS.rel),
+      s = _ssGet(_SS_KEYS.rsvp), o = _ssGet(_SS_KEYS.overseas);
+  var qEl = document.getElementById('guest-search');
+  var rEl = document.getElementById('filter-relationship');
+  var sEl = document.getElementById('filter-rsvp');
+  var oEl = document.getElementById('filter-overseas');
+  if (qEl && q) qEl.value = q;
+  if (rEl && r) rEl.value = r;
+  if (sEl && s) sEl.value = s;
+  if (oEl && o) oEl.value = o;
+}
+
 function switchTab(name, btn) {
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
+  _ssSet(_SS_KEYS.tab, name);
   if (name === 'guests') { currentPage = 1; renderGuestView(); }
   if (name === 'csv') renderCSVTab();
   if (name === 'rsvps') loadRSVPsTab();
@@ -1071,6 +1104,17 @@ function loadDashboard() {
   document.getElementById('admin-dashboard').classList.remove('hidden');
   startSessionTimer();
   startActivityListeners();
+  // Restore per-tab UI state (search, filters, view, active tab) BEFORE
+  // the first render so the initial paint reflects what the admin was
+  // looking at last time in this browser tab.
+  restoreGuestFilters();
+  var savedView = _ssGet(_SS_KEYS.view);
+  if (savedView && ['list','grouped','rsvp-status','event'].indexOf(savedView) > -1) {
+    currentView = savedView;
+    document.querySelectorAll('.view-btn').forEach(function(b) { b.classList.remove('active'); });
+    var vb = document.querySelector('.view-btn[onclick*="' + savedView + '"]');
+    if (vb) vb.classList.add('active');
+  }
   // Hydrate events from localStorage if available so renders don't have to
   // wait on the network for the first paint. loadEvents() will overwrite
   // asynchronously with the fresh server state.
@@ -1085,6 +1129,13 @@ function loadDashboard() {
   // stats are computed client-side from the bootstrap payload, so this is
   // never on the critical path.
   loadStats();
+
+  // Reopen the last-active tab if it isn't the default Guests tab.
+  var savedTab = _ssGet(_SS_KEYS.tab);
+  if (savedTab && savedTab !== 'guests') {
+    var tabBtn = document.querySelector('.admin-tab[data-tab="' + savedTab + '"]');
+    if (tabBtn) switchTab(savedTab, tabBtn);
+  }
 }
 
 // ── Data Loading Functions ─────────────────
@@ -1226,6 +1277,7 @@ function loadGuests() {
 function setGuestView(view) {
   currentView = view;
   currentPage = 1;
+  _ssSet(_SS_KEYS.view, view);
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
   var activeBtn = document.querySelector('.view-btn[onclick*="' + view + '"]');
   if (activeBtn) activeBtn.classList.add('active');
@@ -1675,6 +1727,7 @@ function submitPin() { checkLogin(); }
 
 // ── applyFilters (HTML calls this) ────────────
 function applyFilters() {
+  persistGuestFilters();
   filteredGuests = rebuildFilteredGuests();
   currentPage = 1;
   renderCurrentView();
