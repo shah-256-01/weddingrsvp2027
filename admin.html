@@ -981,6 +981,10 @@ var allStats = {};
 var allSubmittedCodes = new Set();
 var currentView = 'list';
 var editingGuestId = null;
+// _rev of the guest as it was when the edit modal opened. Captured at open
+// (not at save) so a background loadGuests() between open and save can't
+// launder a stale form past the server's concurrency check.
+var editingGuestRev = '';
 var parsedCSVRows = [];
 var _eventViewGuests = [];
 var _eventViewStats = {};
@@ -2349,6 +2353,7 @@ function openEditGuest(id) {
   if (!g) return;
   if (typeof clearGuestFormErrors === 'function') clearGuestFormErrors();
   editingGuestId = id;
+  editingGuestRev = ((allGuests.find(function(g) { return g.id === id; }) || {})._rev) || '';
   document.getElementById('m-id').value = g.id;
   document.getElementById('modal-title').textContent = 'Edit Guest';
   document.getElementById('m-first-name').value = sanitiseValue(g.first_name);
@@ -2611,20 +2616,30 @@ function saveGuest() {
   var guestId = document.getElementById('m-id').value;
   if (guestId) {
     payload.id = guestId;
+    // Send the rev we opened the form with; server rejects if the row moved.
+    if (editingGuestRev) payload._rev = editingGuestRev;
     google.script.run
-      .withSuccessHandler(function() {
+      .withSuccessHandler(function(res) {
         _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
         closeGuestModal();
         // Optimistic UI: merge payload into local guest and rerender
-        // immediately, then refresh in background.
+        // immediately. _rev is taken from the server response (post-write),
+        // NOT from the payload (that's the pre-write rev we sent up).
+        var newRev = (res && res._rev) ? String(res._rev) : '';
         for (var i = 0; i < allGuests.length; i++) {
           if (allGuests[i].id === guestId) {
-            for (var k in payload) if (Object.prototype.hasOwnProperty.call(payload, k)) allGuests[i][k] = payload[k];
+            for (var k in payload) {
+              if (!Object.prototype.hasOwnProperty.call(payload, k)) continue;
+              if (k === '_rev') continue;
+              allGuests[i][k] = payload[k];
+            }
+            if (newRev) allGuests[i]._rev = newRev;
             delete allGuests[i]._search;   // any patched field could affect the searchable string
             break;
           }
         }
+        if (newRev) editingGuestRev = newRev;
         _invalidateGuestIdx();
         try { renderGuestView(); refreshStats(); } catch (e) {}
         showToast('Guest updated', 'success');
@@ -2632,7 +2647,18 @@ function saveGuest() {
       .withFailureHandler(function(err) {
         _guestSaving = false;
         btn.textContent = 'Save Guest'; btn.disabled = false;
-        showToast(err.message || 'Failed to update guest', 'error');
+        var msg = (err && err.message) || 'Failed to update guest';
+        if (/^STALE:/.test(msg)) {
+          // Someone else saved this guest while the form was open. Don't
+          // silently overwrite — offer a Reload that refetches and closes.
+          showActionToast(msg.replace(/^STALE:\s*/, ''), 'Reload', function(dismiss) {
+            closeGuestModal();
+            loadGuests();
+            dismiss();
+          }, 12000);
+          return;
+        }
+        showToast(msg, 'error');
       })
       .updateGuest(payload);
   } else {

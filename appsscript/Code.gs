@@ -212,6 +212,37 @@ function _adminCacheVersion() {
 }
 function bumpAdminCacheVersion() {
   CacheService.getScriptCache().put(ADMIN_CACHE_VERSION_KEY, String(Date.now()), 21600);
+  // Also drop the process-local caches so a mutator that later reads
+  // getGuestsCached()/getEvents() in the same execution sees fresh data.
+  _guestsCache = null;
+  _eventsCache = null;
+}
+
+// ── Guest row revision (optimistic concurrency) ──────────
+// A short content hash stamped as `_rev` on every guest object the server
+// hands out. updateGuest compares the client's `_rev` against the current
+// row and rejects the save if someone else changed it in between — the
+// locks serialise writes but can't detect a stale edit form.
+//
+// Excluded from the hash so unrelated concurrent activity doesn't produce
+// false conflicts:
+//   id             — immutable
+//   _rev           — the hash itself
+//   invite_sent_at — stamped ~700× during a send session by markInviteSent
+//   *_table        — seating, edited via its own updateSeating flow
+const REV_EXCLUDE = new Set(['id', '_rev', 'invite_sent_at']);
+function _guestRev(obj) {
+  const keys = Object.keys(obj)
+    .filter(k => !REV_EXCLUDE.has(k) && !/_table$/.test(k))
+    .sort();
+  const s = keys.map(k => k + '=' + String(obj[k] == null ? '' : obj[k])).join('');
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, s, Utilities.Charset.UTF_8);
+  // First 4 bytes → 8 hex chars. Change-detection only; not security.
+  return digest.slice(0, 4).map(b => ('0' + ((b + 256) % 256).toString(16)).slice(-2)).join('');
+}
+function _withRevs(list) {
+  for (let i = 0; i < list.length; i++) list[i]._rev = _guestRev(list[i]);
+  return list;
 }
 function cachedRead(keyPrefix, fn) {
   try {
@@ -640,7 +671,7 @@ function getExistingRSVP(code, familyName, strict) {
 function getGuests(includeDeleted) {
   const sheet = getSheet(TABS.guests);
   if (sheet.getLastRow() < 1) return [];
-  const all = sheetToObjects(sheet);
+  const all = _withRevs(sheetToObjects(sheet));
   if (includeDeleted) return all;
   return all.filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
 }
@@ -652,7 +683,9 @@ function getGuestsCached() {
   if (_guestsCache) return _guestsCache;
   _guestsCache = cachedReadChunked('guests_all', function() {
     const sheet = getSheet(TABS.guests);
-    return (sheet.getLastRow() < 1) ? [] : sheetToObjects(sheet);
+    // _rev is stamped before caching so it rides along in the chunked
+    // payload and every consumer (bootstrap, validate, stats) sees it.
+    return (sheet.getLastRow() < 1) ? [] : _withRevs(sheetToObjects(sheet));
   }, 30);
   return _guestsCache;
 }
@@ -703,7 +736,11 @@ function addGuest(payload) {
       return sanitizeForSheet(payload[h] !== undefined ? payload[h] : '');
     });
     sheet.appendRow(row);
-    return { ...payload, id };
+    // Stamp a _rev on the new guest so an immediate edit from the admin's
+    // optimistic local copy passes the concurrency check without a reload.
+    const created = {};
+    headers.forEach((h, i) => { created[h] = row[i]; });
+    return { ...payload, id, _rev: _guestRev(created) };
   } finally {
     lock.releaseLock();
   }
@@ -729,6 +766,7 @@ function updateGuest(payload) {
   // Serialise the read+validate+write cycle so two concurrent admin edits
   // (or an admin edit racing a bulk import / code rotation) can't clobber
   // each other or double-allocate the same invitation code.
+  let newRev = '';
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -736,6 +774,24 @@ function updateGuest(payload) {
     if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
 
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+    // ── Optimistic concurrency check ──────────────────────
+    // If the client sent the _rev it loaded the edit form with, compare it
+    // to the row as it is NOW (inside the lock). A mismatch means another
+    // admin saved in between; refuse rather than clobber their change.
+    // Clients that don't send _rev (older cached page, bulk tools) skip
+    // the check and behave as before.
+    const clientRev = payload._rev ? String(payload._rev) : '';
+    delete payload._rev;   // never persisted — it's derived, not stored
+    const rangeForRev = sheet.getRange(rowNum, 1, 1, headers.length);
+    const currentRow  = rangeForRev.getValues()[0];
+    if (clientRev) {
+      const cur = {};
+      headers.forEach((h, i) => { cur[h] = currentRow[i]; });
+      if (_guestRev(cur) !== clientRev) {
+        throw new Error('STALE: This guest was updated by someone else since you opened it. Please reload and try again.');
+      }
+    }
 
     // If the caller is explicitly rotating the code, validate uniqueness
     // inside the lock so we can't lose a race with another writer.
@@ -761,10 +817,9 @@ function updateGuest(payload) {
       }
     }
 
-    // Batched write: read the whole row once, patch only the payload fields,
-    // write back in a single setValues call.
-    const range = sheet.getRange(rowNum, 1, 1, headers.length);
-    const row   = range.getValues()[0];
+    // Batched write: reuse the row we already read for the rev check, patch
+    // only the payload fields, write back in a single setValues call.
+    const row = currentRow;
     let changed = false;
     headers.forEach((h, i) => {
       if (h === 'id') return;
@@ -773,11 +828,16 @@ function updateGuest(payload) {
         changed = true;
       }
     });
-    if (changed) range.setValues([row]);
+    if (changed) rangeForRev.setValues([row]);
+    // Hand back the post-write rev so the client can update its copy without
+    // a full reload — the next save from that form will then pass the check.
+    const after = {};
+    headers.forEach((h, i) => { after[h] = row[i]; });
+    newRev = _guestRev(after);
   } finally {
     lock.releaseLock();
   }
-  return { ...payload };
+  return { ...payload, _rev: newRev };
 }
 
 // ── updateSeating ────────────────────────────────────────
