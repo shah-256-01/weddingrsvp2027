@@ -219,6 +219,57 @@ function cachedRead(keyPrefix, fn) {
   }
 }
 
+// Chunked variant that survives Apps Script's 100 KB per-key cache cap.
+// The JSON payload is sliced across sibling keys `<prefix>_v<ver>_<i>` with
+// a meta record `<prefix>_v<ver>_meta` holding the slice count and total
+// length. On read, all slices must be present and the joined length must
+// match, otherwise the cache is treated as cold.
+const CACHE_CHUNK_BYTES = 90000;
+
+function cachedReadChunked(keyPrefix, fn, ttlSec) {
+  const cache = CacheService.getScriptCache();
+  const ver   = _adminCacheVersion();
+  const base  = keyPrefix + '_v' + ver;
+  try {
+    const metaRaw = cache.get(base + '_meta');
+    if (metaRaw) {
+      const meta = JSON.parse(metaRaw);
+      const count = Number(meta.count) || 0;
+      if (count > 0) {
+        const keys = [];
+        for (let i = 0; i < count; i++) keys.push(base + '_' + i);
+        const parts = cache.getAll(keys);
+        let joined = '';
+        let ok = true;
+        for (let i = 0; i < count; i++) {
+          const p = parts[keys[i]];
+          if (p == null) { ok = false; break; }
+          joined += p;
+        }
+        if (ok && joined.length === Number(meta.len)) {
+          return JSON.parse(joined);
+        }
+      }
+    }
+  } catch (e) { /* fall through */ }
+
+  const val = fn();
+
+  try {
+    const json = JSON.stringify(val);
+    const slices = {};
+    let idx = 0;
+    for (let pos = 0; pos < json.length; pos += CACHE_CHUNK_BYTES) {
+      slices[base + '_' + idx] = json.slice(pos, pos + CACHE_CHUNK_BYTES);
+      idx++;
+    }
+    slices[base + '_meta'] = JSON.stringify({ count: idx, len: json.length });
+    cache.putAll(slices, ttlSec || ADMIN_CACHE_TTL_SEC);
+  } catch (e) { /* cache write is optional */ }
+
+  return val;
+}
+
 // Prevent Google Sheets formula injection — prefix dangerous leading chars
 function sanitizeForSheet(val) {
   if (val === null || val === undefined) return '';
@@ -574,69 +625,15 @@ function getGuests(includeDeleted) {
   return all.filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
 }
 
-// Cached full-sheet read (includes DELETED rows). Two-tier cache:
-//   * process-local (survives within one execution / warm invocation)
-//   * script cache, sliced across multiple keys because Apps Script
-//     CacheService caps each value at ~100 KB and at 700 rows the JSON
-//     payload is well over that.
-//
-// Layout in CacheService:
-//   guests_all_v<ver>_meta  → JSON { count, len }
-//   guests_all_v<ver>_<i>   → chunk of the JSON string (i = 0..count-1)
-//
-// Any mutating action bumps ADMIN_CACHE_VERSION_KEY, which changes <ver>
-// so the previous slices become unreachable (they expire on their own TTL).
-const GUESTS_CACHE_CHUNK = 90000;   // ~90 KB per slice, safe under 100 KB cap
-const GUESTS_CACHE_TTL   = 30;      // seconds
+// Two-tier cache: process-local (this execution) + script cache (30 s).
+// Uses cachedReadChunked to survive Apps Script's 100 KB per-key cap.
 let _guestsCache = null;
 function getGuestsCached() {
   if (_guestsCache) return _guestsCache;
-  const cache = CacheService.getScriptCache();
-  const ver = String(cache.get(ADMIN_CACHE_VERSION_KEY) || '0');
-  const prefix = 'guests_all_v' + ver;
-
-  const metaRaw = cache.get(prefix + '_meta');
-  if (metaRaw) {
-    try {
-      const meta = JSON.parse(metaRaw);
-      const count = Number(meta.count) || 0;
-      if (count > 0) {
-        const keys = [];
-        for (let i = 0; i < count; i++) keys.push(prefix + '_' + i);
-        const parts = cache.getAll(keys);
-        // Only trust the cache if every slice is present
-        let joined = '';
-        let ok = true;
-        for (let i = 0; i < count; i++) {
-          const p = parts[keys[i]];
-          if (p == null) { ok = false; break; }
-          joined += p;
-        }
-        if (ok && joined.length === Number(meta.len)) {
-          try { _guestsCache = JSON.parse(joined); return _guestsCache; } catch (e) {}
-        }
-      }
-    } catch (e) { /* fall through to fresh read */ }
-  }
-
-  const sheet = getSheet(TABS.guests);
-  const all = (sheet.getLastRow() < 1) ? [] : sheetToObjects(sheet);
-  _guestsCache = all;
-
-  // Best-effort write back to the multi-key cache.
-  try {
-    const json = JSON.stringify(all);
-    const slices = {};
-    let idx = 0;
-    for (let pos = 0; pos < json.length; pos += GUESTS_CACHE_CHUNK) {
-      slices[prefix + '_' + idx] = json.slice(pos, pos + GUESTS_CACHE_CHUNK);
-      idx++;
-    }
-    slices[prefix + '_meta'] = JSON.stringify({ count: idx, len: json.length });
-    // putAll caps at 100 entries per call, well above what 700 guests need.
-    cache.putAll(slices, GUESTS_CACHE_TTL);
-  } catch (e) { /* cache write is optional — process-local cache still helps */ }
-
+  _guestsCache = cachedReadChunked('guests_all', function() {
+    const sheet = getSheet(TABS.guests);
+    return (sheet.getLastRow() < 1) ? [] : sheetToObjects(sheet);
+  }, 30);
   return _guestsCache;
 }
 
@@ -1514,6 +1511,12 @@ function getRSVPsByFamily() {
 // sheet read failing doesn't tank the whole boot — the client will fall back
 // to empty state for the missing piece rather than erroring out.
 function getBootstrap() {
+  // Cached with the chunked helper because at 700 guests + 700 RSVPs the
+  // JSON payload is well over the 100 KB single-key cache limit. The cache
+  // is keyed by the admin cache version so any mutation invalidates it.
+  return cachedReadChunked('bootstrap', _getBootstrap, ADMIN_CACHE_TTL_SEC);
+}
+function _getBootstrap() {
   function safe(fn) { try { return fn(); } catch (e) { return null; } }
   return {
     guests:         safe(function() { return getGuests(); })         || [],
