@@ -905,6 +905,102 @@ var _eventViewGuests = [];
 var _eventViewStats = {};
 var _activityEvents = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'];
 
+// ── Bulk selection state (Guests list view) ─────────
+var _bulkSelection = new Set();
+function _bulkCount() { return _bulkSelection.size; }
+function toggleBulkRow(id, on) {
+  if (on) _bulkSelection.add(id); else _bulkSelection.delete(id);
+  _refreshBulkBar();
+  // Header checkbox may need to flip; cheapest is to re-render the current view.
+  renderCurrentView();
+}
+function toggleBulkPage(on) {
+  var pageGuests = getPageGuests();
+  pageGuests.forEach(function(g) {
+    if (on) _bulkSelection.add(g.id); else _bulkSelection.delete(g.id);
+  });
+  renderCurrentView();
+}
+function selectAllFiltered() {
+  filteredGuests.forEach(function(g) { _bulkSelection.add(g.id); });
+  renderCurrentView();
+}
+function clearBulkSelection() {
+  _bulkSelection.clear();
+  renderCurrentView();
+}
+function _refreshBulkBar() {
+  var bar = document.getElementById('bulk-bar');
+  if (!bar) return;
+  bar.style.display = _bulkCount() === 0 ? 'none' : 'flex';
+  var cnt = document.getElementById('bulk-count');
+  if (cnt) cnt.textContent = String(_bulkCount());
+}
+function _renderBulkBar() {
+  var relOptions = ["Bride’s Family","Groom’s Family","Bride’s Friend","Groom’s Friend"]
+    .map(function(r) { return '<option value="' + escapeAttr(r) + '">' + escapeAttr(r) + '</option>'; }).join('');
+  var visible = _bulkCount() === 0 ? 'none' : 'flex';
+  return '<div id="bulk-bar" class="admin-card" style="display:' + visible + ';gap:.5rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;margin-bottom:.9rem;background:var(--gold-pale);border:1px solid var(--gold);">' +
+    '<strong style="margin-right:.4rem;"><span id="bulk-count">' + _bulkCount() + '</span> selected</strong>' +
+    '<button class="btn btn-secondary btn-sm" onclick="selectAllFiltered()">Select all ' + filteredGuests.length + ' filtered</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="clearBulkSelection()">Clear selection</button>' +
+    '<span style="width:1px;height:24px;background:var(--border);"></span>' +
+    '<button class="btn btn-secondary btn-sm" onclick="bulkMarkInvite(false)">Mark invite sent</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="bulkMarkInvite(true)">Clear invite sent</button>' +
+    '<span style="width:1px;height:24px;background:var(--border);"></span>' +
+    '<select id="bulk-rel-select" class="btn-sm" style="padding:.35rem .5rem;">' +
+      '<option value="">Set relationship…</option>' + relOptions +
+    '</select>' +
+    '<button class="btn btn-secondary btn-sm" onclick="bulkApplyRelationship()">Apply</button>' +
+    '<span style="width:1px;height:24px;background:var(--border);"></span>' +
+    '<button class="btn btn-secondary btn-sm" onclick="bulkTagOverseas(true)">Tag overseas</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="bulkTagOverseas(false)">Not overseas</button>' +
+    '<span style="flex:1;"></span>' +
+    '<button class="btn btn-danger-ghost btn-sm" onclick="bulkDeleteSelected()">&#10005; Delete selected</button>' +
+  '</div>';
+}
+
+function _bulkIds() { return Array.from(_bulkSelection); }
+function _bulkAfterServer(msg) {
+  showToast(msg, 'success');
+  _bulkSelection.clear();
+  loadGuests();   // full refresh — mutation just invalidated the bootstrap cache
+}
+function _bulkOnError(err) {
+  showToast('Bulk action failed: ' + (err && err.message || 'unknown'), 'error');
+}
+
+function bulkDeleteSelected() {
+  var n = _bulkCount();
+  if (n === 0) return;
+  if (!confirm('Delete ' + n + ' guest(s)? They can be restored later from the Deleted section.')) return;
+  google.script.run
+    .withSuccessHandler(function(r) { _bulkAfterServer((r && r.deleted) + ' guest(s) deleted.'); })
+    .withFailureHandler(_bulkOnError)
+    .bulkDelete({ ids: _bulkIds() });
+}
+function bulkApplyRelationship() {
+  var sel = document.getElementById('bulk-rel-select');
+  var val = sel ? sel.value : '';
+  if (!val) { showToast('Pick a relationship first.', 'error'); return; }
+  google.script.run
+    .withSuccessHandler(function() { _bulkAfterServer('Relationship set on ' + _bulkCount() + ' guest(s).'); })
+    .withFailureHandler(_bulkOnError)
+    .bulkUpdate({ ids: _bulkIds(), fields: { relationship: val } });
+}
+function bulkTagOverseas(on) {
+  google.script.run
+    .withSuccessHandler(function() { _bulkAfterServer((on ? 'Tagged ' : 'Untagged ') + _bulkCount() + ' guest(s) as overseas.'); })
+    .withFailureHandler(_bulkOnError)
+    .bulkUpdate({ ids: _bulkIds(), fields: { is_overseas: on ? 'TRUE' : 'FALSE' } });
+}
+function bulkMarkInvite(clear) {
+  google.script.run
+    .withSuccessHandler(function() { _bulkAfterServer((clear ? 'Cleared invite-sent on ' : 'Marked invite sent on ') + _bulkCount() + ' guest(s).'); })
+    .withFailureHandler(_bulkOnError)
+    .bulkMarkInviteSent({ ids: _bulkIds(), clear: !!clear });
+}
+
 // ── Debounce (for search inputs so re-render doesn't fire per keystroke) ──
 function debounce(fn, ms) {
   var t = null;
@@ -1342,6 +1438,10 @@ function renderCurrentView() {
 // ── Table View ─────────────────────────────
 function renderTableView(guests, container) {
   var pageGuests = getPageGuests();
+  // If the current page has zero selectable IDs the header checkbox stays
+  // unchecked; otherwise it's checked when every page row is selected.
+  var pageIds = pageGuests.map(function(g) { return g.id; });
+  var allPageSelected = pageIds.length > 0 && pageIds.every(function(id) { return _bulkSelection.has(id); });
 
   var rows = pageGuests.map(function(g) {
     var fullName   = escapeAttr((g.first_name || '') + ' ' + (g.last_name || '')).trim();
@@ -1351,15 +1451,17 @@ function renderTableView(guests, container) {
     var dots       = buildEventDots(g);
     var rel        = escapeAttr(g.relationship || '');
     var phone      = phoneWhatsAppHtml(g.phone);
+    var checked    = _bulkSelection.has(g.id) ? ' checked' : '';
 
-    // Col 1 — identity: dot + name + overseas, then relationship, then code.
-    // Col 2 — contact: phone (if any), then event icons. Email dropped by design.
     var identityBlock =
       '<div class="guest-name">' + fullName + overseasBadge + '</div>' +
       (rel  ? '<div class="guest-identity__rel">' + rel + '</div>' : '') +
       (code ? '<div class="guest-identity__code"><span class="code-pill">' + code + '</span></div>' : '');
 
     return '<tr>' +
+      '<td style="width:32px;text-align:center;vertical-align:top;padding-top:.9rem;">' +
+        '<input type="checkbox" class="bulk-row-check" data-id="' + escapeAttr(g.id) + '" onchange="toggleBulkRow(\'' + escapeAttr(g.id) + '\', this.checked)"' + checked + '/>' +
+      '</td>' +
       '<td>' +
         '<div class="guest-identity">' + guestStatusDot(g) +
           '<div>' + identityBlock + '</div>' +
@@ -1387,9 +1489,13 @@ function renderTableView(guests, container) {
     '</div>';
 
   container.innerHTML =
+    _renderBulkBar() +
     legend +
     '<div class="admin-card" style="padding:0;overflow:hidden;"><div class="guest-table-wrap">' +
     '<table class="guest-table guest-list-table"><thead><tr>' +
+    '<th style="width:32px;text-align:center;">' +
+      '<input type="checkbox" id="bulk-page-check" onchange="toggleBulkPage(this.checked)"' + (allPageSelected ? ' checked' : '') + ' title="Select all on this page"/>' +
+    '</th>' +
     '<th style="width:22%;">Name</th><th>Contact &amp; Events</th><th style="width:130px;text-align:right;">Actions</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 

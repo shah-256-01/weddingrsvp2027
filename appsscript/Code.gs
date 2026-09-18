@@ -84,6 +84,7 @@ function doPost(e) {
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
       'generateCode', 'markInviteSent', 'updateRSVP', 'getBootstrap',
+      'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     if (pinActions.indexOf(action) > -1) {
@@ -122,6 +123,9 @@ function doPost(e) {
     else if (action === 'getBootstrap')     result = getBootstrap();
     else if (action === 'getMessageConfig') result = getMessageConfig();
     else if (action === 'saveMessageConfig') result = saveMessageConfig(payload);
+    else if (action === 'bulkDelete')       result = bulkDelete(payload);
+    else if (action === 'bulkUpdate')       result = bulkUpdate(payload);
+    else if (action === 'bulkMarkInviteSent') result = bulkMarkInviteSent(payload);
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'validate') {
       const rateKey = 'validate_' + String(payload.code || '').toUpperCase().trim();
@@ -152,6 +156,7 @@ function doPost(e) {
       'addGuest', 'updateGuest', 'deleteGuest', 'restoreGuest',
       'bulkAddGuests', 'updateSeating', 'updateContact',
       'submitRSVP', 'updateRSVP', 'markInviteSent',
+      'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
       try { bumpAdminCacheVersion(); } catch (e) { /* best-effort */ }
@@ -970,6 +975,125 @@ function bulkAddGuests(payload) {
   }
 
   return results;
+}
+
+// ── Bulk admin operations ────────────────────────────────
+// All three walk the sheet once, batch every eligible row change into a
+// single setValues per column, and return a summary. Payload shape:
+//   { ids: [guestId, ...], fields?: {relationship, is_overseas, ...} }
+// Only these keys are honoured by bulkUpdate to prevent an admin from
+// accidentally overwriting e.g. invitation_code from a bulk pane.
+const BULK_ALLOWED_FIELDS = ['relationship','is_overseas','notes'];
+
+function _bulkResolveRows(sheet, ids) {
+  const idSet = new Set((ids || []).map(function(x) { return String(x || '').trim(); }).filter(Boolean));
+  if (idSet.size === 0) return { rows: {}, headers: [], missing: [] };
+  const lastCol = sheet.getLastColumn();
+  const lastRow = sheet.getLastRow();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const idIdx = headers.indexOf('id');
+  if (idIdx === -1) throw new Error('id column missing on Guests sheet');
+  if (lastRow < 2) return { rows: {}, headers: headers, missing: Array.from(idSet) };
+  const idCol = sheet.getRange(2, idIdx + 1, lastRow - 1, 1).getValues();
+  const rowByGuestId = {};
+  for (let i = 0; i < idCol.length; i++) {
+    const rowId = String(idCol[i][0] || '').trim();
+    if (rowId && idSet.has(rowId)) rowByGuestId[rowId] = i + 2;
+  }
+  const missing = [];
+  idSet.forEach(function(x) { if (rowByGuestId[x] == null) missing.push(x); });
+  return { rows: rowByGuestId, headers: headers, missing: missing };
+}
+
+function bulkDelete(payload) {
+  const sheet = getSheet(TABS.guests);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const resolved = _bulkResolveRows(sheet, payload && payload.ids);
+    const statusIdx = resolved.headers.indexOf('status');
+    if (statusIdx === -1) throw new Error('status column missing on Guests sheet');
+    let updated = 0;
+    Object.keys(resolved.rows).forEach(function(id) {
+      const rowNum = resolved.rows[id];
+      sheet.getRange(rowNum, statusIdx + 1).setValue('DELETED');
+      updated++;
+    });
+    // Also mark matching RSVP rows as deleted so counts stay accurate.
+    Object.keys(resolved.rows).forEach(function(id) {
+      try {
+        const codeIdx = resolved.headers.indexOf('invitation_code');
+        if (codeIdx > -1) {
+          const code = sheet.getRange(resolved.rows[id], codeIdx + 1).getValue();
+          if (code) markRSVPRowsDeleted(String(code));
+        }
+      } catch (e) { /* best-effort per-row */ }
+    });
+    return { deleted: updated, missing: resolved.missing };
+  } finally { lock.releaseLock(); }
+}
+
+function bulkUpdate(payload) {
+  const fieldsRaw = (payload && payload.fields) || {};
+  const fields = {};
+  BULK_ALLOWED_FIELDS.forEach(function(k) {
+    if (Object.prototype.hasOwnProperty.call(fieldsRaw, k)) fields[k] = fieldsRaw[k];
+  });
+  const fieldKeys = Object.keys(fields);
+  if (fieldKeys.length === 0) throw new Error('No allowed fields to update. Allowed: ' + BULK_ALLOWED_FIELDS.join(', '));
+
+  const sheet = getSheet(TABS.guests);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const resolved = _bulkResolveRows(sheet, payload && payload.ids);
+    const colIdx = {};
+    fieldKeys.forEach(function(k) { colIdx[k] = resolved.headers.indexOf(k); });
+    // Write each column in one setValues covering all affected rows.
+    // We keep the rows contiguous per column by reading current values first,
+    // patching just the target rows, then writing back the whole column slice.
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { updated: 0, missing: resolved.missing };
+    let updated = 0;
+    fieldKeys.forEach(function(k) {
+      const ci = colIdx[k];
+      if (ci === -1) return;   // sheet doesn't have that column, skip silently
+      const range = sheet.getRange(2, ci + 1, lastRow - 1, 1);
+      const cur = range.getValues();
+      const patched = cur.slice();
+      const val = sanitizeForSheet(fields[k]);
+      Object.keys(resolved.rows).forEach(function(id) {
+        const rowNum = resolved.rows[id];
+        patched[rowNum - 2] = [val];
+      });
+      range.setValues(patched);
+      updated += Object.keys(resolved.rows).length;
+    });
+    return { updated: Object.keys(resolved.rows).length, fieldCount: fieldKeys.length, missing: resolved.missing };
+  } finally { lock.releaseLock(); }
+}
+
+function bulkMarkInviteSent(payload) {
+  const clear = !!(payload && payload.clear);
+  const sheet = getSheet(TABS.guests);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const resolved = _bulkResolveRows(sheet, payload && payload.ids);
+    const sentIdx = resolved.headers.indexOf('invite_sent_at');
+    if (sentIdx === -1) throw new Error('invite_sent_at column missing on Guests sheet');
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { updated: 0, missing: resolved.missing };
+    const range = sheet.getRange(2, sentIdx + 1, lastRow - 1, 1);
+    const cur = range.getValues();
+    const patched = cur.slice();
+    const stamp = clear ? '' : new Date().toISOString();
+    Object.keys(resolved.rows).forEach(function(id) {
+      patched[resolved.rows[id] - 2] = [stamp];
+    });
+    range.setValues(patched);
+    return { updated: Object.keys(resolved.rows).length, cleared: clear, missing: resolved.missing };
+  } finally { lock.releaseLock(); }
 }
 
 // Admin utility: return a freshly-generated unique code for the add-guest modal.
