@@ -1122,8 +1122,13 @@ function loadDashboard() {
     var cached = JSON.parse(localStorage.getItem('weddingAdmin:events:v1') || 'null');
     if (cached && Array.isArray(cached.data) && cached.data.length) setAllEvents(cached.data);
   } catch (e) {}
-  loadEvents();
+  // Events now come inside getBootstrap. Only fall back to a standalone
+  // loadEvents() if the bootstrap payload doesn't include them (i.e. the
+  // Apps Script hasn't been redeployed with the events-in-bootstrap change).
   loadGuests();
+  setTimeout(function() {
+    if (!Array.isArray(allEvents) || allEvents.length === 0) loadEvents();
+  }, 6000);
   loadMessageConfigFromServer();
   // Background populate of allStats.perEvent for the By-Event view. Header
   // stats are computed client-side from the bootstrap payload, so this is
@@ -1140,32 +1145,33 @@ function loadDashboard() {
 
 // ── Data Loading Functions ─────────────────
 
+// Called after events land — either via bootstrap (preferred, single
+// round-trip) or via a standalone loadEvents() fallback. Idempotent.
+function afterEventsLoaded() {
+  try { localStorage.setItem('weddingAdmin:events:v1', JSON.stringify({ at: Date.now(), data: allEvents })); } catch (e) {}
+  // Detect a stale Events-sheet that still has legacy single-letter IDs.
+  var legacyIds = (allEvents || [])
+    .map(function(ev) { return String(ev.id || '').trim(); })
+    .filter(function(id) { return /^[LSAGWB]$/.test(id); });
+  if (legacyIds.length && typeof showToast === 'function') {
+    showToast(
+      'Events sheet still has legacy IDs (' + legacyIds.join(', ') + '). ' +
+      'Run migrateEventIdsToV5() in Apps Script before adding guests.',
+      'error', 12000
+    );
+  }
+  renderCSVTab();
+  renderSettingsTab();
+  if (allGuests.length) renderGuestView();
+}
+
 function loadEvents() {
   fetch(SCRIPT_URL, { credentials: 'omit' })
     .then(function(r) { return r.json(); })
     .then(function(json) {
       if (json && json.ok) {
         setAllEvents(json.data || []);
-        // Cache events locally — they change rarely, and this lets the next
-        // admin load render events immediately without a server round-trip.
-        try { localStorage.setItem('weddingAdmin:events:v1', JSON.stringify({ at: Date.now(), data: allEvents })); } catch (e) {}
-        // Detect a stale Events-sheet that still has legacy single-letter
-        // IDs (L/S/A/G/W/B). If we add guests against those IDs they'll
-        // silently disappear when the guest tries to RSVP — surface this
-        // loudly the moment the admin lands on the dashboard.
-        var legacyIds = (allEvents || [])
-          .map(function(ev) { return String(ev.id || '').trim(); })
-          .filter(function(id) { return /^[LSAGWB]$/.test(id); });
-        if (legacyIds.length && typeof showToast === 'function') {
-          showToast(
-            'Events sheet still has legacy IDs (' + legacyIds.join(', ') + '). ' +
-            'Run migrateEventIdsToV5() in Apps Script before adding guests.',
-            'error', 12000
-          );
-        }
-        renderCSVTab();
-        renderSettingsTab();
-        if (allGuests.length) renderGuestView();
+        afterEventsLoaded();
       }
     })
     .catch(function(err) {
@@ -1249,6 +1255,9 @@ function loadGuests() {
   // fan-out if the server hasn't been redeployed with getBootstrap yet.
   gasAsync('getBootstrap').then(function(data) {
     if (!data || typeof data !== 'object') throw new Error('Empty bootstrap');
+    // Events come along in the same payload now — one less round-trip on boot.
+    var eventsInPayload = Array.isArray(data.events) && data.events.length > 0;
+    if (eventsInPayload) { setAllEvents(data.events); afterEventsLoaded(); }
     allGuests          = data.guests         || [];
     allRSVPs           = data.rsvps          || [];
     allSubmittedCodes  = new Set(data.submittedCodes || []);
@@ -1325,7 +1334,7 @@ function renderCurrentView() {
   var container = document.getElementById('guest-view-container');
   if (currentView === 'event') { renderEventView(filteredGuests, allStats); return; }
   if (currentView === 'rsvp-status') { renderRSVPStatusView(filteredGuests, container); return; }
-  if (!filteredGuests.length) { container.innerHTML = '<div class="empty-state">No guests found.</div>'; return; }
+  if (!filteredGuests.length) { container.innerHTML = _emptyGuestsWithClearBtn(); return; }
   if (currentView === 'list') renderTableView(filteredGuests, container);
   else if (currentView === 'grouped') renderGroupedView(filteredGuests, container);
 }
@@ -1477,7 +1486,7 @@ function renderGroupedView(guests, container) {
       '<div class="group-card-body">' + guestRows + '</div></div>';
   }).join('');
 
-  container.innerHTML = html || '<div class="empty-state">No guests found.</div>';
+  container.innerHTML = html || _emptyGuestsWithClearBtn();
 }
 
 // ── RSVP Status View ───────────────────────
@@ -1731,6 +1740,28 @@ function applyFilters() {
   filteredGuests = rebuildFilteredGuests();
   currentPage = 1;
   renderCurrentView();
+}
+
+function _emptyGuestsWithClearBtn() {
+  var q  = (document.getElementById('guest-search')       || {}).value || '';
+  var r  = (document.getElementById('filter-relationship')|| {}).value || '';
+  var s  = (document.getElementById('filter-rsvp')        || {}).value || '';
+  var o  = (document.getElementById('filter-overseas')    || {}).value || '';
+  var anyFilter = q || r || s || o;
+  return '<div class="empty-state">No guests found.' +
+    (anyFilter
+      ? ' <button class="btn btn-secondary btn-sm" onclick="clearAllFilters()" style="margin-left:.6rem;">Clear filters</button>'
+      : '') +
+    '</div>';
+}
+
+function clearAllFilters() {
+  var ids = ['guest-search','filter-relationship','filter-rsvp','filter-overseas'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  applyFilters();
 }
 
 // ── adminLogout ───────────────────────────────
@@ -2086,7 +2117,6 @@ function saveGuest() {
         }
         try { renderGuestView(); refreshStats(); } catch (e) {}
         showToast('Guest updated', 'success');
-        setTimeout(function() { loadGuests(); }, 100);
       })
       .withFailureHandler(function(err) {
         _guestSaving = false;
@@ -2109,7 +2139,6 @@ function saveGuest() {
           try { renderGuestView(); refreshStats(); } catch (e) {}
         }
         showToast('Guest added', 'success');
-        setTimeout(function() { loadGuests(); }, 100);
       })
       .withFailureHandler(function(err) {
         _guestSaving = false;

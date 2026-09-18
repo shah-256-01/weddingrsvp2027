@@ -366,6 +366,9 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 <body>
 
 <!-- ████  LANDING  ████ -->
+<div id="offline-banner" class="hidden" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#c9302c;color:#fff;padding:.55rem 1rem;font-size:.85rem;text-align:center;">
+  You appear to be offline. Anything you submit will be saved locally and retried when you're back online.
+</div>
 <div id="page-landing" class="page active">
   <div class="petals" id="petals" aria-hidden="true"></div>
   <div id="pending-rsvp-banner" class="hidden" style="position:sticky;top:0;z-index:9998;background:#fff4d6;border-bottom:1px solid #e6c877;padding:.7rem 1rem;font-size:.85rem;text-align:center;color:#5c4400;">
@@ -403,7 +406,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         <div class="entry-field">
           <label class="entry-label" for="first-name-input">Name</label>
           <input class="field-input" id="first-name-input" type="text"
-            placeholder="Name from your invite" autocomplete="name"/>
+            placeholder="Name from your invite" autocomplete="name" autofocus/>
           <div class="entry-hint" style="font-size:.7rem;color:var(--muted);margin-top:.25rem;">Enter the name exactly as it appears on your invitation.</div>
         </div>
         <div class="entry-field">
@@ -887,26 +890,10 @@ async function saveContactDetails(email, whatsapp) {
 }
 
 async function postRSVP(payload) {
-  const controller = new AbortController();
-  const timeout = setTimeout(function() { controller.abort(); }, 25000);
-  try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      credentials: 'omit',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'submitRSVP', payload }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'RSVP submission failed');
-    return json.data;
-  } catch (err) {
-    clearTimeout(timeout);
-    if (err.name === 'AbortError') throw new Error('Request timed out after 25s');
-    throw err;
-  }
+  // Uses the shared postAction (two-attempt retry on abort/network/5xx,
+  // no retry on server-returned errors) so a flaky mobile connection or
+  // an Apps Script cold start no longer fails on a single timeout.
+  return postAction('submitRSVP', payload);
 }
 
 /* ══════════════════════════════════════════════
@@ -1039,6 +1026,19 @@ function showEventLoadError(message) {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// Offline banner — hide/show the fixed red bar in step with connectivity.
+(function wireOfflineBanner() {
+  function apply() {
+    var b = document.getElementById('offline-banner');
+    if (!b) return;
+    if (navigator.onLine === false) b.classList.remove('hidden');
+    else b.classList.add('hidden');
+  }
+  window.addEventListener('online', apply);
+  window.addEventListener('offline', apply);
+  document.addEventListener('DOMContentLoaded', apply);
+})();
 
 /* ══════════════════════════════════════════════
    ROUTING
@@ -1534,9 +1534,9 @@ function renderEventCards() {
             : '') +
           '<div class="guest-count-row">' +
             '<div class="guest-count-item"><label>Guests</label><div class="counter-row">' +
-              '<button class="counter-btn" aria-label="Decrease guests" onclick="adjCount(\'' + safeId + '\',\'guests\',-1)">\u2212</button>' +
+              '<button class="counter-btn" id="dec-' + safeId + '" aria-label="Decrease guests" onclick="adjCount(\'' + safeId + '\',\'guests\',-1)">\u2212</button>' +
               '<span class="counter-val" id="guests-' + safeId + '" aria-live="polite">' + eventRSVPs[id].guests + '</span>' +
-              '<button class="counter-btn" aria-label="Increase guests" onclick="adjCount(\'' + safeId + '\',\'guests\',1)">+</button>' +
+              '<button class="counter-btn" id="inc-' + safeId + '" aria-label="Increase guests" onclick="adjCount(\'' + safeId + '\',\'guests\',1)">+</button>' +
             '</div></div>' +
           '</div>' +
           '<div id="names-' + safeId + '" class="name-inputs-container"></div>' +
@@ -1588,6 +1588,9 @@ function setAttending(id, val) {
   if (val) { badge.className = 'event-status-badge badge-attending'; badge.textContent = 'Attending'; details.classList.remove('hidden'); }
   else { badge.className = 'event-status-badge badge-declined'; badge.textContent = 'Regrets'; details.classList.add('hidden'); }
   renderNameInputs(id);
+  // Initialize min/max disabled state for the counter buttons now that
+  // they're visible.
+  if (val) adjCount(id, 'guests', 0);
   renderSummary();
   updateProgress();
 }
@@ -1599,6 +1602,12 @@ function adjCount(id, field, delta) {
   document.getElementById('guests-' + id).textContent = r.guests;
   while (r.guestNames.length < r.guests) r.guestNames.push('');
   if (r.guestNames.length > r.guests) r.guestNames.length = r.guests;
+  // Disable counter buttons at the limits so guests aren't clicking dead
+  // buttons. adjCount already clamps the value, this is purely a signal.
+  var decBtn = document.getElementById('dec-' + id);
+  var incBtn = document.getElementById('inc-' + id);
+  if (decBtn) { decBtn.disabled = r.guests <= 1;   decBtn.style.opacity = decBtn.disabled ? .35 : 1; }
+  if (incBtn) { incBtn.disabled = r.guests >= max; incBtn.style.opacity = incBtn.disabled ? .35 : 1; }
   renderNameInputs(id);
 }
 
@@ -1970,6 +1979,18 @@ function startCountdown(){
     if(cdS) cdS.textContent=String(s).padStart(2,'0');
   }
   tick(); _countdownInterval=setInterval(tick,1000);
+  // Pause when the tab is hidden and resume when it's shown again — no
+  // point spending battery ticking a clock nobody's watching.
+  if (!window._countdownVisibilityWired) {
+    window._countdownVisibilityWired = true;
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+      } else if (!_countdownInterval) {
+        tick(); _countdownInterval = setInterval(tick, 1000);
+      }
+    });
+  }
 }
 
 

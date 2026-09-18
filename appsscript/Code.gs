@@ -1565,6 +1565,7 @@ function getBootstrap() {
 function _getBootstrap() {
   function safe(fn) { try { return fn(); } catch (e) { return null; } }
   return {
+    events:         safe(function() { return getEvents(); })         || [],
     guests:         safe(function() { return getGuests(); })         || [],
     rsvps:          safe(function() { return getRSVPsByFamily(); })  || [],
     submittedCodes: safe(function() { return getSubmittedCodes(); }) || [],
