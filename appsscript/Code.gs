@@ -319,7 +319,7 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
   if (!email)   throw new Error('Email address required.');
   if (!whatsapp) throw new Error('WhatsApp number required.');
   if (!invitationCode) throw new Error('Invitation code required.');
-  if (!firstName || !lastName) throw new Error('Guest name required.');
+  if (!firstName) throw new Error('Guest name required.');
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error('Please enter a valid email address.');
@@ -334,14 +334,18 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
   const codeCol  = headers.indexOf('invitation_code');
   const fnCol    = headers.indexOf('first_name');
   const lnCol    = headers.indexOf('last_name');
-  if (codeCol === -1 || fnCol === -1 || lnCol === -1) throw new Error('Invalid sheet configuration.');
+  if (codeCol === -1 || fnCol === -1) throw new Error('Invalid sheet configuration.');
 
   const storedCode = String(row[codeCol] || '').toUpperCase().trim();
   if (storedCode !== String(invitationCode).toUpperCase().trim()) {
     throw new Error('Identity verification failed.');
   }
-  if (normaliseName(row[fnCol]) !== normaliseName(firstName) ||
-      normaliseName(row[lnCol]) !== normaliseName(lastName)) {
+  // Match on combined name so invites like "Paul & Mehreen" (blank last_name)
+  // still verify. Client may pass firstName as the full display name and
+  // lastName as ''; server rebuilds normalized full name from either shape.
+  const storedFull = normaliseName((row[fnCol] || '') + ' ' + (lnCol > -1 ? (row[lnCol] || '') : ''));
+  const typedFull  = normaliseName((firstName || '') + ' ' + (lastName || ''));
+  if (storedFull !== typedFull) {
     throw new Error('Identity verification failed.');
   }
 
