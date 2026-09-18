@@ -368,6 +368,11 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 <!-- ████  LANDING  ████ -->
 <div id="page-landing" class="page active">
   <div class="petals" id="petals" aria-hidden="true"></div>
+  <div id="pending-rsvp-banner" class="hidden" style="position:sticky;top:0;z-index:9998;background:#fff4d6;border-bottom:1px solid #e6c877;padding:.7rem 1rem;font-size:.85rem;text-align:center;color:#5c4400;">
+    <span id="pending-rsvp-msg">You have an unsent response from earlier.</span>
+    <button type="button" onclick="retryPendingRSVPs()" style="margin-left:.6rem;background:#a67c00;color:#fff;border:none;padding:.35rem .8rem;border-radius:3px;cursor:pointer;font-size:.8rem;">Retry send</button>
+    <button type="button" onclick="dismissPendingRSVPs()" style="margin-left:.4rem;background:transparent;border:none;color:#5c4400;cursor:pointer;font-size:1rem;line-height:1;">&times;</button>
+  </div>
   <div class="landing-inner">
     <p class="landing-eyebrow"><span class="label">You are cordially invited to the wedding of</span></p>
     <h1 class="landing-couple">Jaini<span class="amp">&amp;</span>Shanay</h1>
@@ -913,6 +918,10 @@ let currentCode = '', currentEventIds = [], eventRSVPs = {};
    INIT
 ══════════════════════════════════════════════ */
 async function init() {
+  // Surface any unsent RSVPs that were saved to localStorage on a
+  // previous submit attempt but never confirmed.
+  checkForPendingBackups();
+
   // Stale-while-revalidate: if we've loaded events before, use them
   // immediately so the code entry is usable, then refresh in the
   // background. First-time visitors see the spinner as before.
@@ -946,6 +955,70 @@ async function init() {
     console.error('Event load failed:', err);
     showEventLoadError('Unable to load event data (' + (err.message || 'unknown') + '). Please refresh the page.');
   }
+}
+
+// ── Pending RSVP retry ─────────────────────────
+function _getPendingBackups() {
+  try {
+    var all = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
+    return all.filter(function(b) {
+      return b && b.payload && b._syncStatus !== 'confirmed';
+    });
+  } catch (e) { return []; }
+}
+
+function checkForPendingBackups() {
+  var pending = _getPendingBackups();
+  var banner = document.getElementById('pending-rsvp-banner');
+  if (!banner) return;
+  if (pending.length === 0) { banner.classList.add('hidden'); return; }
+  var msg = document.getElementById('pending-rsvp-msg');
+  if (msg) {
+    var latest = pending[pending.length - 1];
+    var name = (latest.payload && latest.payload.submissionName) || 'your response';
+    msg.textContent = 'You have an unsent RSVP for ' + name + ' from earlier.';
+  }
+  banner.classList.remove('hidden');
+}
+
+async function retryPendingRSVPs() {
+  var pending = _getPendingBackups();
+  if (pending.length === 0) return;
+  var banner = document.getElementById('pending-rsvp-banner');
+  var msg    = document.getElementById('pending-rsvp-msg');
+  if (msg) msg.textContent = 'Resending…';
+
+  var okCount = 0, failCount = 0;
+  for (var i = 0; i < pending.length; i++) {
+    try {
+      await postAction('submitRSVP', pending[i].payload);
+      okCount++;
+    } catch (e) {
+      // "Already received" also counts as success — the sheet has the row
+      if (/already been received/i.test(e.message || '')) okCount++;
+      else failCount++;
+    }
+  }
+
+  // Mark all pending as confirmed (whether server accepted or told us it's
+  // a duplicate — either way the RSVP is on record).
+  try {
+    var all = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
+    all.forEach(function(b) { if (b._syncStatus !== 'confirmed') b._syncStatus = 'confirmed'; });
+    localStorage.setItem('rsvp_backups', JSON.stringify(all));
+  } catch (e) {}
+
+  if (failCount === 0) {
+    if (msg) msg.textContent = 'All caught up ✓ your RSVP has been sent.';
+    setTimeout(function() { if (banner) banner.classList.add('hidden'); }, 4000);
+  } else {
+    if (msg) msg.textContent = failCount + ' still failed. Please try again in a moment.';
+  }
+}
+
+function dismissPendingRSVPs() {
+  var banner = document.getElementById('pending-rsvp-banner');
+  if (banner) banner.classList.add('hidden');
 }
 
 function showLoadingSpinner() {
@@ -1103,6 +1176,7 @@ function loadGuestPage() {
     if (hasEmail) document.getElementById('contact-email').value = currentGuest.email;
     if (hasWhatsApp) document.getElementById('contact-whatsapp').value = currentGuest.whatsapp;
     document.getElementById('contact-screen').classList.remove('hidden');
+    _attachContactEnterKey();
     ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
@@ -1154,13 +1228,19 @@ function showRSVPFlow() {
     var isUnallocated = maxGuests === 0;
     if (isUnallocated) maxGuests = 1;
 
+    var defaultNames = Array(maxGuests).fill('');
+    // Prefill the first guest slot with the signed-in name so they don't
+    // have to retype it for every event.
+    var signedInName = [currentGuest && currentGuest.firstName, currentGuest && currentGuest.lastName]
+      .filter(Boolean).join(' ').trim();
+    if (signedInName && maxGuests > 0) defaultNames[0] = signedInName;
     eventRSVPs[id] = {
       attending:     null,
       guests:        maxGuests,
       maxGuests:     maxGuests,
       notes:         '',
       isUnallocated: isUnallocated,
-      guestNames:    Array(maxGuests).fill(''),
+      guestNames:    defaultNames,
     };
   });
 
@@ -1185,6 +1265,16 @@ function hideRSVPFlow() {
 }
 
 var _contactSaving = false;
+function _attachContactEnterKey() {
+  ['contact-email','contact-whatsapp'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && !el._enterAttached) {
+      el._enterAttached = true;
+      el.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitContactDetails(); });
+    }
+  });
+}
+
 async function submitContactDetails() {
   if (_contactSaving) return;
 
@@ -1212,25 +1302,14 @@ async function submitContactDetails() {
     return;
   }
 
-  _contactSaving  = true;
-  btn.textContent = 'Saving\u2026';
-  btn.disabled    = true;
-
-  try {
-    btn.textContent = 'Verifying\u2026';
-    await saveContactDetails(email, whatsapp);
-    currentGuest.email    = email;
-    currentGuest.whatsapp = whatsapp;
-    document.getElementById('contact-screen').classList.add('hidden');
-    showRSVPFlow();
-  } catch (err) {
-    errEl.textContent = err.message || 'Something went wrong. Please try again.';
-    errEl.classList.remove('hidden');
-    btn.textContent = 'Continue to RSVP';
-    btn.disabled    = false;
-  } finally {
-    _contactSaving = false;
-  }
+  // Local-only: contact details ride along with submitRSVP so we save one
+  // round-trip. Store on currentGuest and mark as pending; the actual save
+  // happens server-side when the RSVP submits.
+  currentGuest.email          = email;
+  currentGuest.whatsapp       = whatsapp;
+  currentGuest._pendingContact = true;
+  document.getElementById('contact-screen').classList.add('hidden');
+  showRSVPFlow();
 }
 
 function showAlreadySubmittedScreen(existingRSVP) {
@@ -1786,6 +1865,13 @@ async function submitRSVP() {
     _syncStatus: 'pending',
   };
 
+  // If contact details were collected on the pre-RSVP screen, piggyback them
+  // on this submit so the server updates the guest row in the same round-trip.
+  if (currentGuest._pendingContact) {
+    payload.email    = currentGuest.email || '';
+    payload.whatsapp = currentGuest.whatsapp || '';
+  }
+
   // Save to localStorage BEFORE submitting — backup in case network fails
   var _backupSaved = false;
   try {
@@ -1827,6 +1913,7 @@ async function submitRSVP() {
     if (currentGuest && currentGuest.isOverseas) {
       document.getElementById('overseas-success-link').classList.remove('hidden');
     }
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
   } else {
     btn.textContent = 'Send my response';
     btn.disabled = false;

@@ -1166,6 +1166,34 @@ function submitRSVP(payload) {
       if (nm > -1) row[nm] = sanitizeForSheet((ev.names || []).join('|'));
     });
     byFamilySheet.appendRow(row);
+
+    // ── Piggybacked contact update ────────────────────────
+    // If the guest just captured their email/whatsapp on the pre-RSVP
+    // screen, save one round-trip by writing them to the guest row here
+    // (same lock, same request). We already have guestRecord from the
+    // allocation-validation lookup above.
+    const emailIn = (payload.email || '').trim();
+    const phoneIn = (payload.whatsapp || '').trim();
+    if (guestRecord && (emailIn || phoneIn)) {
+      try {
+        const gSheet   = getSheet(TABS.guests);
+        const gHeaders = gSheet.getRange(1, 1, 1, gSheet.getLastColumn()).getValues()[0];
+        const gRow     = findRowById(gSheet, guestRecord.id);
+        if (gRow !== -1) {
+          const emailIdx = gHeaders.indexOf('email');
+          const phoneIdx = gHeaders.indexOf('phone');
+          if (emailIn && emailIdx > -1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailIn)) {
+            gSheet.getRange(gRow, emailIdx + 1).setValue(sanitizeForSheet(emailIn));
+          }
+          if (phoneIn && phoneIdx > -1) {
+            gSheet.getRange(gRow, phoneIdx + 1).setValue(sanitizeForSheet(phoneIn));
+          }
+        }
+      } catch (contactErr) {
+        // Contact-save failure shouldn't fail the whole RSVP — log and move on.
+        Logger.log('Piggybacked contact save failed: ' + contactErr.message);
+      }
+    }
   } finally {
     lock.releaseLock();
   }
@@ -1179,7 +1207,12 @@ function submitRSVP(payload) {
     String(g.invitation_code || '').toUpperCase().trim() === invitationCode &&
     normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName)
   );
-  const guestEmailAddr = guestEmailLookup ? String(guestEmailLookup.email || '').trim() : '';
+  // Prefer the email just captured on this submit (piggybacked contact save)
+  // over the stale sheet value, so the confirmation lands in the right inbox.
+  const guestEmailAddr = String(
+    (payload.email || '').trim() ||
+    (guestEmailLookup ? guestEmailLookup.email : '') || ''
+  ).trim();
   const validGuestEmail = guestEmailAddr && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmailAddr);
 
   if (_notificationTriggerInstalled()) {
