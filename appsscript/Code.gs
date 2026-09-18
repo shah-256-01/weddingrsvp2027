@@ -1046,7 +1046,7 @@ function submitRSVP(payload) {
       });
     }
 
-    // RSVPs_by_event (tall)
+    // RSVPs_by_event (tall) — build all N event rows then flush in one write
     const byEventSheet = getSheet(TABS.rsvpByEvent);
     const byEventExpectedHeaders = [
       'timestamp','submission_name','invitation_code',
@@ -1062,7 +1062,7 @@ function submitRSVP(payload) {
       }
     }
     const byEventHeaders = byEventSheet.getRange(1, 1, 1, byEventSheet.getLastColumn()).getValues()[0];
-    events.forEach(ev => {
+    const byEventRows = events.map(ev => {
       const row = new Array(byEventHeaders.length).fill('');
       const s = (col, val) => { const i = byEventHeaders.indexOf(col); if (i > -1) row[i] = val; };
       s('timestamp',       ts);
@@ -1074,8 +1074,13 @@ function submitRSVP(payload) {
       s('guests',          ev.attending ? (ev.guests || 0) : 0);
       s('notes',           sanitizeForSheet(String(ev.notes || '').slice(0, 500)));
       s('guest_names',     sanitizeForSheet((ev.names || []).join('|')));
-      byEventSheet.appendRow(row);
+      return row;
     });
+    if (byEventRows.length > 0) {
+      const startRow = byEventSheet.getLastRow() + 1;
+      byEventSheet.getRange(startRow, 1, byEventRows.length, byEventHeaders.length)
+        .setValues(byEventRows);
+    }
 
     // RSVPs_by_family (wide)
     const byFamilySheet = getSheet(TABS.rsvpByFamily);
@@ -1134,21 +1139,106 @@ function submitRSVP(payload) {
     lock.releaseLock();
   }
 
-  // Email notifications — best effort, don't block RSVP
-  try { sendRSVPNotification(payload); }
-  catch (emailErr) { Logger.log('Admin notification failed: ' + emailErr.message); }
-
+  // Email notifications — enqueue for a background trigger so the guest
+  // gets an immediate response instead of waiting for MailApp round-trips.
+  // A time-driven trigger installed via installNotificationTrigger() drains
+  // the queue every minute. If no trigger is installed, notifications are
+  // sent inline (previous behaviour) so nothing is lost on first setup.
   const guestEmailLookup = guestsForValidation.find(g =>
     String(g.invitation_code || '').toUpperCase().trim() === invitationCode &&
     normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName)
   );
   const guestEmailAddr = guestEmailLookup ? String(guestEmailLookup.email || '').trim() : '';
-  if (guestEmailAddr && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmailAddr)) {
-    try { sendGuestConfirmationEmail(payload, guestEmailAddr); }
-    catch (confErr) { Logger.log('Guest confirmation email failed: ' + confErr.message); }
+  const validGuestEmail = guestEmailAddr && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmailAddr);
+
+  if (_notificationTriggerInstalled()) {
+    _enqueueNotification({ payload: payload, guestEmail: validGuestEmail ? guestEmailAddr : '' });
+  } else {
+    try { sendRSVPNotification(payload); }
+    catch (emailErr) { Logger.log('Admin notification failed: ' + emailErr.message); }
+    if (validGuestEmail) {
+      try { sendGuestConfirmationEmail(payload, guestEmailAddr); }
+      catch (confErr) { Logger.log('Guest confirmation email failed: ' + confErr.message); }
+    }
   }
 
   return { submitted: true };
+}
+
+// ── Deferred email queue ────────────────────────────────
+const NOTIFICATION_QUEUE_KEY = 'RSVP_EMAIL_QUEUE';
+const NOTIFICATION_TRIGGER_HANDLER = 'processNotificationQueue';
+
+function _notificationTriggerInstalled() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    return triggers.some(t => t.getHandlerFunction() === NOTIFICATION_TRIGGER_HANDLER);
+  } catch (e) { return false; }
+}
+
+function _enqueueNotification(item) {
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(2000); } catch (e) { /* proceed best-effort */ }
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const raw = props.getProperty(NOTIFICATION_QUEUE_KEY) || '[]';
+    let queue;
+    try { queue = JSON.parse(raw); if (!Array.isArray(queue)) queue = []; } catch (e) { queue = []; }
+    queue.push({ payload: item.payload, guestEmail: item.guestEmail, at: new Date().toISOString() });
+    // Cap the queue so a malformed payload can't grow it unbounded.
+    if (queue.length > 2000) queue = queue.slice(-2000);
+    props.setProperty(NOTIFICATION_QUEUE_KEY, JSON.stringify(queue));
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+// Time-driven trigger handler. Drains up to N items per run so a big backlog
+// still respects the 6-min execution ceiling.
+function processNotificationQueue() {
+  const MAX_PER_RUN = 80;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  let queue;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const raw = props.getProperty(NOTIFICATION_QUEUE_KEY) || '[]';
+    try { queue = JSON.parse(raw); if (!Array.isArray(queue)) queue = []; } catch (e) { queue = []; }
+    if (queue.length === 0) return;
+    const batch = queue.slice(0, MAX_PER_RUN);
+    const rest  = queue.slice(MAX_PER_RUN);
+    // Claim ownership by writing the remainder back before we start sending.
+    props.setProperty(NOTIFICATION_QUEUE_KEY, JSON.stringify(rest));
+    queue = batch;
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+
+  queue.forEach(item => {
+    try { sendRSVPNotification(item.payload); }
+    catch (e) { Logger.log('Deferred admin notification failed: ' + e.message); }
+    if (item.guestEmail) {
+      try { sendGuestConfirmationEmail(item.payload, item.guestEmail); }
+      catch (e) { Logger.log('Deferred guest confirmation failed: ' + e.message); }
+    }
+  });
+}
+
+// Run once from the Apps Script editor to install a time-driven trigger that
+// drains the RSVP email queue every minute. Idempotent — safe to re-run.
+function installNotificationTrigger() {
+  const existing = ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === NOTIFICATION_TRIGGER_HANDLER);
+  existing.forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger(NOTIFICATION_TRIGGER_HANDLER).timeBased().everyMinutes(1).create();
+  Logger.log('Installed notification trigger (every 1 min).');
+}
+
+function uninstallNotificationTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === NOTIFICATION_TRIGGER_HANDLER)
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  Logger.log('Removed notification trigger.');
 }
 
 // ── updateRSVP ──────────────────────────────────────────
