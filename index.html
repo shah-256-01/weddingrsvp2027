@@ -853,7 +853,8 @@ async function saveContactDetails(email, whatsapp) {
   } catch (err) {
     clearTimeout(timeout);
     if (err.name === 'AbortError') throw new Error('Contact save timed out after 25s');
-    throw new Error('Could not save contact details. Please try again.');
+    console.error('Contact save error:', err);
+    throw new Error(err.message || 'Could not save contact details. Please try again.');
   }
 }
 
