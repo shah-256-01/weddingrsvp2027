@@ -395,46 +395,32 @@ function validateGuest(code, firstName, lastName) {
     }
   }
 
-  const guests    = getGuests(); // already filters out DELETED by default
+  // Single sheet read — check active first, then deleted for a nicer error.
   // Match on combined full name so it's tolerant of which field on either
   // side holds each word — e.g. sheet has first_name="Paul & Mehreen", last_name=""
   // and guest types firstName="Paul", lastName="& Mehreen" (or vice versa).
   const normTyped = normaliseName((firstName || '') + ' ' + (lastName || ''));
   const normCode  = code.toUpperCase().trim();
+  const allGuests = getGuestsCached();
 
-  const match = guests.find(g =>
-    String(g.invitation_code || '').toUpperCase().trim() === normCode &&
-    normaliseName((g.first_name || '') + ' ' + (g.last_name || '')) === normTyped
-  );
+  let match = null;
+  let deletedHit = false;
+  for (let i = 0; i < allGuests.length; i++) {
+    const g = allGuests[i];
+    if (String(g.invitation_code || '').toUpperCase().trim() !== normCode) continue;
+    if (normaliseName((g.first_name || '') + ' ' + (g.last_name || '')) !== normTyped) continue;
+    if (String(g.status || '').toUpperCase() === 'DELETED') { deletedHit = true; continue; }
+    match = g; break;
+  }
 
-  // No match found
   if (!match) {
-    // Check if there IS a deleted guest with these details
-    // Give a different error to avoid leaking that the guest existed
-    const allGuests = sheetToObjects(getSheet(TABS.guests));
-    const deletedMatch = allGuests.find(g =>
-      String(g.status || '').toUpperCase() === 'DELETED' &&
-      String(g.invitation_code || '').toUpperCase().trim() === normCode &&
-      normaliseName((g.first_name || '') + ' ' + (g.last_name || '')) === normTyped
-    );
-
-    if (deletedMatch) {
-      // Guest record was deleted — give a neutral error (don't reveal deletion)
+    if (deletedHit) {
       throw new Error(
         'We could not find your invitation. Please contact the wedding team for assistance.'
       );
     }
-
-    // Standard not found error
     throw new Error(
       'No matching guest found. Please check your name and code.'
-    );
-  }
-
-  // Double-check status on match (getGuests() should have filtered this, but be defensive)
-  if (String(match.status || '').toUpperCase() === 'DELETED') {
-    throw new Error(
-      'We could not find your invitation. Please contact the wedding team for assistance.'
     );
   }
 
@@ -539,6 +525,27 @@ function getGuests(includeDeleted) {
   const all = sheetToObjects(sheet);
   if (includeDeleted) return all;
   return all.filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
+}
+
+// Cached full-sheet read (includes DELETED rows). Cache is process-local so it
+// only helps within the same execution / warm invocation, plus a short script
+// cache to smooth back-to-back guest validation attempts. Any mutating action
+// bumps the admin cache version, which also invalidates this via key prefix.
+let _guestsCache = null;
+function getGuestsCached() {
+  if (_guestsCache) return _guestsCache;
+  const cache = CacheService.getScriptCache();
+  const ver = String(cache.get(ADMIN_CACHE_VERSION_KEY) || '0');
+  const key = 'guests_all_v' + ver;
+  const raw = cache.get(key);
+  if (raw) {
+    try { _guestsCache = JSON.parse(raw); return _guestsCache; } catch (e) {}
+  }
+  const sheet = getSheet(TABS.guests);
+  const all = (sheet.getLastRow() < 1) ? [] : sheetToObjects(sheet);
+  _guestsCache = all;
+  try { cache.put(key, JSON.stringify(all), 30); } catch (e) { /* > 100KB payload */ }
+  return _guestsCache;
 }
 
 // ── getDeletedGuests ─────────────────────────────────────
