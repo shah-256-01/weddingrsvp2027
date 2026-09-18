@@ -315,7 +315,6 @@ function generateUniqueCode(usedCodes) {
 
 // ── updateGuestContact ───────────────────────────────────
 function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName, lastName) {
-  if (!guestId) throw new Error('Guest ID required.');
   if (!email)   throw new Error('Email address required.');
   if (!whatsapp) throw new Error('WhatsApp number required.');
   if (!invitationCode) throw new Error('Invitation code required.');
@@ -325,11 +324,32 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
     throw new Error('Please enter a valid email address.');
   }
 
-  const sheet  = getSheet(TABS.guests);
-  const rowNum = findRowById(sheet, guestId);
-  if (rowNum === -1) throw new Error('Guest record not found.');
+  const sheet   = getSheet(TABS.guests);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  let rowNum = guestId ? findRowById(sheet, guestId) : -1;
+  if (rowNum === -1) {
+    // Fallback: locate by invitation_code + combined name. Handles legacy rows
+    // where the id column is blank / manually added rows / clients that don't
+    // carry an id.
+    const codeIdx = headers.indexOf('invitation_code');
+    const fnIdx   = headers.indexOf('first_name');
+    const lnIdx   = headers.indexOf('last_name');
+    if (codeIdx > -1 && fnIdx > -1) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+        const normCode = String(invitationCode).toUpperCase().trim();
+        const typed = normaliseName((firstName || '') + ' ' + (lastName || ''));
+        for (let i = 0; i < data.length; i++) {
+          if (String(data[i][codeIdx] || '').toUpperCase().trim() !== normCode) continue;
+          const stored = normaliseName((data[i][fnIdx] || '') + ' ' + (lnIdx > -1 ? (data[i][lnIdx] || '') : ''));
+          if (stored === typed) { rowNum = i + 2; break; }
+        }
+      }
+    }
+    if (rowNum === -1) throw new Error('Guest record not found.');
+  }
 
-  const headers  = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const row      = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
   const codeCol  = headers.indexOf('invitation_code');
   const fnCol    = headers.indexOf('first_name');
