@@ -713,13 +713,48 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <span><span class="guest-status-dot guest-status-dot--green"></span>RSVP&rsquo;d</span>
       </div>
 
+      <div id="msg-send-pill" class="hidden" style="position:sticky;top:96px;z-index:40;display:flex;gap:.5rem;align-items:center;background:var(--gold-pale);border:1px solid var(--gold);border-radius:999px;padding:.5rem .9rem;margin:.6rem 0 .3rem;box-shadow:0 2px 8px rgba(0,0,0,.08);flex-wrap:wrap;">
+        <span style="font-size:.75rem;color:var(--muted);">Sent today <strong id="msg-sent-today">0</strong> · <span id="msg-remaining">0</span> to go</span>
+        <span style="flex:1;"></span>
+        <button class="btn btn-primary btn-sm" id="msg-send-next-btn" onclick="msgSendNext()" title="Preview + send next unsent guest">&#9654; Send next</button>
+        <button class="btn btn-secondary btn-sm" id="msg-session-toggle" onclick="toggleSendSession()" title="Auto-open the next guest after each send">Auto-advance: off</button>
+      </div>
       <div id="msg-progress"></div>
       <div id="msg-list"></div>
+      <div id="msg-no-phone-section"></div>
     </div>
 
   </div>
 
 </div><!-- /admin-dashboard -->
+
+<!-- ████  MESSAGE PREVIEW MODAL  ████ -->
+<div class="modal-overlay hidden" id="msg-preview-overlay" onclick="if(event.target===this)closeMsgPreview()">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="msg-preview-title">Send message</div>
+        <div class="modal-sub" id="msg-preview-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeMsgPreview()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <label style="font-size:.72rem;color:var(--muted);">Message preview</label>
+      <textarea id="msg-preview-body" rows="12" style="width:100%;font-family:'Jost',sans-serif;font-size:.85rem;resize:vertical;margin-top:.3rem;padding:.7rem;border:1px solid var(--border);border-radius:2px;background:#fdfaf5;"></textarea>
+      <div style="font-size:.68rem;color:var(--muted);margin-top:.3rem;">Edit before sending if you want to personalise. Changes here are one-off — the saved template is untouched.</div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;gap:.4rem;">
+        <button class="btn btn-secondary btn-sm" onclick="msgPreviewSkip()" title="Skip this guest">Skip</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeMsgPreview()">Cancel</button>
+      </div>
+      <div style="display:flex;gap:.4rem;">
+        <button class="btn btn-secondary btn-sm" onclick="msgPreviewCopy()">Copy</button>
+        <button class="btn btn-primary btn-sm" id="msg-preview-send-btn" onclick="msgPreviewSend()">&#128172; Send via WhatsApp</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ████  ADD / EDIT GUEST MODAL  ████ -->
 <div class="modal-overlay hidden" id="guest-modal-overlay" onclick="if(event.target===this)closeGuestModal()">
@@ -3680,29 +3715,227 @@ function buildMessage(template, guest, deadline) {
     .replace(/\{\{deadline\}\}/g, deadline || '');
 }
 
+// Preview state: which guest+section is currently in the modal.
+var _msgPreview = { guestId: null, section: null };
+
+// openWhatsApp now shows a Preview modal first. The admin sees the exact
+// message that will fire, can edit it inline, then Send / Skip / Cancel.
+// The old "fire straight into WhatsApp with no proofread" behaviour is
+// preserved as _openWhatsAppDirect for the Copy button and any future
+// callers that want to bypass the preview.
 function openWhatsApp(guestId, section) {
   var g = allGuests.find(function(x) { return x.id === guestId; });
   if (!g || !g.phone) return;
   var template = getSelectedTemplateBody(guestId, section);
   var deadline = (messageConfig && messageConfig.settings) ?
     (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
-  var msg = buildMessage(template, g, deadline);
-  var url = buildWhatsAppUrl(g.phone, msg);
-  if (!url) return;
+  var body = buildMessage(template, g, deadline);
+  _msgPreview.guestId = guestId;
+  _msgPreview.section = section;
+  var name = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+  document.getElementById('msg-preview-title').textContent = (section === 'chase' ? 'Chase-up · ' : 'Invite · ') + name;
+  document.getElementById('msg-preview-sub').textContent  = (g.phone || '') + (g.relationship ? ' · ' + g.relationship : '');
+  document.getElementById('msg-preview-body').value = body;
+  document.getElementById('msg-preview-overlay').classList.remove('hidden');
+  setTimeout(function() {
+    var btn = document.getElementById('msg-preview-send-btn');
+    if (btn) btn.focus();
+  }, 0);
+  _installMsgPreviewKeys();
+}
+
+function closeMsgPreview() {
+  document.getElementById('msg-preview-overlay').classList.add('hidden');
+  _msgPreview.guestId = null;
+  _msgPreview.section = null;
+  _teardownMsgPreviewKeys();
+}
+
+function msgPreviewSend() {
+  var id = _msgPreview.guestId, section = _msgPreview.section;
+  if (!id) return;
+  var g = allGuests.find(function(x) { return x.id === id; });
+  if (!g) { closeMsgPreview(); return; }
+  var body = document.getElementById('msg-preview-body').value || '';
+  var url  = buildWhatsAppUrl(g.phone, body);
+  if (!url) { showToast('Could not build WhatsApp URL — check the phone number.', 'error'); return; }
   window.open(url, '_blank');
   if (section === 'invite') {
     google.script.run
       .withSuccessHandler(function(res) {
         g.invite_sent_at = res.invite_sent_at;
-        // Patch just this row + the progress card instead of re-rendering
-        // all 700 rows.
-        patchMsgRow(guestId);
+        patchMsgRow(id);
+        _rememberLastSent(id);
+        _afterSendAdvance();
       })
-      .withFailureHandler(function(err) {
-        console.warn('markInviteSent failed:', err && err.message);
-      })
-      .markInviteSent({ guestId: guestId });
+      .withFailureHandler(function(err) { console.warn('markInviteSent failed:', err && err.message); })
+      .markInviteSent({ guestId: id });
+  } else {
+    // chase mode: no mark-as-sent; still advance.
+    _afterSendAdvance();
   }
+  closeMsgPreview();
+}
+
+function msgPreviewCopy() {
+  var body = document.getElementById('msg-preview-body').value || '';
+  if (!body) return;
+  var done = function() { showToast('Message copied to clipboard.', 'success', 1600); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(body).then(done).catch(function() { showToast('Copy failed.', 'error'); });
+  } else {
+    try {
+      var ta = document.getElementById('msg-preview-body');
+      ta.select(); document.execCommand('copy'); done();
+    } catch (e) { showToast('Copy failed.', 'error'); }
+  }
+}
+
+function msgPreviewSkip() {
+  var id = _msgPreview.guestId;
+  closeMsgPreview();
+  if (id && typeof skipMessage === 'function') skipMessage(id);
+  _afterSendAdvance();
+}
+
+// Keyboard: Esc closes (handled globally), plain "s" skips.
+var _msgPreviewKeyHandler = null;
+function _installMsgPreviewKeys() {
+  _teardownMsgPreviewKeys();
+  _msgPreviewKeyHandler = function(e) {
+    if (e.key === 'Escape') { closeMsgPreview(); return; }
+    if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) return;
+    if (e.key === 's' || e.key === 'S') { e.preventDefault(); msgPreviewSkip(); }
+  };
+  document.addEventListener('keydown', _msgPreviewKeyHandler);
+}
+function _teardownMsgPreviewKeys() {
+  if (_msgPreviewKeyHandler) {
+    document.removeEventListener('keydown', _msgPreviewKeyHandler);
+    _msgPreviewKeyHandler = null;
+  }
+}
+
+// After Send/Skip: scroll the next "Up next" row into view + auto-open its
+// preview if the admin was in a continuous send session (see _sendSessionActive).
+function _afterSendAdvance() {
+  var next = findNextMessage(msgMode);
+  if (!next) return;
+  var row = document.getElementById('msg-row-' + next.id);
+  if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (_sendSessionActive) {
+    // Small delay so the modal close animation finishes before the next opens.
+    setTimeout(function() {
+      if (_sendSessionActive) openWhatsApp(next.id, msgMode);
+    }, 250);
+  }
+}
+
+// Continuous "Send next" session flag — set by the sticky Send-next pill.
+var _sendSessionActive = false;
+function startSendSession() {
+  var next = findNextMessage(msgMode);
+  if (!next) { showToast('Queue is empty.', 'success'); return; }
+  _sendSessionActive = true;
+  openWhatsApp(next.id, msgMode);
+}
+function stopSendSession() { _sendSessionActive = false; }
+function toggleSendSession() {
+  _sendSessionActive = !_sendSessionActive;
+  var btn = document.getElementById('msg-session-toggle');
+  if (btn) {
+    btn.textContent = _sendSessionActive ? 'Auto-advance: on' : 'Auto-advance: off';
+    btn.classList.toggle('btn-primary', _sendSessionActive);
+    btn.classList.toggle('btn-secondary', !_sendSessionActive);
+  }
+  showToast(_sendSessionActive ? 'Auto-advance on — next preview opens after each send.' : 'Auto-advance off.', 'info', 2000);
+}
+
+// Master "Send next" button: preview the first unsent (or first pending in
+// chase mode) guest.
+function msgSendNext() {
+  var next = findNextMessage(msgMode);
+  if (!next) { showToast('Queue is empty. ✓', 'success'); return; }
+  openWhatsApp(next.id, msgMode);
+}
+
+// Sent-today counter — persists per calendar day so a page refresh mid-
+// session doesn't reset the number. Keyed by YYYY-MM-DD.
+var SENT_TODAY_KEY = 'wa:msgSentToday';
+function _todayKey() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function _readSentToday() {
+  try {
+    var raw = localStorage.getItem(SENT_TODAY_KEY);
+    if (!raw) return { day: _todayKey(), ids: [] };
+    var v = JSON.parse(raw);
+    if (v.day !== _todayKey()) return { day: _todayKey(), ids: [] };
+    return v;
+  } catch (e) { return { day: _todayKey(), ids: [] }; }
+}
+function _writeSentToday(v) { try { localStorage.setItem(SENT_TODAY_KEY, JSON.stringify(v)); } catch (e) {} }
+function _rememberLastSent(id) {
+  var v = _readSentToday();
+  if (v.ids.indexOf(id) === -1) v.ids.push(id);
+  _writeSentToday(v);
+  _refreshSendPill();
+}
+function _refreshSendPill() {
+  var pill = document.getElementById('msg-send-pill');
+  if (!pill) return;
+  var mode = msgMode;
+  // Pill only makes sense in invite mode where "sent today" is meaningful;
+  // hide in chase mode.
+  if (mode !== 'invite') { pill.classList.add('hidden'); return; }
+  pill.classList.remove('hidden');
+  var v = _readSentToday();
+  var todayEl = document.getElementById('msg-sent-today');
+  if (todayEl) todayEl.textContent = String(v.ids.length);
+  var next = findNextMessage(mode);
+  var scope = msgScopeGuests(mode, getCurrentMsgRel());
+  var skips = getMsgSkips(mode, getCurrentMsgRel());
+  var remaining = scope.filter(function(g) { return !sanitiseValue(g.invite_sent_at) && !skips.has(g.id); }).length;
+  var remEl = document.getElementById('msg-remaining');
+  if (remEl) remEl.textContent = String(remaining);
+  var btn = document.getElementById('msg-send-next-btn');
+  if (btn) {
+    if (next) {
+      var name = ((next.first_name || '') + ' ' + (next.last_name || '')).trim();
+      btn.disabled = false;
+      btn.textContent = '▶ Send next: ' + name;
+    } else {
+      btn.disabled = true;
+      btn.textContent = '✓ Queue empty';
+    }
+  }
+}
+
+// Render a small "No phone number" section under the main list so guests
+// without a WhatsApp-eligible phone are visible and fixable instead of
+// silently dropped.
+function _renderNoPhoneSection() {
+  var host = document.getElementById('msg-no-phone-section');
+  if (!host) return;
+  var mode = msgMode;
+  var rel  = getCurrentMsgRel();
+  var scope = msgScopeGuests(mode, rel);
+  var noPhone = scope.filter(function(g) { return !normalizePhoneForWhatsApp(g.phone); });
+  if (noPhone.length === 0) { host.innerHTML = ''; return; }
+  var rows = noPhone.map(function(g) {
+    var name = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
+    var code = escapeAttr(g.invitation_code || '');
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.4rem .2rem;border-bottom:1px solid rgba(0,0,0,.06);">' +
+      '<div><strong>' + name + '</strong>' + (code ? ' <span class="code-pill">' + code + '</span>' : '') + '</div>' +
+      '<button class="btn btn-secondary btn-sm" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">Add phone</button>' +
+    '</div>';
+  }).join('');
+  host.innerHTML =
+    '<div class="admin-card" style="margin-top:1.2rem;border:1px dashed var(--border);">' +
+      '<div class="admin-card-title" style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span>&#128241; No phone number (' + noPhone.length + ')</span>' +
+        '<span style="font-size:.7rem;color:var(--muted);font-weight:400;">Can’t WhatsApp — add a number or contact another way.</span>' +
+      '</div>' +
+      rows +
+    '</div>';
 }
 
 // Rebuild a single message row and the top-of-list progress card so a
@@ -3722,6 +3955,7 @@ function patchMsgRow(guestId) {
   }
   // Also refresh the progress card since sent count changed.
   _updateMsgProgressOnly(mode, rel, skips, nextUp);
+  _refreshSendPill();
 }
 
 function _updateMsgProgressOnly(mode, rel, skips, nextUp) {
@@ -3836,6 +4070,7 @@ function switchMsgMode(mode) {
   try { localStorage.setItem('weddingAdmin:msgMode', mode); } catch (e) {}
   applyMsgModeUI(mode);
   renderMessagesList();
+  _refreshSendPill();
 }
 
 function sendNextMessage() {
@@ -4064,6 +4299,8 @@ function renderMessagesList() {
         ? 'No pending RSVPs' + (rel ? ' for this relationship' : '') + '. Everyone has responded.'
         : 'No guests match the current filter.') +
       '</div>';
+    _refreshSendPill();
+    _renderNoPhoneSection();
     return;
   }
 
@@ -4085,6 +4322,8 @@ function renderMessagesList() {
       'Show ' + Math.min(more, MSG_LIST_PAGE) + ' more (' + more + ' hidden)</button></div>';
   }
   container.innerHTML = html;
+  _refreshSendPill();
+  _renderNoPhoneSection();
 }
 
 var MSG_LIST_PAGE = 50;
