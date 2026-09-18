@@ -468,6 +468,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   <nav class="admin-nav">
     <span class="admin-nav-title">&#10022; Wedding Admin</span>
     <div style="display:flex;gap:.6rem;align-items:center;">
+      <span id="deadline-chip" class="hidden" style="font-size:.72rem;color:var(--gold-lt);padding:.25rem .6rem;border:1px solid var(--gold-lt);border-radius:999px;"></span>
       <button class="btn btn-sm btn-danger" onclick="adminLogout()">Logout</button>
     </div>
   </nav>
@@ -485,6 +486,14 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   <div class="admin-panel active" id="tab-guests">
     <div class="stats-row" id="guest-stats">
       <div class="skeleton-loader" style="height:70px;flex:1;"></div>
+    </div>
+    <div id="missing-info-card" class="hidden" style="background:var(--gold-pale);border:1px solid var(--gold);border-radius:2px;padding:.55rem .8rem;margin-bottom:.9rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;font-size:.78rem;">
+      <strong style="margin-right:.3rem;">Needs attention:</strong>
+      <span id="missing-info-chips" style="display:flex;gap:.4rem;flex-wrap:wrap;"></span>
+    </div>
+    <div id="recent-activity-card" class="hidden" style="background:#fff;border:1px solid var(--border);border-radius:2px;padding:.55rem .8rem;margin-bottom:.9rem;font-size:.78rem;">
+      <strong style="margin-right:.3rem;">Recent RSVPs:</strong>
+      <span id="recent-activity-list" style="color:var(--muted);"></span>
     </div>
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
@@ -1399,6 +1408,139 @@ function refreshStats() {
     '<div class="stat-card"><div class="stat-num">' + s.pending         + '</div><div class="stat-lbl">Pending</div></div>' +
     '<div class="stat-card"><div class="stat-num">' + s.confirmedGuests + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
     '<div class="stat-card"><div class="stat-num' + dupCls + '">' + s.duplicates + '</div><div class="stat-lbl">Duplicates</div></div>';
+  renderMissingInfoCard();
+  renderDeadlineChip();
+  renderRecentActivity();
+}
+
+// Recent activity: 5 most recent RSVPs by timestamp. Purely informational,
+// so the couple can see the trickle of responses at a glance without
+// diving into the RSVPs tab.
+function renderRecentActivity() {
+  var card = document.getElementById('recent-activity-card');
+  var host = document.getElementById('recent-activity-list');
+  if (!card || !host) return;
+  if (!Array.isArray(allRSVPs) || allRSVPs.length === 0) { card.classList.add('hidden'); return; }
+  var sorted = allRSVPs.slice().sort(function(a, b) {
+    var ta = new Date(a.timestamp || 0).getTime();
+    var tb = new Date(b.timestamp || 0).getTime();
+    return tb - ta;
+  }).slice(0, 5);
+  var timeAgo = function(iso) {
+    var t = new Date(iso).getTime();
+    if (!isFinite(t)) return '';
+    var diff = Date.now() - t;
+    var m = Math.round(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    var h = Math.round(m / 60);
+    if (h < 24) return h + 'h ago';
+    var d = Math.round(h / 24);
+    return d + 'd ago';
+  };
+  var items = sorted.map(function(r) {
+    var name = escapeAttr(r.submission_name || 'Someone');
+    var ago  = escapeAttr(timeAgo(r.timestamp));
+    return '<span style="margin-right:.6rem;"><strong style="color:var(--ink);">' + name + '</strong> · ' + ago + '</span>';
+  }).join('');
+  host.innerHTML = items;
+  card.classList.remove('hidden');
+}
+
+// Missing-info dashboard — quick chips at the top of the Guests tab so the
+// couple sees at a glance which guests need attention. Clicking a chip
+// jumps to a filter that shows only the affected rows.
+function renderMissingInfoCard() {
+  var card = document.getElementById('missing-info-card');
+  var host = document.getElementById('missing-info-chips');
+  if (!card || !host) return;
+  var noRel   = 0, noPhone = 0, noEmail = 0, notInvited = 0;
+  allGuests.forEach(function(g) {
+    if (!g.relationship) noRel++;
+    if (!normalizePhoneForWhatsApp(g.phone)) noPhone++;
+    if (!g.email) noEmail++;
+    if (!g.invite_sent_at) notInvited++;
+  });
+  var chips = [];
+  function chip(label, count, filterFn) {
+    if (count === 0) return;
+    var handlerName = '_missingChip_' + filterFn;
+    chips.push('<button class="btn btn-secondary btn-sm" onclick="' + handlerName + '()" style="font-size:.72rem;">'
+      + escapeAttr(label) + ' <strong>' + count + '</strong></button>');
+  }
+  chip('Missing relationship',  noRel,      'noRel');
+  chip('Missing phone',         noPhone,    'noPhone');
+  chip('Missing email',         noEmail,    'noEmail');
+  chip('Not-yet invited',       notInvited, 'notInvited');
+  if (chips.length === 0) {
+    card.classList.add('hidden');
+  } else {
+    card.classList.remove('hidden');
+    host.innerHTML = chips.join('');
+  }
+}
+
+// Chip handlers — each applies a specific view of the data. We set a
+// virtual "special filter" via the search box for the ad-hoc ones since
+// there's no dedicated select for them; standard filters use their own
+// selects.
+function _missingApplyExtra(fn, label) {
+  // Show a toast with a Clear button in case the admin can't figure out
+  // how to get back — search + this extra filter combined can hide a lot.
+  _extraGuestFilter = fn;
+  _extraGuestFilterLabel = label;
+  clearBulkSelection();
+  applyFilters();
+  showActionToast('Filtered: ' + label, 'Clear', function(dismiss) {
+    _extraGuestFilter = null; _extraGuestFilterLabel = '';
+    applyFilters();
+    dismiss();
+  }, 10000);
+}
+function _missingChip_noRel()      { _missingApplyExtra(function(g) { return !g.relationship; },                       'guests missing relationship'); }
+function _missingChip_noPhone()    { _missingApplyExtra(function(g) { return !normalizePhoneForWhatsApp(g.phone); },    'guests missing phone'); }
+function _missingChip_noEmail()    { _missingApplyExtra(function(g) { return !g.email; },                              'guests missing email'); }
+function _missingChip_notInvited() { _missingApplyExtra(function(g) { return !g.invite_sent_at; },                     'guests not yet invited'); }
+var _extraGuestFilter = null;
+var _extraGuestFilterLabel = '';
+
+// Days-to-deadline pill in the admin nav so urgency is always visible.
+// Deadline source of truth: messageConfig.settings.inviteDeadline (or the
+// chase deadline as a fallback). Parses common formats: "30 November 2026",
+// "2026-11-30", "30/11/2026", etc.
+function _parseDeadlineText(s) {
+  if (!s) return null;
+  var d = new Date(s);
+  if (!isNaN(d)) return d;
+  // Try dd/mm/yyyy manually — Date parses mm/dd/yyyy on some browsers.
+  var m = /^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/.exec(String(s).trim());
+  if (m) {
+    var yr = Number(m[3]); if (yr < 100) yr += 2000;
+    var dt = new Date(yr, Number(m[2]) - 1, Number(m[1]));
+    if (!isNaN(dt)) return dt;
+  }
+  return null;
+}
+function renderDeadlineChip() {
+  var chip = document.getElementById('deadline-chip');
+  if (!chip) return;
+  var raw = (messageConfig && messageConfig.settings)
+    ? (messageConfig.settings.inviteDeadline || messageConfig.settings.chaseDeadline)
+    : '';
+  var d = _parseDeadlineText(raw);
+  if (!d) { chip.classList.add('hidden'); return; }
+  var now  = new Date();
+  var days = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+  var text, tone;
+  if (days > 1)   { text = days + ' days to deadline'; tone = days <= 7 ? 'warn' : 'ok'; }
+  else if (days === 1) { text = '1 day to deadline'; tone = 'warn'; }
+  else if (days === 0) { text = 'Deadline today'; tone = 'urgent'; }
+  else               { text = 'Deadline passed'; tone = 'urgent'; }
+  chip.textContent = text;
+  chip.classList.remove('hidden');
+  chip.style.background     = tone === 'urgent' ? '#c9302c' : tone === 'warn' ? '#a67c00' : 'transparent';
+  chip.style.color          = tone === 'ok' ? 'var(--gold-lt)' : '#fff';
+  chip.style.borderColor    = tone === 'urgent' ? '#c9302c' : tone === 'warn' ? '#a67c00' : 'var(--gold-lt)';
 }
 
 // Background fetch of the server perEvent breakdown. Not on the critical
@@ -1504,6 +1646,7 @@ function rebuildFilteredGuests() {
     var isOverseas = String(g.is_overseas || '').toUpperCase() === 'TRUE';
     if (overseasFilter === 'overseas' && !isOverseas) return false;
     if (overseasFilter === 'local'    &&  isOverseas) return false;
+    if (_extraGuestFilter && !_extraGuestFilter(g)) return false;
     return true;
   });
 
@@ -1986,6 +2129,7 @@ function clearAllFilters() {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
+  _extraGuestFilter = null; _extraGuestFilterLabel = '';
   applyFilters();
 }
 
@@ -3400,14 +3544,16 @@ function loadMessageConfigFromServer() {
       messageConfig = cfg;
       try { localStorage.setItem(MSG_LOCAL_KEY, JSON.stringify(cfg)); } catch (e) {}
       migrateLocalStorageMessages();
+      renderDeadlineChip();
     })
     .withFailureHandler(function(err) {
       console.error('Failed to load message config from server, using local fallback:', err);
       try {
         var local = JSON.parse(localStorage.getItem(MSG_LOCAL_KEY) || 'null');
-        if (local && local.templates && local.templates.length) { messageConfig = local; return; }
+        if (local && local.templates && local.templates.length) { messageConfig = local; renderDeadlineChip(); return; }
       } catch (e) {}
       messageConfig = JSON.parse(JSON.stringify(DEFAULT_MSG_CONFIG));
+      renderDeadlineChip();
     })
     .getMessageConfig();
 }
@@ -3577,12 +3723,61 @@ function openTemplateEditor(templateId) {
         '<summary style="font-size:.7rem;color:var(--muted);cursor:pointer;">Preview with sample guest</summary>' +
         '<pre id="tpl-preview-' + tid + '" style="white-space:pre-wrap;background:#fff;border:1px solid var(--border);border-radius:2px;padding:.6rem;margin-top:.4rem;font-family:\'Jost\',sans-serif;font-size:.75rem;color:var(--ink);"></pre>' +
       '</details>' +
-      '<div style="display:flex;gap:.5rem;justify-content:flex-end;">' +
-        '<button class="btn btn-secondary btn-sm" onclick="closeTemplateEditor(\'' + tid + '\')">Cancel</button>' +
-        '<button class="btn btn-primary btn-sm" onclick="saveTemplateEdit(\'' + tid + '\')">Save</button>' +
+      '<div style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;flex-wrap:wrap;">' +
+        '<button class="btn btn-secondary btn-sm" onclick="sendTestTemplate(\'' + tid + '\')" title="Send this template to your own WhatsApp so you can proof-read it before broadcasting">&#128172; Send test to my phone</button>' +
+        '<div style="display:flex;gap:.5rem;">' +
+          '<button class="btn btn-secondary btn-sm" onclick="closeTemplateEditor(\'' + tid + '\')">Cancel</button>' +
+          '<button class="btn btn-primary btn-sm" onclick="saveTemplateEdit(\'' + tid + '\')">Save</button>' +
+        '</div>' +
       '</div>' +
     '</div>';
   updateTemplatePreview(templateId);
+}
+
+// Email-fallback: for guests without a WhatsApp-eligible phone but with a
+// valid email, open a mailto: link with the message pre-filled. Also marks
+// the invite as sent (invite mode) so they leave the queue.
+function openEmail(guestId, section) {
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  if (!g || !g.email) return;
+  var template = getSelectedTemplateBody(guestId, section);
+  var deadline = (messageConfig && messageConfig.settings) ?
+    (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
+  var body = buildMessage(template, g, deadline);
+  var subject = section === 'chase' ? 'A quick reminder about our wedding RSVP' : 'You’re invited to Jaini & Shanay’s wedding';
+  var url = 'mailto:' + encodeURIComponent(g.email) +
+            '?subject=' + encodeURIComponent(subject) +
+            '&body=' + encodeURIComponent(body);
+  window.location.href = url;
+  if (section === 'invite') {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        g.invite_sent_at = res.invite_sent_at;
+        patchMsgRow(guestId);
+        _rememberLastSent(guestId);
+      })
+      .withFailureHandler(function(err) { console.warn('markInviteSent failed:', err && err.message); })
+      .markInviteSent({ guestId: guestId });
+  }
+}
+
+function sendTestTemplate(templateId) {
+  var ta   = document.getElementById('tpl-body-' + templateId);
+  var body = ta ? ta.value : '';
+  if (!body) { showToast('Template body is empty.', 'error'); return; }
+  var stored = '';
+  try { stored = localStorage.getItem('wa:testPhone') || ''; } catch (e) {}
+  var phone  = prompt('Send test to which WhatsApp number? (include country code, e.g. +254...)', stored);
+  if (!phone) return;
+  phone = phone.trim();
+  try { localStorage.setItem('wa:testPhone', phone); } catch (e) {}
+  var sampleGuest = { first_name: 'Priya', last_name: 'Sharma', invitation_code: 'ABC234' };
+  var deadline = (messageConfig && messageConfig.settings && messageConfig.settings.inviteDeadline) || '30 November 2026';
+  var msg = buildMessage(body, sampleGuest, deadline);
+  var url = buildWhatsAppUrl(phone, msg);
+  if (!url) { showToast('Could not build WhatsApp URL — check the number.', 'error'); return; }
+  window.open(url, '_blank');
+  showToast('Opened WhatsApp with the test message. Send it to yourself to proof-read.', 'info', 5000);
 }
 
 function insertTemplateVar(templateId, snippet) {
@@ -4524,7 +4719,11 @@ function buildMsgRow(g, mode, skips, nextUp) {
     '<div class="invite-row__controls">' +
       buildTemplateDropdown(g.id, mode, defaultTpl) +
       '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'' + mode + '\')">Copy</button>' +
-      (normalizePhoneForWhatsApp(g.phone) ? '<button class="btn btn-primary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'' + mode + '\')" title="Send via WhatsApp">&#128172; ' + sendBtnLabel + '</button>' : '') +
+      (normalizePhoneForWhatsApp(g.phone)
+        ? '<button class="btn btn-primary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'' + mode + '\')" title="Send via WhatsApp">&#128172; ' + sendBtnLabel + '</button>'
+        : (g.email
+            ? '<button class="btn btn-primary btn-sm" onclick="openEmail(\'' + escapeAttr(g.id) + '\',\'' + mode + '\')" title="No phone — send via email instead">&#9993; Email</button>'
+            : '')) +
       skipBtn +
       clearSentBtn +
       '<span id="' + flashId + '" class="flash-note"></span>' +
