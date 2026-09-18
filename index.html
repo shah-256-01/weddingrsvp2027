@@ -401,7 +401,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
             placeholder="Priya" autocomplete="given-name"/>
         </div>
         <div class="entry-field">
-          <label class="entry-label" for="last-name-input">Last name</label>
+          <label class="entry-label" for="last-name-input">Last name <span style="font-weight:400;opacity:.7;">(optional)</span></label>
           <input class="field-input" id="last-name-input" type="text"
             placeholder="Sharma" autocomplete="family-name"/>
         </div>
@@ -809,8 +809,8 @@ async function fetchEvents() {
 async function validateGuest(firstName, lastName, code) {
   return postAction('validate', {
     code: code.toUpperCase(),
-    firstName: firstName.trim(),
-    lastName: lastName.trim(),
+    firstName: (firstName || '').trim(),
+    lastName:  (lastName  || '').trim(),
   });
 }
 
@@ -978,8 +978,8 @@ async function submitEntry() {
   var errEl     = document.getElementById('entry-error');
   var btn       = document.getElementById('enter-btn');
   errEl.textContent = '';
-  if (!firstName || !lastName || !code) {
-    errEl.textContent = 'Please enter your first name, last name, and invitation code.';
+  if (!firstName || !code) {
+    errEl.textContent = 'Please enter your name and invitation code.';
     return;
   }
   btn.textContent = 'Checking…'; btn.disabled = true;

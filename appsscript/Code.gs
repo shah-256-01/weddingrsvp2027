@@ -382,8 +382,8 @@ function normaliseName(str) {
 // Called via GET ?action=validate&code=...&firstName=...&lastName=...
 // Returns guest record with allocations if match found, error if not
 function validateGuest(code, firstName, lastName) {
-  if (!code || !firstName || !lastName) {
-    throw new Error('Code, first name and last name are required.');
+  if (!code || !firstName) {
+    throw new Error('Code and name are required.');
   }
 
   // Block validation after RSVP deadline to prevent data enumeration
@@ -396,14 +396,15 @@ function validateGuest(code, firstName, lastName) {
   }
 
   const guests    = getGuests(); // already filters out DELETED by default
-  const normFirst = normaliseName(firstName);
-  const normLast  = normaliseName(lastName);
+  // Match on combined full name so it's tolerant of which field on either
+  // side holds each word — e.g. sheet has first_name="Paul & Mehreen", last_name=""
+  // and guest types firstName="Paul", lastName="& Mehreen" (or vice versa).
+  const normTyped = normaliseName((firstName || '') + ' ' + (lastName || ''));
   const normCode  = code.toUpperCase().trim();
 
   const match = guests.find(g =>
     String(g.invitation_code || '').toUpperCase().trim() === normCode &&
-    normaliseName(g.first_name) === normFirst &&
-    normaliseName(g.last_name)  === normLast
+    normaliseName((g.first_name || '') + ' ' + (g.last_name || '')) === normTyped
   );
 
   // No match found
@@ -414,8 +415,7 @@ function validateGuest(code, firstName, lastName) {
     const deletedMatch = allGuests.find(g =>
       String(g.status || '').toUpperCase() === 'DELETED' &&
       String(g.invitation_code || '').toUpperCase().trim() === normCode &&
-      normaliseName(g.first_name) === normFirst &&
-      normaliseName(g.last_name)  === normLast
+      normaliseName((g.first_name || '') + ' ' + (g.last_name || '')) === normTyped
     );
 
     if (deletedMatch) {
