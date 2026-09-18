@@ -1786,13 +1786,20 @@ function getBootstrap() {
 }
 function _getBootstrap() {
   function safe(fn) { try { return fn(); } catch (e) { return null; } }
+  // Use the chunked-cache full guest read once, then split into active +
+  // deleted client-side. Previously getGuests() and getDeletedGuests()
+  // each did their own full sheetToObjects on the same tab.
+  var allGuestsCached = [];
+  try { allGuestsCached = getGuestsCached() || []; } catch (e) { allGuestsCached = []; }
+  var active  = allGuestsCached.filter(function(g) { return String(g.status || '').toUpperCase() !== 'DELETED'; });
+  var deleted = allGuestsCached.filter(function(g) { return String(g.status || '').toUpperCase() === 'DELETED'; });
   return {
     events:         safe(function() { return getEvents(); })         || [],
-    guests:         safe(function() { return getGuests(); })         || [],
+    guests:         active,
     rsvps:          safe(function() { return getRSVPsByFamily(); })  || [],
     submittedCodes: safe(function() { return getSubmittedCodes(); }) || [],
     duplicates:     safe(function() { return getDuplicates(); })     || [],
-    deletedGuests:  safe(function() { return getDeletedGuests(); })  || [],
+    deletedGuests:  deleted,
   };
 }
 

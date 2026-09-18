@@ -1392,7 +1392,18 @@ function loadEvents() {
 // save/delete. getStats server endpoint still exists and is refreshed in
 // the background on boot to populate allStats.perEvent for the By-Event
 // view, but it is NOT on the critical path.
+// Memoized on the identity of the arrays it reads. refreshStats fires
+// after every optimistic save, but nothing that mutates in-place changes
+// the array reference — loadGuests replaces the whole array. So a cached
+// result is valid until the next loadGuests / add / delete.
+var _statsCache = null;
+var _statsCacheKey = null;
+function _invalidateStatsCache() { _statsCache = null; _statsCacheKey = null; }
 function computeClientStats() {
+  var key = [allGuests, allRSVPs, allSubmittedCodes, allEvents, allDuplicates];
+  if (_statsCache && _statsCacheKey && _statsCacheKey.every(function(v, i) { return v === key[i]; })) {
+    return _statsCache;
+  }
   var total = allGuests.length;
   var rsvpd = 0;
   allGuests.forEach(function(g) {
@@ -1407,13 +1418,15 @@ function computeClientStats() {
       }
     });
   });
-  return {
+  _statsCache = {
     totalGuests:     total,
     rsvpd:           rsvpd,
     pending:         Math.max(0, total - rsvpd),
     confirmedGuests: confirmed,
     duplicates:      (allDuplicates || []).length,
   };
+  _statsCacheKey = key;
+  return _statsCache;
 }
 
 function refreshStats() {
@@ -1436,17 +1449,27 @@ function refreshStats() {
 
 // Recent activity: 5 most recent RSVPs by timestamp. Purely informational,
 // so the couple can see the trickle of responses at a glance without
-// diving into the RSVPs tab.
+// diving into the RSVPs tab. Memoized on allRSVPs identity so refreshStats
+// firing after every save doesn't re-sort a 700-item array.
+var _recentTopCache = null;
+var _recentTopCacheKey = null;
 function renderRecentActivity() {
   var card = document.getElementById('recent-activity-card');
   var host = document.getElementById('recent-activity-list');
   if (!card || !host) return;
   if (!Array.isArray(allRSVPs) || allRSVPs.length === 0) { card.classList.add('hidden'); return; }
-  var sorted = allRSVPs.slice().sort(function(a, b) {
-    var ta = new Date(a.timestamp || 0).getTime();
-    var tb = new Date(b.timestamp || 0).getTime();
-    return tb - ta;
-  }).slice(0, 5);
+  var sorted;
+  if (_recentTopCache && _recentTopCacheKey === allRSVPs) {
+    sorted = _recentTopCache;
+  } else {
+    sorted = allRSVPs.slice().sort(function(a, b) {
+      var ta = new Date(a.timestamp || 0).getTime();
+      var tb = new Date(b.timestamp || 0).getTime();
+      return tb - ta;
+    }).slice(0, 5);
+    _recentTopCache = sorted;
+    _recentTopCacheKey = allRSVPs;
+  }
   var timeAgo = function(iso) {
     var t = new Date(iso).getTime();
     if (!isFinite(t)) return '';
@@ -1649,6 +1672,7 @@ function rebuildFilteredGuests() {
     _lastGuestFilterFingerprint = fp;
     _rsvpStatusShown = { submitted: RSVP_STATUS_PAGE, pending: RSVP_STATUS_PAGE };
     _msgListShown = MSG_LIST_PAGE;
+    _groupedShown = GROUPED_PAGE;
   }
 
   var filtered = allGuests.filter(function(g) {
@@ -1824,17 +1848,23 @@ function renderPagination(container) {
 }
 
 // ── Grouped (By Code) View ─────────────────
+var GROUPED_PAGE = 50;
+var _groupedShown = GROUPED_PAGE;
+function showMoreGrouped() { _groupedShown += GROUPED_PAGE; renderGuestView(); }
 function renderGroupedView(guests, container) {
   var groups = {};
+  var order = [];   // preserve insertion order so pagination is stable
   guests.forEach(function(g) {
     var code = g.invitation_code || 'NO_CODE';
     if (!groups[code]) {
       groups[code] = { guests: [], events: String(g.events || '').split(',').map(s => s.trim()).filter(Boolean) };
+      order.push(code);
     }
     groups[code].guests.push(g);
   });
 
-  var html = Object.keys(groups).map(function(code) {
+  var shown = Math.min(_groupedShown, order.length);
+  var html = order.slice(0, shown).map(function(code) {
     var group = groups[code];
     var eventDots = group.events.map(function(id) {
       var ev = eventsById[id];
@@ -1866,6 +1896,13 @@ function renderGroupedView(guests, container) {
       '</div></div>' +
       '<div class="group-card-body">' + guestRows + '</div></div>';
   }).join('');
+
+  var more = order.length - shown;
+  if (more > 0) {
+    html += '<div style="padding:1rem;text-align:center;">' +
+      '<button class="btn btn-secondary btn-sm" onclick="showMoreGrouped()">' +
+      'Show ' + Math.min(more, GROUPED_PAGE) + ' more groups (' + more + ' hidden)</button></div>';
+  }
 
   container.innerHTML = html || _emptyGuestsWithClearBtn();
 }
@@ -2544,6 +2581,7 @@ function saveGuest() {
             break;
           }
         }
+        _invalidateGuestIdx();
         try { renderGuestView(); refreshStats(); } catch (e) {}
         showToast('Guest updated', 'success');
       })
@@ -2565,6 +2603,7 @@ function saveGuest() {
         // derived data (duplicates, stats) catches up.
         if (newGuest && newGuest.id) {
           allGuests.push(newGuest);
+          _invalidateGuestIdx();
           try { renderGuestView(); refreshStats(); } catch (e) {}
         }
         showToast('Guest added', 'success');
@@ -3250,7 +3289,13 @@ function setRSVPView(v) {
   renderRSVPsTab();
 }
 
+// Memoized by allGuests identity — the map only needs to be rebuilt when
+// the underlying array reference changes (loadGuests replaces it) or when
+// a save mutates it. We invalidate explicitly via _invalidateGuestIdx.
+var _rsvpByCodeCache = null;
+var _rsvpByCodeCacheKey = null;
 function _rsvpGuestsByCode() {
+  if (_rsvpByCodeCache && _rsvpByCodeCacheKey === allGuests) return _rsvpByCodeCache;
   var map = {};
   allGuests.forEach(function(g) {
     var c = String(g.invitation_code || '').toUpperCase().trim();
@@ -3258,7 +3303,13 @@ function _rsvpGuestsByCode() {
     if (!map[c]) map[c] = [];
     map[c].push(g);
   });
+  _rsvpByCodeCache = map;
+  _rsvpByCodeCacheKey = allGuests;
   return map;
+}
+function _invalidateGuestIdx() {
+  _rsvpByCodeCache = null; _rsvpByCodeCacheKey = null;
+  _statsCache = null; _statsCacheKey = null;
 }
 
 function getFilteredRSVPs() {
