@@ -873,9 +873,14 @@ function bulkAddGuests(payload) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    // Snapshot existing codes once; mutate the map as we add so CSV-internal
-    // duplicates (and newly-generated ones) are detected.
+    // Snapshot existing codes once; mutate the map as we build so CSV-internal
+    // duplicates (and newly-generated ones) are detected within this batch.
     const used = collectExistingCodes();
+
+    // Build all rows in memory first, then write them with a single setValues.
+    // 700-row imports drop from ~5 min of appendRow round-trips (holding the
+    // script lock the whole time) to ~2 s of local prep + one write.
+    const rowsToWrite = [];
 
     (payload.guests || []).forEach((g, idx) => {
       try {
@@ -913,15 +918,26 @@ function bulkAddGuests(payload) {
           if (h === 'events') return sortedEvIds.join(',');
           return sanitizeForSheet(g[h] !== undefined ? g[h] : '');
         });
-        sheet.appendRow(row);
+        rowsToWrite.push(row);
         results.added++;
-        // Small pause to avoid quota limits on large uploads
-        if (idx > 0 && idx % 50 === 0) Utilities.sleep(500);
       } catch (err) {
         results.skipped++;
         results.errors.push('Row ' + (idx + 2) + ': ' + err.message);
       }
     });
+
+    // Single batched write. Chunk into 500-row setValues calls so the
+    // request payload stays reasonable and one bad row doesn't nuke the
+    // whole import.
+    if (rowsToWrite.length > 0) {
+      const CHUNK = 500;
+      let startRow = sheet.getLastRow() + 1;
+      for (let i = 0; i < rowsToWrite.length; i += CHUNK) {
+        const slice = rowsToWrite.slice(i, i + CHUNK);
+        sheet.getRange(startRow, 1, slice.length, headers.length).setValues(slice);
+        startRow += slice.length;
+      }
+    }
   } finally {
     lock.releaseLock();
   }
