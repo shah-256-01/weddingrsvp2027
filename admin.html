@@ -887,6 +887,14 @@ function setAllEvents(list) {
 var allGuests = [];
 var allRSVPs = [];
 var allDuplicates = [];
+// Companion Set of invitation codes with duplicate submissions, kept in
+// sync via setDuplicates(). O(1) lookup for the getRSVPStatus render hot
+// path — the .some() scan was O(n·m) across guest × duplicate lists.
+var allDuplicateCodes = new Set();
+function setDuplicates(list) {
+  allDuplicates = list || [];
+  allDuplicateCodes = new Set(allDuplicates.map(function(d) { return d.code; }));
+}
 var allDeletedGuests = [];
 var allStats = {};
 var allSubmittedCodes = new Set();
@@ -996,7 +1004,7 @@ function isSubmitted(g) {
 
 function getRSVPStatus(g) {
   var submitted = allSubmittedCodes.has(g.invitation_code);
-  var isDup = allDuplicates.some(function(d) { return d.code === g.invitation_code; });
+  var isDup = allDuplicateCodes.has(g.invitation_code);
   if (submitted) {
     return { cls: 'rsvp-submitted', label: isDup ? 'Submitted \u26A0' : 'Submitted' };
   }
@@ -1193,7 +1201,7 @@ function loadGuests() {
     allGuests          = data.guests         || [];
     allRSVPs           = data.rsvps          || [];
     allSubmittedCodes  = new Set(data.submittedCodes || []);
-    allDuplicates      = data.duplicates     || [];
+    setDuplicates(data.duplicates);
     allDeletedGuests   = data.deletedGuests  || [];
     refreshStats();
     renderGuestView();
@@ -1203,7 +1211,7 @@ function loadGuests() {
       gasAsync('getGuests').then(function(d) { allGuests = d || []; }),
       gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
       gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {}),
-      gasAsync('getDuplicates').then(function(d) { allDuplicates = d || []; }).catch(function() {}),
+      gasAsync('getDuplicates').then(function(d) { setDuplicates(d); }).catch(function() {}),
       gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
     ]).then(function() {
       refreshStats();
@@ -1428,16 +1436,13 @@ function showMoreRSVPStatus(which) {
   renderGuestView();
 }
 function renderRSVPStatusView(guests, container) {
-  var duplicateCodes = {};
-  allDuplicates.forEach(function(d) { duplicateCodes[d.code] = true; });
-
   var submitted = guests.filter(function(g) { return allSubmittedCodes.has(g.invitation_code); });
   var pending = guests.filter(function(g) { return !allSubmittedCodes.has(g.invitation_code); });
 
   function guestRow(g) {
     var fullName = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
     var code = escapeAttr(g.invitation_code || '');
-    var isDup = !!duplicateCodes[g.invitation_code || ''];
+    var isDup = allDuplicateCodes.has(g.invitation_code || '');
     var rel  = escapeAttr(sanitiseValue(g.relationship));
     return '<div class="status-guest-row">' +
       guestStatusDot(g) +
