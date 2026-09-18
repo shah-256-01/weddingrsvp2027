@@ -653,8 +653,17 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <span>Message Templates</span>
         <button class="btn btn-secondary btn-sm" onclick="addNewTemplate()">+ Add Template</button>
       </div>
-      <div style="font-size:.68rem;color:var(--muted);margin-bottom:.8rem;">
-        Variables: <code>{{name}}</code> <code>{{code}}</code> <code>{{url}}</code> <code>{{deadline}}</code>
+      <div style="font-size:.72rem;color:var(--ink);margin-bottom:.9rem;padding:.7rem .8rem;background:var(--gold-pale);border-left:3px solid var(--gold);border-radius:2px;">
+        <div style="font-weight:600;margin-bottom:.4rem;">Available variables</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:.25rem .8rem;font-size:.7rem;">
+          <code>{{name}}</code><span style="color:var(--muted);">Guest's full name</span>
+          <code>{{code}}</code><span style="color:var(--muted);">Their invitation code</span>
+          <code>{{url}}</code><span style="color:var(--muted);">RSVP website URL (from Message Settings)</span>
+          <code>{{deadline}}</code><span style="color:var(--muted);">Deadline (invite or chase-up, from Message Settings)</span>
+        </div>
+        <div style="color:var(--muted);margin-top:.5rem;font-style:italic;font-size:.68rem;">
+          Type these exactly (with the double curly braces). They'll be replaced per guest when the message is sent.
+        </div>
       </div>
       <div id="msg-templates-list"><div class="skeleton-loader"></div></div>
     </div>
@@ -3139,21 +3148,56 @@ function openTemplateEditor(templateId) {
   if (!editorEl) return;
   if (!editorEl.classList.contains('hidden')) { editorEl.classList.add('hidden'); return; }
   editorEl.classList.remove('hidden');
+  var tid = escapeAttr(templateId);
   editorEl.innerHTML =
     '<div style="margin-top:.6rem;padding:.8rem;background:var(--gold-pale);border-radius:2px;">' +
       '<div class="form-row" style="margin-bottom:.6rem;">' +
         '<label style="font-size:.72rem;">Template Name</label>' +
-        '<input type="text" id="tpl-name-' + escapeAttr(templateId) + '" value="' + escapeAttr(t.name) + '" style="width:100%;"/>' +
+        '<input type="text" id="tpl-name-' + tid + '" value="' + escapeAttr(t.name) + '" style="width:100%;"/>' +
       '</div>' +
-      '<div class="form-row" style="margin-bottom:.6rem;">' +
+      '<div class="form-row" style="margin-bottom:.4rem;">' +
         '<label style="font-size:.72rem;">Message Body</label>' +
-        '<textarea id="tpl-body-' + escapeAttr(templateId) + '" rows="10" style="width:100%;font-family:\'Jost\',sans-serif;font-size:.82rem;resize:vertical;">' + escapeAttr(t.body) + '</textarea>' +
+        '<textarea id="tpl-body-' + tid + '" rows="10" style="width:100%;font-family:\'Jost\',sans-serif;font-size:.82rem;resize:vertical;" oninput="updateTemplatePreview(\'' + tid + '\')">' + escapeAttr(t.body) + '</textarea>' +
       '</div>' +
+      '<div style="font-size:.68rem;color:var(--muted);margin-bottom:.4rem;">Tap to insert:</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.7rem;">' +
+        '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{name}}\')" title="Guest\'s full name">+ {{name}}</button>' +
+        '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{code}}\')" title="Their invitation code">+ {{code}}</button>' +
+        '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{url}}\')" title="RSVP website URL">+ {{url}}</button>' +
+        '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{deadline}}\')" title="Deadline from Message Settings">+ {{deadline}}</button>' +
+      '</div>' +
+      '<details style="margin-bottom:.7rem;">' +
+        '<summary style="font-size:.7rem;color:var(--muted);cursor:pointer;">Preview with sample guest</summary>' +
+        '<pre id="tpl-preview-' + tid + '" style="white-space:pre-wrap;background:#fff;border:1px solid var(--border);border-radius:2px;padding:.6rem;margin-top:.4rem;font-family:\'Jost\',sans-serif;font-size:.75rem;color:var(--ink);"></pre>' +
+      '</details>' +
       '<div style="display:flex;gap:.5rem;justify-content:flex-end;">' +
-        '<button class="btn btn-secondary btn-sm" onclick="closeTemplateEditor(\'' + escapeAttr(templateId) + '\')">Cancel</button>' +
-        '<button class="btn btn-primary btn-sm" onclick="saveTemplateEdit(\'' + escapeAttr(templateId) + '\')">Save</button>' +
+        '<button class="btn btn-secondary btn-sm" onclick="closeTemplateEditor(\'' + tid + '\')">Cancel</button>' +
+        '<button class="btn btn-primary btn-sm" onclick="saveTemplateEdit(\'' + tid + '\')">Save</button>' +
       '</div>' +
     '</div>';
+  updateTemplatePreview(templateId);
+}
+
+function insertTemplateVar(templateId, snippet) {
+  var ta = document.getElementById('tpl-body-' + templateId);
+  if (!ta) return;
+  var start = ta.selectionStart || 0;
+  var end   = ta.selectionEnd || 0;
+  var val   = ta.value;
+  ta.value = val.slice(0, start) + snippet + val.slice(end);
+  var pos = start + snippet.length;
+  ta.focus();
+  try { ta.setSelectionRange(pos, pos); } catch (e) {}
+  updateTemplatePreview(templateId);
+}
+
+function updateTemplatePreview(templateId) {
+  var ta = document.getElementById('tpl-body-' + templateId);
+  var pre = document.getElementById('tpl-preview-' + templateId);
+  if (!ta || !pre) return;
+  var sampleGuest = { first_name: 'Priya', last_name: 'Sharma', invitation_code: 'ABC234' };
+  var deadline = (messageConfig && messageConfig.settings && messageConfig.settings.inviteDeadline) || '30 November 2026';
+  pre.textContent = buildMessage(ta.value, sampleGuest, deadline);
 }
 
 function closeTemplateEditor(templateId) {
