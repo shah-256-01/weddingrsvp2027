@@ -720,9 +720,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <div class="form-row__error" id="m-first-name-err">First name is required.</div>
         </div>
         <div class="form-row" id="m-last-name-row">
-          <label>Last Name *</label>
-          <input type="text" id="m-last-name" placeholder="e.g. Sharma" required/>
-          <div class="form-row__error" id="m-last-name-err">Last name is required.</div>
+          <label>Last Name</label>
+          <input type="text" id="m-last-name" placeholder="e.g. Sharma"/>
         </div>
         <div class="form-row">
           <label>Phone / WhatsApp</label>
@@ -1937,7 +1936,6 @@ function saveGuest() {
 
   var ok = true;
   if (!firstName) ok = setFieldError('m-first-name-row','m-first-name-err', true) && ok;
-  if (!lastName)  ok = setFieldError('m-last-name-row', 'm-last-name-err',  true) && ok;
   if (!eventIds.length) ok = setFieldError('m-events-row','m-events-err', true) && ok;
   if (!CODE_CHARSET_RE.test(codeVal)) ok = setFieldError('modal-code-row','modal-code-err', true, 'Code must be 6 chars (no 0/O/1/I/L). Click Generate for a fresh one.') && ok;
   else if (clash)                      ok = setFieldError('modal-code-row','modal-code-err', true, 'This code is already in use by another guest.') && ok;

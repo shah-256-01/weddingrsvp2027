@@ -790,11 +790,12 @@ function bulkAddGuests(payload) {
 
     (payload.guests || []).forEach((g, idx) => {
       try {
-        if (!g.first_name || !g.last_name) {
+        if (!g.first_name) {
           results.skipped++;
-          results.errors.push('Row ' + (idx + 2) + ': missing first_name or last_name');
+          results.errors.push('Row ' + (idx + 2) + ': missing first_name');
           return;
         }
+        if (!g.last_name) g.last_name = '';
         const id  = 'g-' + Utilities.getUuid();
         const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
           .map(s => s.trim()).filter(Boolean)
