@@ -1882,13 +1882,13 @@ async function submitRSVP() {
   }
 
   // Save to localStorage BEFORE submitting — backup in case network fails
-  var _backupSaved = false;
+  var backupKey = 'rsvp_backup_' + currentCode + '_' + Date.now();
   try {
-    var backupKey  = 'rsvp_backup_' + currentCode + '_' + Date.now();
     var allBackups = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
     allBackups.push({ key: backupKey, payload: payload, savedAt: new Date().toISOString() });
+    // Keep the list bounded — nobody needs a backup from 6 submissions ago.
+    if (allBackups.length > 5) allBackups = allBackups.slice(-5);
     localStorage.setItem('rsvp_backups', JSON.stringify(allBackups));
-    _backupSaved = true;
   } catch (e) {
     console.warn('Could not save RSVP backup to localStorage:', e);
     // Not critical — submission still goes through, but no local backup exists
@@ -1901,16 +1901,23 @@ async function submitRSVP() {
     await postRSVP(payload);
     verified = true;
   } catch (err) {
-    console.warn('RSVP post failed:', err);
+    // If the first attempt timed out client-side but the server still
+    // committed the row, the retry hits the dedup check and comes back as
+    // "already been received". That IS success — the RSVP is on record.
+    if (/already been received/i.test(err && err.message || '')) {
+      verified = true;
+    } else {
+      console.warn('RSVP post failed:', err);
+    }
   }
 
   if (verified) {
     try {
       var backups = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
-      if (backups.length > 0) {
-        backups[backups.length - 1]._syncStatus = 'confirmed';
-        localStorage.setItem('rsvp_backups', JSON.stringify(backups));
-      }
+      // Match on the key we created above, not on array position — another
+      // tab could have appended in between.
+      backups.forEach(function(b) { if (b && b.key === backupKey) b._syncStatus = 'confirmed'; });
+      localStorage.setItem('rsvp_backups', JSON.stringify(backups));
     } catch (e) {}
 
     ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {

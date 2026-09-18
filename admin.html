@@ -884,6 +884,9 @@ var ADMIN_PIN_KEY = 'adminAuth';
     try { return sessionStorage.getItem(ADMIN_PIN_KEY) || ''; } catch (e) { return ''; }
   }
 
+  // 30s abort: without it a hung Apps Script request left "Saving…" latched
+  // forever (the failure handler never fired, so _guestSaving never reset).
+  var ADMIN_FETCH_TIMEOUT_MS = 30000;
   function invoke(method, arg, state) {
     var body;
     if (method === 'checkPin') {
@@ -891,15 +894,20 @@ var ADMIN_PIN_KEY = 'adminAuth';
     } else {
       body = { action: method, payload: (arg == null ? {} : arg), pin: getPin() };
     }
-    fetch(SCRIPT_URL, {
+    var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = controller ? setTimeout(function() { controller.abort(); }, ADMIN_FETCH_TIMEOUT_MS) : null;
+    var opts = {
       method: 'POST',
       credentials: 'omit',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(body),
-    }).then(function(r) {
+    };
+    if (controller) opts.signal = controller.signal;
+    fetch(SCRIPT_URL, opts).then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function(json) {
+      if (timer) clearTimeout(timer);
       if (json && json.ok) {
         if (state.success) state.success(json.data);
       } else {
@@ -909,6 +917,10 @@ var ADMIN_PIN_KEY = 'adminAuth';
         else console.warn('Admin call failed:', method, msg);
       }
     }).catch(function(err) {
+      if (timer) clearTimeout(timer);
+      if (err && err.name === 'AbortError') {
+        err = new Error('The server took too long to respond (>' + (ADMIN_FETCH_TIMEOUT_MS / 1000) + 's). Please try again.');
+      }
       if (state.failure) state.failure(err);
       else console.warn('Admin call error:', method, err);
     });
@@ -1118,11 +1130,12 @@ function _defaultCountryCode() {
   var v  = (el ? el.value : '') || (messageConfig && messageConfig.settings ? messageConfig.settings.defaultCountryCode : '') || '';
   _cachedDefaultCC = v;
   // Invalidate on the next frame so a settings edit takes effect immediately.
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(function() { _cachedDefaultCC = null; });
-  } else {
-    setTimeout(function() { _cachedDefaultCC = null; }, 0);
-  }
+  // rAF alone stalls in a backgrounded tab (browsers suspend it), which
+  // would pin a stale value until the tab is foregrounded — so always pair
+  // it with a 0ms timeout that fires regardless of visibility.
+  var clear = function() { _cachedDefaultCC = null; };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(clear);
+  setTimeout(clear, 0);
   return v;
 }
 function normalizePhoneForWhatsApp(phone) {
@@ -1596,6 +1609,10 @@ function loadStats() {
       var s = data || {};
       // Merge server values (esp. perEvent) without stomping client top-line.
       allStats = Object.assign({}, computeClientStats(), { perEvent: s.perEvent || [] }, s);
+      // setGuestView('event') fires this AND renders synchronously, so the
+      // first render sees allStats === {} and shows "No event data". Re-render
+      // now that perEvent has landed — but only if the admin is still on it.
+      if (currentView === 'event') renderCurrentView();
     })
     .withFailureHandler(function() { /* silent — client stats still rendered */ })
     .getStats();
@@ -2007,7 +2024,20 @@ function renderEventView(guests, stats) {
   selectEventFilter(perEvent[0].id);
 }
 
-function selectEventFilter(eventId) {
+// Paginated: the By-Event table used to build all invited guests (up to 700)
+// into one innerHTML and walk getRSVPStatus three separate times for the
+// seating stats. Now one pass computes both, and the table renders 50 rows
+// with a "Show more" button.
+var EVENT_VIEW_PAGE = 50;
+var _eventViewShown = EVENT_VIEW_PAGE;
+var _eventViewCurrentId = null;
+function showMoreEventView() {
+  _eventViewShown += EVENT_VIEW_PAGE;
+  if (_eventViewCurrentId) selectEventFilter(_eventViewCurrentId, /*keepPage*/ true);
+}
+function selectEventFilter(eventId, keepPage) {
+  if (!keepPage && _eventViewCurrentId !== eventId) _eventViewShown = EVENT_VIEW_PAGE;
+  _eventViewCurrentId = eventId;
   document.querySelectorAll('.event-filter-btn').forEach(function(b) { b.classList.remove('active'); });
   var activeBtn = document.getElementById('efbtn-' + eventId);
   if (activeBtn) activeBtn.classList.add('active');
@@ -2020,14 +2050,26 @@ function selectEventFilter(eventId) {
     return String(g.events || '').split(',').map(function(s) { return s.trim(); }).indexOf(eventId) > -1;
   });
 
-  var guestRows = invitedGuests.map(function(g) {
+  // Single pass: compute the seating stats while walking every invited
+  // guest, but only build row HTML for the visible page.
+  var shown = Math.min(_eventViewShown, invitedGuests.length);
+  var attendingCount = 0, assignedCount = 0;
+  var tableSet = {};
+  var rowParts = [];
+  for (var i = 0; i < invitedGuests.length; i++) {
+    var g = invitedGuests[i];
     var status = getRSVPStatus(g);
+    var isAttending = status.label === 'Submitted';
+    var currentTable = seatingEnabled ? (sanitiseValue(g[eventId + '_table']) || '') : '';
+    if (seatingEnabled && isAttending) {
+      attendingCount++;
+      if (currentTable) { assignedCount++; tableSet[currentTable] = true; }
+    }
+    if (i >= shown) continue;   // stats still accumulate; HTML doesn't
     var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
     var overseasBadge = isOverseas ? '<span class="overseas-badge">&#127757;</span>' : '';
     var tableCol = '';
     if (seatingEnabled) {
-      var isAttending = status.label === 'Submitted';
-      var currentTable = sanitiseValue(g[eventId + '_table']) || '';
       if (isAttending) {
         tableCol = '<td><input type="text" class="seating-input" value="' + escapeAttr(currentTable) + '" ' +
           'data-guest-id="' + escapeAttr(g.id) + '" data-event-id="' + escapeAttr(eventId) + '" ' +
@@ -2037,7 +2079,7 @@ function selectEventFilter(eventId) {
         tableCol = '<td style="text-align:center;color:var(--muted);">&mdash;</td>';
       }
     }
-    return '<tr>' +
+    rowParts.push('<tr>' +
       '<td>' +
         '<div class="event-guest-name">' + guestStatusDot(g) +
           '<div>' +
@@ -2051,21 +2093,22 @@ function selectEventFilter(eventId) {
       '</td>' +
       '<td class="event-guest-count">' + (Number(g[eventId + '_guests']) || 0) + '</td>' +
       tableCol +
-      '</tr>';
-  }).join('');
+      '</tr>');
+  }
+  var guestRows = rowParts.join('');
+  var more = invitedGuests.length - shown;
+  var showMoreHtml = more > 0
+    ? '<div style="padding:.8rem;text-align:center;"><button class="btn btn-secondary btn-sm" onclick="showMoreEventView()">Show ' + Math.min(more, EVENT_VIEW_PAGE) + ' more (' + more + ' hidden)</button></div>'
+    : '';
 
   var seatingStatsHtml = '';
   if (seatingEnabled) {
-    var attendingGuests = invitedGuests.filter(function(g) { return getRSVPStatus(g).label === 'Submitted'; });
-    var assigned = attendingGuests.filter(function(g) { return sanitiseValue(g[eventId + '_table']); });
-    var unassigned = attendingGuests.length - assigned.length;
-    var tableSet = {};
-    assigned.forEach(function(g) { tableSet[g[eventId + '_table']] = true; });
+    var unassigned = attendingCount - assignedCount;
     var tableCount = Object.keys(tableSet).length;
     seatingStatsHtml =
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:0 0 1rem;">' +
       '<div class="stat-card"><div class="stat-num">' + tableCount + '</div><div class="stat-lbl">Tables Used</div></div>' +
-      '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + assigned.length + '</div><div class="stat-lbl">Guests Seated</div></div>' +
+      '<div class="stat-card"><div class="stat-num" style="color:var(--green);">' + assignedCount + '</div><div class="stat-lbl">Guests Seated</div></div>' +
       '<div class="stat-card"><div class="stat-num" style="color:' + (unassigned > 0 ? 'var(--gold)' : 'var(--green)') + ';">' + unassigned + '</div><div class="stat-lbl">Unassigned</div></div>' +
       '</div>';
   }
@@ -2089,6 +2132,7 @@ function selectEventFilter(eventId) {
     '<th>Name</th><th style="text-align:center;">Guests</th>' +
     (seatingEnabled ? '<th>Table</th>' : '') +
     '</tr></thead><tbody>' + guestRows + '</tbody></table></div>' +
+    showMoreHtml +
     (seatingEnabled ? '<div style="text-align:right;margin-top:.5rem;"><button class="btn btn-secondary btn-sm" onclick="exportSeatingCSV(\'' + escapeAttr(eventId) + '\')">Export Seating CSV</button></div>' : '') +
     '</div>';
 }
@@ -2624,6 +2668,10 @@ function removeGuest(id) {
   var name = guest ? ((guest.first_name || '') + ' ' + (guest.last_name || '')).trim() : 'Guest';
   google.script.run
     .withSuccessHandler(function() {
+      // Drop the id from the bulk selection — otherwise the bar shows an
+      // inflated count and the next bulk action targets a deleted row.
+      _bulkSelection.delete(id);
+      _refreshBulkBar();
       loadGuests();
       showActionToast('Deleted ' + name + '.', 'Undo', function(dismiss) {
         google.script.run
@@ -3375,6 +3423,17 @@ function renderRSVPsTab() {
   var filtered = getFilteredRSVPs();
   renderRSVPEventBreakdown(filtered);
 
+  // Reset the shared "Show more" counter whenever the view or the filtered
+  // result set changes. Fingerprint on view + length + first/last ids so
+  // any search/filter/sort change resets without needing the input ids.
+  var fp = rsvpView + '|' + filtered.length + '|' +
+    (filtered.length ? (filtered[0].invitation_code || '') + '/' + (filtered[0].timestamp || '') : '') + '|' +
+    (filtered.length ? (filtered[filtered.length - 1].invitation_code || '') + '/' + (filtered[filtered.length - 1].timestamp || '') : '');
+  if (fp !== _lastRSVPTabFingerprint) {
+    _lastRSVPTabFingerprint = fp;
+    _rsvpTabShown = RSVP_TAB_PAGE;
+  }
+
   var container = document.getElementById('rsvp-view-container');
   var titleEl = document.getElementById('rsvp-view-title');
 
@@ -3405,14 +3464,20 @@ function renderRSVPEventBreakdown(filtered) {
     breakdownEl.innerHTML = '<div class="empty-state" style="padding:1rem;">No matches.</div>';
     return;
   }
+  // Single pass over `filtered` accumulating every event's counters at once,
+  // instead of one full walk per event (6× 700 at scale).
+  var acc = {};
+  allEvents.forEach(function(ev) { acc[ev.id] = { yes: 0, no: 0, guests: 0 }; });
+  filtered.forEach(function(r) {
+    for (var i = 0; i < allEvents.length; i++) {
+      var ev = allEvents[i];
+      var att = r[ev.id + ' Attending'];
+      if (att === 'Yes') { acc[ev.id].yes++; acc[ev.id].guests += Number(r[ev.id + ' Guests']) || 0; }
+      else if (att === 'No') { acc[ev.id].no++; }
+    }
+  });
   breakdownEl.innerHTML = allEvents.map(function(ev) {
-    var attKey = ev.id + ' Attending';
-    var gKey = ev.id + ' Guests';
-    var yes = 0, no = 0, totalGuests = 0;
-    filtered.forEach(function(r) {
-      if (r[attKey] === 'Yes') { yes++; totalGuests += Number(r[gKey]) || 0; }
-      else if (r[attKey] === 'No') { no++; }
-    });
+    var yes = acc[ev.id].yes, no = acc[ev.id].no, totalGuests = acc[ev.id].guests;
     return '<div class="event-rsvp-card">' +
       '<div class="event-rsvp-header"><span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
       '<span class="event-rsvp-title">' + escapeAttr(ev.name) + '</span></div>' +
@@ -3424,9 +3489,25 @@ function renderRSVPEventBreakdown(filtered) {
   }).join('');
 }
 
+// Shared pagination for the three RSVPs-tab views. One counter, reset by
+// renderRSVPsTab whenever the filter/view fingerprint changes, bumped by
+// the "Show more" button. Previously all three built every filtered row
+// (up to 700, × allEvents pills/cells) into a single innerHTML.
+var RSVP_TAB_PAGE = 50;
+var _rsvpTabShown = RSVP_TAB_PAGE;
+var _lastRSVPTabFingerprint = '';
+function showMoreRSVPTab() { _rsvpTabShown += RSVP_TAB_PAGE; renderRSVPsTab(); }
+function _rsvpShowMoreHtml(total, shown) {
+  var more = total - shown;
+  if (more <= 0) return '';
+  return '<div style="padding:.8rem;text-align:center;"><button class="btn btn-secondary btn-sm" onclick="showMoreRSVPTab()">Show ' +
+    Math.min(more, RSVP_TAB_PAGE) + ' more (' + more + ' hidden)</button></div>';
+}
+
 function renderRSVPSubmissionsView(filtered) {
   var byCode = _rsvpGuestsByCode();
-  return filtered.map(function(r) {
+  var shown = Math.min(_rsvpTabShown, filtered.length);
+  return filtered.slice(0, shown).map(function(r) {
     var evPills = allEvents.map(function(ev) {
       var att = r[ev.id + ' Attending'];
       if (!att) return '';
@@ -3455,17 +3536,28 @@ function renderRSVPSubmissionsView(filtered) {
         '<div class="rsvp-evt-pills">' + evPills + '</div>' +
       '</div>' +
     '</div>';
-  }).join('');
+  }).join('') + _rsvpShowMoreHtml(filtered.length, shown);
 }
 
 function renderRSVPByEventView(filtered) {
-  return allEvents.map(function(ev) {
-    var attending = [], declining = [];
-    filtered.forEach(function(r) {
+  // One pass over `filtered` bucketing into every event at once, instead of
+  // a full walk per event. Each Attending/Declined block is capped at
+  // RSVP_TAB_PAGE rows with an "…and N more" line — the RSVPs tab's
+  // "Show more" raises the cap for all blocks together.
+  var buckets = {};
+  allEvents.forEach(function(ev) { buckets[ev.id] = { attending: [], declining: [] }; });
+  filtered.forEach(function(r) {
+    for (var i = 0; i < allEvents.length; i++) {
+      var ev = allEvents[i];
       var a = r[ev.id + ' Attending'];
-      if (a === 'Yes') attending.push(r);
-      else if (a === 'No') declining.push(r);
-    });
+      if (a === 'Yes') buckets[ev.id].attending.push(r);
+      else if (a === 'No') buckets[ev.id].declining.push(r);
+    }
+  });
+  var cap = _rsvpTabShown;
+  var anyHidden = false;
+  var html = allEvents.map(function(ev) {
+    var attending = buckets[ev.id].attending, declining = buckets[ev.id].declining;
     var row = function(r) {
       var g = Number(r[ev.id + ' Guests']) || 0;
       return '<div class="summary-row" style="border-bottom:1px solid rgba(0,0,0,.05);padding:.45rem 0;font-size:var(--fs-md);display:flex;justify-content:space-between;gap:.6rem;">' +
@@ -3475,9 +3567,13 @@ function renderRSVPByEventView(filtered) {
     };
     var block = function(title, arr, color) {
       if (!arr.length) return '';
+      var visible = arr.slice(0, cap);
+      var hidden = arr.length - visible.length;
+      if (hidden > 0) anyHidden = true;
       return '<div style="margin-top:.8rem;">' +
         '<div style="font-family:\'Cinzel\',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);color:' + color + ';text-transform:uppercase;margin-bottom:.4rem;">' + title + ' (' + arr.length + ')</div>' +
-        arr.map(row).join('') +
+        visible.map(row).join('') +
+        (hidden > 0 ? '<div style="font-size:var(--fs-2xs);color:var(--muted);padding:.3rem 0;">…and ' + hidden + ' more</div>' : '') +
       '</div>';
     };
     return '<div class="admin-card" style="margin-bottom:1rem;padding:1.2rem;">' +
@@ -3492,6 +3588,11 @@ function renderRSVPByEventView(filtered) {
         : '') +
     '</div>';
   }).join('');
+  if (anyHidden) {
+    html += '<div style="padding:.8rem;text-align:center;"><button class="btn btn-secondary btn-sm" onclick="showMoreRSVPTab()">Show ' +
+      RSVP_TAB_PAGE + ' more per event</button></div>';
+  }
+  return html;
 }
 
 function renderRSVPMatrixView(filtered) {
@@ -3501,7 +3602,8 @@ function renderRSVPMatrixView(filtered) {
     }).join('') +
     '<th style="text-align:right;">Total</th></tr>';
 
-  var rows = filtered.map(function(r) {
+  var shown = Math.min(_rsvpTabShown, filtered.length);
+  var rows = filtered.slice(0, shown).map(function(r) {
     var cells = allEvents.map(function(ev) {
       var a = r[ev.id + ' Attending'];
       var g = Number(r[ev.id + ' Guests']) || 0;
@@ -3524,7 +3626,7 @@ function renderRSVPMatrixView(filtered) {
   return '<div class="guest-table-wrap"><table class="guest-table">' +
     '<thead>' + header + '</thead>' +
     '<tbody>' + rows + '</tbody>' +
-  '</table></div>';
+  '</table></div>' + _rsvpShowMoreHtml(filtered.length, shown);
 }
 
 function exportFilteredRSVPsCSV() {

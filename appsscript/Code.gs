@@ -154,10 +154,13 @@ function doPost(e) {
 
     // Any mutating action invalidates the admin read cache so the next
     // getStats / getSubmittedCodes / getDuplicates reflects the new state.
+    // markInviteSent is intentionally absent — see its comment. Flushing
+    // every admin cache 700 times during a send session was the single
+    // largest server cost in the app.
     const MUTATING_ACTIONS = [
       'addGuest', 'updateGuest', 'deleteGuest', 'restoreGuest',
       'bulkAddGuests', 'updateSeating', 'updateContact',
-      'submitRSVP', 'updateRSVP', 'markInviteSent',
+      'submitRSVP', 'updateRSVP',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
       'deleteRSVPSubmission',
     ];
@@ -897,17 +900,17 @@ function restoreRSVPRows(invitationCode) {
 // payload.guests = array of guest objects from CSV upload
 function bulkAddGuests(payload) {
   const sheet = getSheet(TABS.guests);
-
-  if (sheet.getLastRow() < 1) {
-    sheet.appendRow(guestHeaders());
-  }
-
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const results = { added: 0, skipped: 0, errors: [] };
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    // Header bootstrap + read happen inside the lock so two concurrent
+    // first-ever imports can't both append a header row.
+    if (sheet.getLastRow() < 1) {
+      sheet.appendRow(guestHeaders());
+    }
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     // Snapshot existing codes once; mutate the map as we build so CSV-internal
     // duplicates (and newly-generated ones) are detected within this batch.
     const used = collectExistingCodes();
@@ -1047,9 +1050,7 @@ function bulkDelete(payload) {
     // per-code per-tab full reads.
     if (codes.length > 0) {
       const codeSet = new Set(codes.map(function(c) { return String(c).toUpperCase().trim(); }));
-      const lock2 = LockService.getScriptLock();
-      // We're already holding the script lock — the RSVP helper takes its
-      // own so pass through directly.
+      // Runs inside the outer script lock held since the top of bulkDelete.
       [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(function(tabName) {
         try {
           const rSheet = getSheet(tabName);
@@ -1203,24 +1204,33 @@ function generateCode() {
 // given guest id. Clients call this after opening the WhatsApp deep link so
 // the admin list can distinguish "sent" from "unsent". Pass `clear: true` to
 // reset the timestamp (e.g. to resend from scratch).
+// Hot path during invite season — called once per guest, ~700 times in a
+// send session. Two things keep it cheap:
+//   * findRowById reads only the id column (not the full 700×24 grid).
+//   * It is deliberately NOT in MUTATING_ACTIONS, so it does not flush the
+//     admin caches (bootstrap slices, stats, duplicates, submittedCodes) on
+//     every send. The admin client patches invite_sent_at optimistically,
+//     so the only visible effect is that a full page reload within the
+//     30s cache TTL may briefly show the pre-send timestamp for that guest.
+// Locked because bulkUpdate / bulkDelete write whole column slices and a
+// setValue landing between their read and write would be clobbered.
 function markInviteSent(guestId, clear) {
   if (!guestId) throw new Error('guestId required');
   const sheet = getSheet(TABS.guests);
-  const data = sheet.getDataRange().getValues();
-  if (data.length < 2) throw new Error('Guest not found');
-  const headers = data[0];
-  const idCol   = headers.indexOf('id');
-  const sentCol = headers.indexOf('invite_sent_at');
-  if (idCol < 0) throw new Error('id column missing');
-  if (sentCol < 0) throw new Error('invite_sent_at column missing — run rebuildSheetToTemplate()');
-  for (let r = 1; r < data.length; r++) {
-    if (String(data[r][idCol]) === String(guestId)) {
-      const ts = clear ? '' : new Date().toISOString();
-      sheet.getRange(r + 1, sentCol + 1).setValue(ts);
-      return { ok: true, guestId, invite_sent_at: ts };
-    }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const sentCol = headers.indexOf('invite_sent_at');
+    if (sentCol < 0) throw new Error('invite_sent_at column missing — run rebuildSheetToTemplate()');
+    const rowNum = findRowById(sheet, guestId);
+    if (rowNum === -1) throw new Error('Guest not found: ' + guestId);
+    const ts = clear ? '' : new Date().toISOString();
+    sheet.getRange(rowNum, sentCol + 1).setValue(ts);
+    return { ok: true, guestId, invite_sent_at: ts };
+  } finally {
+    lock.releaseLock();
   }
-  throw new Error('Guest not found: ' + guestId);
 }
 
 // ── submitRSVP ────────────────────────────────────────────
@@ -1263,7 +1273,14 @@ function submitRSVP(payload) {
 
   // Use script lock for atomicity — duplicate check + write must be inside lock
   const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
+  try {
+    lock.waitLock(15000);
+  } catch (lockErr) {
+    // Guests should never see Apps Script's raw "Lock timeout: another
+    // process was holding the lock" text. This fires when an admin is
+    // mid bulk-import (30s lock) — tell them to try again in a moment.
+    throw new Error('We’re updating the guest list right now — please try again in a moment.');
+  }
   try {
     // ── Duplicate check — name + code (inside lock to prevent race).
     // strict:true so a sheet-read hiccup surfaces as a "try again" error
@@ -1437,9 +1454,14 @@ function submitRSVP(payload) {
   ).trim();
   const validGuestEmail = guestEmailAddr && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmailAddr);
 
+  // Enqueue for the background trigger. If the enqueue can't get the lock
+  // (returns false) we fall back to sending inline — a slower response for
+  // this one guest is far better than silently dropping their confirmation.
+  let queued = false;
   if (_notificationTriggerInstalled()) {
-    _enqueueNotification({ payload: payload, guestEmail: validGuestEmail ? guestEmailAddr : '' });
-  } else {
+    queued = _enqueueNotification({ payload: payload, guestEmail: validGuestEmail ? guestEmailAddr : '' });
+  }
+  if (!queued) {
     try { sendRSVPNotification(payload); }
     catch (emailErr) { Logger.log('Admin notification failed: ' + emailErr.message); }
     if (validGuestEmail) {
@@ -1452,7 +1474,17 @@ function submitRSVP(payload) {
 }
 
 // ── Deferred email queue ────────────────────────────────
-const NOTIFICATION_QUEUE_KEY = 'RSVP_EMAIL_QUEUE';
+// Three ScriptProperties keys:
+//   RSVP_EMAIL_QUEUE     — pending items, appended by submitRSVP
+//   RSVP_EMAIL_INFLIGHT  — the batch a trigger run has claimed but not yet
+//                          finished. Survives a crashed run so the next run
+//                          can re-queue it instead of losing it.
+//   RSVP_EMAIL_DEAD      — items that failed twice. Never retried
+//                          automatically; inspect via Project Settings →
+//                          Script Properties and clear manually.
+const NOTIFICATION_QUEUE_KEY    = 'RSVP_EMAIL_QUEUE';
+const NOTIFICATION_INFLIGHT_KEY = 'RSVP_EMAIL_INFLIGHT';
+const NOTIFICATION_DEAD_KEY     = 'RSVP_EMAIL_DEAD';
 const NOTIFICATION_TRIGGER_HANDLER = 'processNotificationQueue';
 
 function _notificationTriggerInstalled() {
@@ -1462,18 +1494,31 @@ function _notificationTriggerInstalled() {
   } catch (e) { return false; }
 }
 
+function _readJsonProp(props, key) {
+  try {
+    const v = JSON.parse(props.getProperty(key) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch (e) { return []; }
+}
+
+// Returns true if the item was queued, false if the lock couldn't be
+// acquired — the caller must then send inline. Never writes the queue
+// property without holding the lock: an unguarded read-modify-write here
+// would drop a concurrent guest's confirmation.
 function _enqueueNotification(item) {
   const lock = LockService.getScriptLock();
-  try { lock.waitLock(2000); } catch (e) { /* proceed best-effort */ }
+  if (!lock.tryLock(3000)) return false;
   try {
     const props = PropertiesService.getScriptProperties();
-    const raw = props.getProperty(NOTIFICATION_QUEUE_KEY) || '[]';
-    let queue;
-    try { queue = JSON.parse(raw); if (!Array.isArray(queue)) queue = []; } catch (e) { queue = []; }
-    queue.push({ payload: item.payload, guestEmail: item.guestEmail, at: new Date().toISOString() });
+    let queue = _readJsonProp(props, NOTIFICATION_QUEUE_KEY);
+    queue.push({ payload: item.payload, guestEmail: item.guestEmail, at: new Date().toISOString(), attempts: 0 });
     // Cap the queue so a malformed payload can't grow it unbounded.
     if (queue.length > 2000) queue = queue.slice(-2000);
     props.setProperty(NOTIFICATION_QUEUE_KEY, JSON.stringify(queue));
+    return true;
+  } catch (e) {
+    Logger.log('_enqueueNotification failed: ' + e.message);
+    return false;
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -1481,33 +1526,71 @@ function _enqueueNotification(item) {
 
 // Time-driven trigger handler. Drains up to N items per run so a big backlog
 // still respects the 6-min execution ceiling.
+//
+// Crash safety: the claimed batch is persisted to INFLIGHT before the lock
+// is released. If this run dies mid-send (timeout, quota), the next run
+// finds INFLIGHT non-empty and pushes it back onto the front of the queue.
+// Items that have already failed once are moved to DEAD rather than looping.
 function processNotificationQueue() {
   const MAX_PER_RUN = 80;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return;
-  let queue;
+  let batch;
+  const props = PropertiesService.getScriptProperties();
   try {
-    const props = PropertiesService.getScriptProperties();
-    const raw = props.getProperty(NOTIFICATION_QUEUE_KEY) || '[]';
-    try { queue = JSON.parse(raw); if (!Array.isArray(queue)) queue = []; } catch (e) { queue = []; }
-    if (queue.length === 0) return;
-    const batch = queue.slice(0, MAX_PER_RUN);
-    const rest  = queue.slice(MAX_PER_RUN);
-    // Claim ownership by writing the remainder back before we start sending.
+    let queue = _readJsonProp(props, NOTIFICATION_QUEUE_KEY);
+
+    // Recover anything a previous run claimed but never finished.
+    const orphaned = _readJsonProp(props, NOTIFICATION_INFLIGHT_KEY);
+    if (orphaned.length) {
+      const dead = [];
+      const retry = [];
+      orphaned.forEach(function(it) {
+        it.attempts = (Number(it.attempts) || 0) + 1;
+        if (it.attempts >= 2) dead.push(it); else retry.push(it);
+      });
+      if (dead.length) {
+        const existingDead = _readJsonProp(props, NOTIFICATION_DEAD_KEY);
+        props.setProperty(NOTIFICATION_DEAD_KEY, JSON.stringify(existingDead.concat(dead).slice(-500)));
+        Logger.log('processNotificationQueue: dead-lettered ' + dead.length + ' item(s) after repeated failure.');
+      }
+      queue = retry.concat(queue);
+    }
+
+    if (queue.length === 0) {
+      props.deleteProperty(NOTIFICATION_INFLIGHT_KEY);
+      return;
+    }
+    batch = queue.slice(0, MAX_PER_RUN);
+    const rest = queue.slice(MAX_PER_RUN);
+    // Claim: write the remainder back AND persist the claimed batch, so a
+    // crash between here and the end of the send loop loses nothing.
     props.setProperty(NOTIFICATION_QUEUE_KEY, JSON.stringify(rest));
-    queue = batch;
+    props.setProperty(NOTIFICATION_INFLIGHT_KEY, JSON.stringify(batch));
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
 
-  queue.forEach(item => {
+  // Send outside the lock so a slow MailApp doesn't block concurrent
+  // guest submits. Items are removed from INFLIGHT as they complete; a
+  // crash leaves only the unsent tail for the next run to recover.
+  const remaining = batch.slice();
+  for (let i = 0; i < batch.length; i++) {
+    const item = batch[i];
     try { sendRSVPNotification(item.payload); }
     catch (e) { Logger.log('Deferred admin notification failed: ' + e.message); }
     if (item.guestEmail) {
       try { sendGuestConfirmationEmail(item.payload, item.guestEmail); }
       catch (e) { Logger.log('Deferred guest confirmation failed: ' + e.message); }
     }
-  });
+    remaining.shift();
+    // Checkpoint every 10 sends so the recovery window is small without
+    // paying a ScriptProperties write per email.
+    if (i % 10 === 9) {
+      try { props.setProperty(NOTIFICATION_INFLIGHT_KEY, JSON.stringify(remaining)); } catch (e) {}
+    }
+  }
+  try { props.deleteProperty(NOTIFICATION_INFLIGHT_KEY); } catch (e) {}
 }
 
 // Run once from the Apps Script editor to install a time-driven trigger that
@@ -1793,12 +1876,19 @@ function _getBootstrap() {
   try { allGuestsCached = getGuestsCached() || []; } catch (e) { allGuestsCached = []; }
   var active  = allGuestsCached.filter(function(g) { return String(g.status || '').toUpperCase() !== 'DELETED'; });
   var deleted = allGuestsCached.filter(function(g) { return String(g.status || '').toUpperCase() === 'DELETED'; });
+
+  // Read RSVPs_by_family ONCE and derive rsvps / submittedCodes / duplicates
+  // from it. Previously each of the three did its own full sheetToObjects
+  // on the same 700-row tab on every cold bootstrap.
+  var rsvpsAll = safe(function() { return getRSVPsByFamily(); }) || [];
+  var rsvpsActive = rsvpsAll.filter(function(r) { return String(r.status || '').toUpperCase() !== 'DELETED'; });
+
   return {
-    events:         safe(function() { return getEvents(); })         || [],
+    events:         safe(function() { return getEvents(); }) || [],
     guests:         active,
-    rsvps:          safe(function() { return getRSVPsByFamily(); })  || [],
-    submittedCodes: safe(function() { return getSubmittedCodes(); }) || [],
-    duplicates:     safe(function() { return getDuplicates(); })     || [],
+    rsvps:          rsvpsAll,
+    submittedCodes: safe(function() { return _getSubmittedCodes(rsvpsActive); }) || [],
+    duplicates:     safe(function() { return _getDuplicates(rsvpsActive); })     || [],
     deletedGuests:  deleted,
   };
 }
@@ -1808,7 +1898,10 @@ function getStats() {
   return cachedRead('getStats', _getStats);
 }
 function _getStats() {
-  const guests   = getGuests();                // already excludes DELETED
+  // Chunked-cache read instead of a fresh full-sheet getGuests(). _getStats
+  // is already the single heaviest reader (it also walks RSVPs_by_event at
+  // up to 4200 rows) — no reason to pay for the guest sheet again.
+  const guests = (getGuestsCached() || []).filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
   const activeGuestCodes = new Set(guests.map(g => String(g.invitation_code || '').toUpperCase().trim()));
 
   const byEventAll  = sheetToObjects(getSheet(TABS.rsvpByEvent));
@@ -1938,10 +2031,15 @@ function _getStats() {
 function getDuplicates() {
   return cachedRead('getDuplicates', _getDuplicates);
 }
-function _getDuplicates() {
-  const sheet = getSheet(TABS.rsvpByFamily);
-  if (sheet.getLastRow() < 2) return [];
-  const rows    = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
+// Optional `activeRows` lets a caller that has already read RSVPs_by_family
+// (getBootstrap) pass it in, so the tab is read once instead of three times.
+function _getDuplicates(activeRows) {
+  let rows = activeRows;
+  if (!rows) {
+    const sheet = getSheet(TABS.rsvpByFamily);
+    if (sheet.getLastRow() < 2) return [];
+    rows = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
+  }
   const counts  = {};
   const byCode  = {};
 
@@ -1981,10 +2079,14 @@ function _getDuplicates() {
 function getSubmittedCodes() {
   return cachedRead('getSubmittedCodes', _getSubmittedCodes);
 }
-function _getSubmittedCodes() {
-  const sheet = getSheet(TABS.rsvpByFamily);
-  if (sheet.getLastRow() < 2) return [];
-  const rows = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
+// Optional `activeRows` — see _getDuplicates.
+function _getSubmittedCodes(activeRows) {
+  let rows = activeRows;
+  if (!rows) {
+    const sheet = getSheet(TABS.rsvpByFamily);
+    if (sheet.getLastRow() < 2) return [];
+    rows = sheetToObjects(sheet).filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
+  }
   const latest = {};
   rows.forEach(r => {
     const code = String(r.invitation_code || '').toUpperCase().trim();
