@@ -564,24 +564,69 @@ function getGuests(includeDeleted) {
   return all.filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
 }
 
-// Cached full-sheet read (includes DELETED rows). Cache is process-local so it
-// only helps within the same execution / warm invocation, plus a short script
-// cache to smooth back-to-back guest validation attempts. Any mutating action
-// bumps the admin cache version, which also invalidates this via key prefix.
+// Cached full-sheet read (includes DELETED rows). Two-tier cache:
+//   * process-local (survives within one execution / warm invocation)
+//   * script cache, sliced across multiple keys because Apps Script
+//     CacheService caps each value at ~100 KB and at 700 rows the JSON
+//     payload is well over that.
+//
+// Layout in CacheService:
+//   guests_all_v<ver>_meta  → JSON { count, len }
+//   guests_all_v<ver>_<i>   → chunk of the JSON string (i = 0..count-1)
+//
+// Any mutating action bumps ADMIN_CACHE_VERSION_KEY, which changes <ver>
+// so the previous slices become unreachable (they expire on their own TTL).
+const GUESTS_CACHE_CHUNK = 90000;   // ~90 KB per slice, safe under 100 KB cap
+const GUESTS_CACHE_TTL   = 30;      // seconds
 let _guestsCache = null;
 function getGuestsCached() {
   if (_guestsCache) return _guestsCache;
   const cache = CacheService.getScriptCache();
   const ver = String(cache.get(ADMIN_CACHE_VERSION_KEY) || '0');
-  const key = 'guests_all_v' + ver;
-  const raw = cache.get(key);
-  if (raw) {
-    try { _guestsCache = JSON.parse(raw); return _guestsCache; } catch (e) {}
+  const prefix = 'guests_all_v' + ver;
+
+  const metaRaw = cache.get(prefix + '_meta');
+  if (metaRaw) {
+    try {
+      const meta = JSON.parse(metaRaw);
+      const count = Number(meta.count) || 0;
+      if (count > 0) {
+        const keys = [];
+        for (let i = 0; i < count; i++) keys.push(prefix + '_' + i);
+        const parts = cache.getAll(keys);
+        // Only trust the cache if every slice is present
+        let joined = '';
+        let ok = true;
+        for (let i = 0; i < count; i++) {
+          const p = parts[keys[i]];
+          if (p == null) { ok = false; break; }
+          joined += p;
+        }
+        if (ok && joined.length === Number(meta.len)) {
+          try { _guestsCache = JSON.parse(joined); return _guestsCache; } catch (e) {}
+        }
+      }
+    } catch (e) { /* fall through to fresh read */ }
   }
+
   const sheet = getSheet(TABS.guests);
   const all = (sheet.getLastRow() < 1) ? [] : sheetToObjects(sheet);
   _guestsCache = all;
-  try { cache.put(key, JSON.stringify(all), 30); } catch (e) { /* > 100KB payload */ }
+
+  // Best-effort write back to the multi-key cache.
+  try {
+    const json = JSON.stringify(all);
+    const slices = {};
+    let idx = 0;
+    for (let pos = 0; pos < json.length; pos += GUESTS_CACHE_CHUNK) {
+      slices[prefix + '_' + idx] = json.slice(pos, pos + GUESTS_CACHE_CHUNK);
+      idx++;
+    }
+    slices[prefix + '_meta'] = JSON.stringify({ count: idx, len: json.length });
+    // putAll caps at 100 entries per call, well above what 700 guests need.
+    cache.putAll(slices, GUESTS_CACHE_TTL);
+  } catch (e) { /* cache write is optional — process-local cache still helps */ }
+
   return _guestsCache;
 }
 
