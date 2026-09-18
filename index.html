@@ -775,9 +775,9 @@ function escapeAttr(str) {
 /* ══════════════════════════════════════════════
    BACKEND COMMUNICATION
 ══════════════════════════════════════════════ */
-async function postAction(action, payload) {
+async function postActionOnce(action, payload, timeoutMs) {
   const controller = new AbortController();
-  const timeout = setTimeout(function() { controller.abort(); }, 25000);
+  const timeout = setTimeout(function() { controller.abort(); }, timeoutMs);
   try {
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
@@ -789,11 +789,34 @@ async function postAction(action, payload) {
     clearTimeout(timeout);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || (action + ' failed'));
+    if (!json.ok) {
+      var err = new Error(json.error || (action + ' failed'));
+      err.serverError = true;
+      throw err;
+    }
     return json.data;
-  } catch (err) {
+  } finally {
     clearTimeout(timeout);
-    if (err.name === 'AbortError') throw new Error('Request timed out after 25s');
+  }
+}
+
+async function postAction(action, payload) {
+  // Two attempts: first with a shorter timeout (fast path for a warm
+  // Apps Script instance), then a longer retry if the first was aborted
+  // or hit a network error. The second attempt hits a now-warm server,
+  // which usually completes in under a couple of seconds.
+  try {
+    return await postActionOnce(action, payload, 15000);
+  } catch (err) {
+    if (err.serverError) throw err;         // real error from the server — don't retry
+    if (err.name === 'AbortError' || /timed out|Failed to fetch|NetworkError|HTTP 5/.test(err.message || '')) {
+      try {
+        return await postActionOnce(action, payload, 25000);
+      } catch (err2) {
+        if (err2.name === 'AbortError') throw new Error('The server is slow to respond — please try again.');
+        throw err2;
+      }
+    }
     throw err;
   }
 }
@@ -1013,9 +1036,14 @@ async function submitEntry() {
     return;
   }
   btn.textContent = 'Checking…'; btn.disabled = true;
-  var timeoutId = setTimeout(function() {
-    errEl.textContent = 'This is taking longer than usual. Please check your connection.';
-  }, 12000);
+  var slowHint1 = setTimeout(function() {
+    errEl.textContent = 'The server is waking up — this can take up to 30 seconds on first load. Hang tight…';
+  }, 8000);
+  var slowHint2 = setTimeout(function() {
+    errEl.textContent = 'Still working on it — please don’t refresh.';
+  }, 20000);
+  var timeoutId = slowHint2;   // preserves the original variable name used below
+  var clearSlowHints = function() { clearTimeout(slowHint1); clearTimeout(slowHint2); };
   try {
     currentGuest    = await validateGuest(firstName, lastName, code);
     currentCode     = currentGuest.invitationCode;
@@ -1030,7 +1058,7 @@ async function submitEntry() {
     btn.textContent   = 'View my invitation';
     btn.disabled      = false;
   } finally {
-    clearTimeout(timeoutId);
+    clearSlowHints();
   }
 }
 
