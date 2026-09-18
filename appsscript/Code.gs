@@ -1016,22 +1016,64 @@ function bulkDelete(payload) {
     const resolved = _bulkResolveRows(sheet, payload && payload.ids);
     const statusIdx = resolved.headers.indexOf('status');
     if (statusIdx === -1) throw new Error('status column missing on Guests sheet');
+    const codeIdx = resolved.headers.indexOf('invitation_code');
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { deleted: 0, missing: resolved.missing };
+
+    // Batch write to the status column so K deletes = 1 setValues.
+    const statusRange = sheet.getRange(2, statusIdx + 1, lastRow - 1, 1);
+    const statusVals  = statusRange.getValues();
+    // Read the invitation_code column in one shot so we can collect the
+    // codes for RSVP cleanup without N per-row getValue()s.
+    let codes = [];
+    let codeVals = null;
+    if (codeIdx > -1) codeVals = sheet.getRange(2, codeIdx + 1, lastRow - 1, 1).getValues();
     let updated = 0;
     Object.keys(resolved.rows).forEach(function(id) {
       const rowNum = resolved.rows[id];
-      sheet.getRange(rowNum, statusIdx + 1).setValue('DELETED');
+      const i = rowNum - 2;
+      if (String(statusVals[i][0] || '').toUpperCase() === 'DELETED') return;
+      statusVals[i][0] = 'DELETED';
       updated++;
+      if (codeVals) {
+        const c = String(codeVals[i][0] || '').trim();
+        if (c) codes.push(c);
+      }
     });
-    // Also mark matching RSVP rows as deleted so counts stay accurate.
-    Object.keys(resolved.rows).forEach(function(id) {
-      try {
-        const codeIdx = resolved.headers.indexOf('invitation_code');
-        if (codeIdx > -1) {
-          const code = sheet.getRange(resolved.rows[id], codeIdx + 1).getValue();
-          if (code) markRSVPRowsDeleted(String(code));
-        }
-      } catch (e) { /* best-effort per-row */ }
-    });
+    if (updated > 0) statusRange.setValues(statusVals);
+
+    // Batched RSVP cleanup — mark every matching row in RSVPs_by_family and
+    // RSVPs_by_event as DELETED in one setValues per tab instead of
+    // per-code per-tab full reads.
+    if (codes.length > 0) {
+      const codeSet = new Set(codes.map(function(c) { return String(c).toUpperCase().trim(); }));
+      const lock2 = LockService.getScriptLock();
+      // We're already holding the script lock — the RSVP helper takes its
+      // own so pass through directly.
+      [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(function(tabName) {
+        try {
+          const rSheet = getSheet(tabName);
+          const rLastRow = rSheet.getLastRow();
+          if (rLastRow < 2) return;
+          const rHeaders = rSheet.getRange(1, 1, 1, rSheet.getLastColumn()).getValues()[0];
+          const rCodeIdx   = rHeaders.indexOf('invitation_code');
+          const rStatusIdx = rHeaders.indexOf('status');
+          if (rCodeIdx === -1 || rStatusIdx === -1) return;
+          const rCodeCol   = rSheet.getRange(2, rCodeIdx + 1, rLastRow - 1, 1).getValues();
+          const rStatusRng = rSheet.getRange(2, rStatusIdx + 1, rLastRow - 1, 1);
+          const rStatusVals = rStatusRng.getValues();
+          let touched = false;
+          for (let i = 0; i < rCodeCol.length; i++) {
+            const c = String(rCodeCol[i][0] || '').toUpperCase().trim();
+            if (!codeSet.has(c)) continue;
+            if (String(rStatusVals[i][0] || '').toUpperCase() === 'DELETED') continue;
+            rStatusVals[i][0] = 'DELETED';
+            touched = true;
+          }
+          if (touched) rStatusRng.setValues(rStatusVals);
+        } catch (e) { Logger.log('Bulk RSVP cleanup on ' + tabName + ' failed: ' + e.message); }
+      });
+    }
     return { deleted: updated, missing: resolved.missing };
   } finally { lock.releaseLock(); }
 }

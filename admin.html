@@ -980,8 +980,13 @@ function _bulkCount() { return _bulkSelection.size; }
 function toggleBulkRow(id, on) {
   if (on) _bulkSelection.add(id); else _bulkSelection.delete(id);
   _refreshBulkBar();
-  // Header checkbox may need to flip; cheapest is to re-render the current view.
-  renderCurrentView();
+  // Patch just the header "select all on this page" checkbox instead of
+  // rebuilding all 50 visible rows — ticking 30 rows was firing 30 full
+  // renderCurrentView calls (~3.5k row-rebuilds).
+  var page = getPageGuests();
+  var allPageSelected = page.length > 0 && page.every(function(g) { return _bulkSelection.has(g.id); });
+  var headerCb = document.getElementById('bulk-page-check');
+  if (headerCb) headerCb.checked = allPageSelected;
 }
 function toggleBulkPage(on) {
   var pageGuests = getPageGuests();
@@ -1103,12 +1108,28 @@ function escapeAttr(str) {
     .replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Country-code lookup is cached per animation frame — DOM getElementById +
+// messageConfig read used to run once per guest × per render (700+ hits per
+// list rebuild). Any UI change resets the cache on rAF.
+var _cachedDefaultCC = null;
+function _defaultCountryCode() {
+  if (_cachedDefaultCC !== null) return _cachedDefaultCC;
+  var el = document.getElementById('msg-default-country-code');
+  var v  = (el ? el.value : '') || (messageConfig && messageConfig.settings ? messageConfig.settings.defaultCountryCode : '') || '';
+  _cachedDefaultCC = v;
+  // Invalidate on the next frame so a settings edit takes effect immediately.
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(function() { _cachedDefaultCC = null; });
+  } else {
+    setTimeout(function() { _cachedDefaultCC = null; }, 0);
+  }
+  return v;
+}
 function normalizePhoneForWhatsApp(phone) {
   if (!phone) return '';
   var digits = String(phone).replace(/[^\d]/g, '');
   if (digits.length < 10) return '';
-  var el = document.getElementById('msg-default-country-code');
-  var defaultCode = (el ? el.value : '') || (messageConfig && messageConfig.settings ? messageConfig.settings.defaultCountryCode : '') || '';
+  var defaultCode = _defaultCountryCode();
   var codeDigits = defaultCode.replace(/[^\d]/g, '').replace(/^0+/, '');
   if (codeDigits && codeDigits.length >= 1 && codeDigits.length <= 3 && digits.length === 10) {
     digits = codeDigits + digits;
@@ -3878,7 +3899,6 @@ function loadMessagesTab() {
   restoreSender();
   applyMsgModeUI(msgMode);
   renderMessagesList();
-  _refreshSendPill();
 }
 
 function getUniqueRelationships() {
@@ -4120,7 +4140,6 @@ function onSenderChange() {
   _ssSet(_SENDER_KEY, rel);
   _applySender(rel);
   renderMessagesList();
-  _refreshSendPill();
 }
 function restoreSender() {
   // Precedence: URL hash > sessionStorage > default (none).
@@ -4178,10 +4197,10 @@ function _rememberLastSent(id) {
   _writeSentToday(v);
   _refreshSendPill();
 }
-function _refreshSendPill() {
+function _refreshSendPill(ctx) {
   var pill = document.getElementById('msg-send-pill');
   if (!pill) return;
-  var mode = msgMode;
+  var mode = (ctx && ctx.mode) || msgMode;
   // Pill only makes sense in invite mode where "sent today" is meaningful;
   // hide in chase mode.
   if (mode !== 'invite') { pill.classList.add('hidden'); return; }
@@ -4197,9 +4216,12 @@ function _refreshSendPill() {
   }
   var todayEl = document.getElementById('msg-sent-today');
   if (todayEl) todayEl.textContent = String(idsInScope.length);
-  var next = findNextMessage(mode);
-  var scope = msgScopeGuests(mode, getCurrentMsgRel());
-  var skips = getMsgSkips(mode, getCurrentMsgRel());
+  // Reuse caller-provided scope/skips/next when available — the whole point
+  // of the ctx parameter is to skip the 3× walks over allGuests.
+  var rel   = (ctx && 'rel'   in ctx) ? ctx.rel   : getCurrentMsgRel();
+  var scope = (ctx && ctx.scope)  || msgScopeGuests(mode, rel);
+  var skips = (ctx && ctx.skips)  || getMsgSkips(mode, rel);
+  var next  = (ctx && 'nextUp' in ctx) ? ctx.nextUp : findNextMessage(mode);
   var remaining = scope.filter(function(g) { return !sanitiseValue(g.invite_sent_at) && !skips.has(g.id); }).length;
   var remEl = document.getElementById('msg-remaining');
   if (remEl) remEl.textContent = String(remaining);
@@ -4219,12 +4241,10 @@ function _refreshSendPill() {
 // Render a small "No phone number" section under the main list so guests
 // without a WhatsApp-eligible phone are visible and fixable instead of
 // silently dropped.
-function _renderNoPhoneSection() {
+function _renderNoPhoneSection(ctx) {
   var host = document.getElementById('msg-no-phone-section');
   if (!host) return;
-  var mode = msgMode;
-  var rel  = getCurrentMsgRel();
-  var scope = msgScopeGuests(mode, rel);
+  var scope = (ctx && ctx.scope) || msgScopeGuests(msgMode, getCurrentMsgRel());
   var noPhone = scope.filter(function(g) { return !normalizePhoneForWhatsApp(g.phone); });
   if (noPhone.length === 0) { host.innerHTML = ''; return; }
   var rows = noPhone.map(function(g) {
@@ -4377,7 +4397,6 @@ function switchMsgMode(mode) {
   try { localStorage.setItem('weddingAdmin:msgMode', mode); } catch (e) {}
   applyMsgModeUI(mode);
   renderMessagesList();
-  _refreshSendPill();
 }
 
 function sendNextMessage() {
@@ -4606,8 +4625,8 @@ function renderMessagesList() {
         ? 'No pending RSVPs' + (rel ? ' for this relationship' : '') + '. Everyone has responded.'
         : 'No guests match the current filter.') +
       '</div>';
-    _refreshSendPill();
-    _renderNoPhoneSection();
+    _refreshSendPill({ mode: mode, rel: rel, scope: scope, skips: skips, nextUp: nextUp });
+    _renderNoPhoneSection({ scope: scope });
     return;
   }
 
@@ -4629,8 +4648,10 @@ function renderMessagesList() {
       'Show ' + Math.min(more, MSG_LIST_PAGE) + ' more (' + more + ' hidden)</button></div>';
   }
   container.innerHTML = html;
-  _refreshSendPill();
-  _renderNoPhoneSection();
+  // Pass the already-computed scope/skips/nextUp so the helpers don't re-run
+  // three full walks over allGuests + three localStorage reads per render.
+  _refreshSendPill({ mode: mode, rel: rel, scope: scope, skips: skips, nextUp: nextUp });
+  _renderNoPhoneSection({ scope: scope });
 }
 
 var MSG_LIST_PAGE = 50;
