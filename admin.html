@@ -778,6 +778,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         Buttons are written <kbd>like this</kbd> so you can match them on screen.
       </p>
       <div class="tip">The three things you'll do most: <strong>1 &middot; Upload the guest list</strong> &rarr; <strong>2 &middot; Send invites</strong> &rarr; <strong>3 &middot; Watch the responses come in.</strong></div>
+      <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.8rem;">
+        <button class="btn btn-primary" onclick="startTour()">&#9654; Take the 2-minute tour</button>
+        <span style="font-size:.74rem;color:var(--muted);">Walks you through the real screens. Nothing gets changed. Press <kbd>Esc</kbd> to leave at any point.</span>
+      </div>
     </div>
 
     <details>
@@ -1519,6 +1523,19 @@ function loadDashboard() {
     var tabBtn = document.querySelector('.admin-tab[data-tab="' + savedTab + '"]');
     if (tabBtn) switchTab(savedTab, tabBtn);
   }
+
+  // First visit on this device: offer the interactive tour once, after the
+  // dashboard has painted. Never nags again — the flag is set as soon as
+  // the offer is shown, and the tour is always available from Help.
+  try {
+    if (!localStorage.getItem('wa:tourSeen')) {
+      localStorage.setItem('wa:tourSeen', '1');
+      setTimeout(function() {
+        if (typeof showActionToast !== 'function' || typeof startTour !== 'function') return;
+        showActionToast('New here? A 2-minute tour walks the three main workflows.', 'Take the tour', function(dismiss) { dismiss(); startTour(); }, 15000);
+      }, 1200);
+    }
+  } catch (e) {}
 }
 
 // ── Data Loading Functions ─────────────────
@@ -5085,6 +5102,221 @@ function buildMsgRow(g, mode, skips, nextUp) {
     '</div></div>';
 }
 
+
+/* ══════════════════════════════════════════════
+   INTERACTIVE TOUR
+   A spotlight walkthrough over the REAL dashboard. Each step switches to
+   the right tab, dims everything except one element, and shows a short
+   note. Read-only: the overlay blocks clicks on the page underneath, so
+   nobody can accidentally send a WhatsApp or delete a guest mid-tour.
+   Steps are plain data — edit WA_TOUR_STEPS to change the tour.
+     tab           which admin tab to open first
+     selector      element to spotlight (omit for a centred card)
+     skipIfMissing skip the step if the element isn't on screen right now
+                   (e.g. the Send-next pill only exists in invite mode with
+                   guests loaded) instead of showing an empty spotlight
+══════════════════════════════════════════════ */
+var WA_TOUR_STEPS = [
+  { title: 'Welcome',
+    text: 'This 2-minute tour walks the three things you’ll do most: <strong>upload the guest list</strong>, <strong>send invites</strong>, and <strong>review responses</strong>.<br><br>Nothing in the tour changes any data. Use <kbd>→</kbd> / <kbd>←</kbd> or the buttons.' },
+
+  { tab: 'guests', selector: '#guest-stats', title: 'Your numbers at a glance',
+    text: 'Total guests, how many have RSVP’d, how many are still pending, and confirmed headcount. These update live as responses come in.' },
+  { tab: 'guests', selector: '#missing-info-card', skipIfMissing: true, title: 'Needs attention',
+    text: 'When guests are missing a phone, email or relationship, chips appear here. Tap one to see just those guests and fix them.' },
+  { tab: 'guests', selector: '#tab-guests .view-switcher', title: 'Four ways to see the list',
+    text: '<strong>List</strong> is the everyday view. <strong>RSVP Status</strong> splits replied vs. not. <strong>By Event</strong> is where you assign tables.' },
+  { tab: 'guests', selector: 'button[onclick="openAddGuest()"]', title: 'Add one guest',
+    text: 'For a single guest. Tick their events, set seats per event, save. The invitation code is generated for you.' },
+
+  { tab: 'csv', selector: 'button[onclick="downloadCSVTemplate()"]', title: '1 · Upload the guest list',
+    text: 'For many guests at once, start here: download the template and fill it in — one row per invitation. Leave <code>invitation_code</code> blank.' },
+  { tab: 'csv', selector: '#csv-drop-zone', title: 'Drop the file here',
+    text: 'You’ll see a preview of every row before anything is saved. Rows with problems are listed by number so you can fix just those.' },
+
+  { tab: 'messages', selector: '#sender-bar', title: '2 · Send invites — who are you?',
+    text: 'Pick yourself here first. It locks the list to <em>your</em> guests, so the bride only sees Bride’s Friends and the groom’s mum only Groom’s Family. <strong>Share link</strong> hands a queue to someone else.' },
+  { tab: 'messages', selector: '#tab-messages .msg-mode-switcher', title: 'Invite or Chase-Up',
+    text: '<strong>Initial Invite</strong> for the first message. <strong>Chase-Up</strong> later, for people who haven’t replied — it only shows them.' },
+  { tab: 'messages', selector: '#msg-send-pill', skipIfMissing: true, title: 'Send next',
+    text: 'The big button previews the next message. Check it, tap <strong>Send via WhatsApp</strong>, press send in WhatsApp, come back — they’re marked as sent and the list moves on. Turn on <strong>Auto-advance</strong> to fly through a long list.' },
+  { tab: 'messages', selector: '#msg-list', skipIfMissing: true, title: 'Your queue',
+    text: 'Everyone still to message, in order. Each row has its own <strong>Send</strong> and <strong>Skip</strong>. Guests with no phone number are listed underneath with an <strong>Add phone</strong> shortcut.' },
+
+  { tab: 'settings', selector: '#msg-templates-list', skipIfMissing: true, title: 'The message text',
+    text: 'Templates live here. <code>{{name}}</code>, <code>{{code}}</code>, <code>{{url}}</code> and <code>{{deadline}}</code> are filled in per guest. <strong>Always tap “Send test to my phone” before a real send.</strong>' },
+
+  { tab: 'rsvps', selector: '#rsvp-event-breakdown', title: '3 · Review responses',
+    text: 'Yes / No / guest count for every event, and it follows whatever filter you set below.' },
+  { tab: 'rsvps', selector: '#tab-rsvps .view-switcher', title: 'Three views',
+    text: '<strong>Submissions</strong> is every response, newest first. <strong>By Event</strong> shows who’s coming to what. <strong>Matrix</strong> is the caterer’s grid — guests down, events across.' },
+  { tab: 'rsvps', selector: 'button[onclick="exportFilteredRSVPsCSV()"]', title: 'Export',
+    text: 'Downloads exactly what’s on screen as a spreadsheet. Filter first, then export.' },
+
+  { tab: 'help', title: 'That’s the tour',
+    text: 'Full written steps for every workflow are right here on the <strong>Help</strong> tab. You can restart this tour from here anytime.<br><br>Now go add your guests. \u{1F389}' },
+];
+
+var _tour = { active: false, i: 0, returnTab: 'guests', dir: 1, els: null, raf: null };
+
+function _tourEnsureDom() {
+  if (_tour.els) return _tour.els;
+  var css = document.createElement('style');
+  css.textContent =
+    '#wa-tour-backdrop{position:fixed;inset:0;background:rgba(20,10,14,.62);z-index:10000;display:none;}' +
+    '#wa-tour-cutout{position:fixed;z-index:10000;border-radius:6px;box-shadow:0 0 0 9999px rgba(20,10,14,.62);display:none;transition:top .18s,left .18s,width .18s,height .18s;pointer-events:auto;}' +
+    '#wa-tour-tip{position:fixed;z-index:10001;max-width:360px;background:#fff;color:var(--ink);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.35);padding:.9rem 1rem .8rem;font-family:\'Jost\',sans-serif;font-size:.84rem;line-height:1.6;display:none;}' +
+    '#wa-tour-tip .t-step{font-family:\'Cinzel\',serif;font-size:.58rem;letter-spacing:.2em;color:var(--gold);text-transform:uppercase;margin-bottom:.25rem;}' +
+    '#wa-tour-tip .t-title{font-family:\'Cormorant Garamond\',serif;font-size:1.15rem;color:var(--wine);margin-bottom:.35rem;}' +
+    '#wa-tour-tip .t-text kbd{background:var(--gold-pale);border:1px solid var(--gold);border-radius:3px;padding:.02rem .35rem;font-size:.75rem;}' +
+    '#wa-tour-tip .t-text code{background:#f3efe7;padding:.02rem .3rem;border-radius:2px;font-size:.78rem;}' +
+    '#wa-tour-tip .t-btns{display:flex;gap:.4rem;justify-content:space-between;align-items:center;margin-top:.8rem;}' +
+    '#wa-tour-tip .t-btns .grow{flex:1;}' +
+    '@media (max-width:520px){#wa-tour-tip{left:12px!important;right:12px!important;bottom:12px!important;top:auto!important;max-width:none;}}';
+  document.head.appendChild(css);
+
+  var backdrop = document.createElement('div'); backdrop.id = 'wa-tour-backdrop';
+  var cutout   = document.createElement('div'); cutout.id   = 'wa-tour-cutout';
+  var tip      = document.createElement('div'); tip.id      = 'wa-tour-tip';
+  tip.setAttribute('role', 'dialog'); tip.setAttribute('aria-live', 'polite');
+  document.body.appendChild(backdrop); document.body.appendChild(cutout); document.body.appendChild(tip);
+  // Clicking the dimmed area does nothing (read-only tour), but Esc ends it.
+  backdrop.addEventListener('click', function(e) { e.stopPropagation(); });
+  cutout.addEventListener('click',   function(e) { e.stopPropagation(); });
+  _tour.els = { backdrop: backdrop, cutout: cutout, tip: tip };
+  return _tour.els;
+}
+
+function startTour() {
+  _tourEnsureDom();
+  _tour.active = true;
+  _tour.i = 0;
+  _tour.dir = 1;
+  var activeTab = document.querySelector('.admin-tab.active');
+  _tour.returnTab = activeTab ? (activeTab.getAttribute('data-tab') || 'guests') : 'guests';
+  try { localStorage.setItem('wa:tourSeen', '1'); } catch (e) {}
+  document.addEventListener('keydown', _tourKeys);
+  window.addEventListener('resize', _tourRelayout);
+  window.addEventListener('scroll', _tourRelayout, true);
+  _tourShowStep();
+}
+
+function endTour() {
+  if (!_tour.active) return;
+  _tour.active = false;
+  document.removeEventListener('keydown', _tourKeys);
+  window.removeEventListener('resize', _tourRelayout);
+  window.removeEventListener('scroll', _tourRelayout, true);
+  var els = _tour.els;
+  if (els) { els.backdrop.style.display = 'none'; els.cutout.style.display = 'none'; els.tip.style.display = 'none'; }
+  var btn = document.querySelector('.admin-tab[data-tab="' + _tour.returnTab + '"]');
+  if (btn) switchTab(_tour.returnTab, btn);
+}
+
+function tourNext() { if (_tour.i >= WA_TOUR_STEPS.length - 1) { endTour(); return; } _tour.dir = 1;  _tour.i++; _tourShowStep(); }
+function tourBack() { if (_tour.i <= 0) return;                                          _tour.dir = -1; _tour.i--; _tourShowStep(); }
+
+function _tourKeys(e) {
+  if (!_tour.active) return;
+  if (e.key === 'Escape') { e.preventDefault(); endTour(); }
+  else if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); tourNext(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); tourBack(); }
+}
+
+function _tourRelayout() {
+  if (!_tour.active || _tour.raf) return;
+  _tour.raf = requestAnimationFrame(function() { _tour.raf = null; _tourLayout(); });
+}
+
+function _tourShowStep() {
+  var step = WA_TOUR_STEPS[_tour.i];
+  if (!step) { endTour(); return; }
+  // Switch tab first, then give the panel a moment to render before we
+  // look for the target — some panels build their DOM on switch.
+  if (step.tab) {
+    var btn = document.querySelector('.admin-tab[data-tab="' + step.tab + '"]');
+    var already = btn && btn.classList.contains('active');
+    if (btn && !already) switchTab(step.tab, btn);
+  }
+  setTimeout(function() {
+    if (!_tour.active) return;
+    var el = step.selector ? document.querySelector(step.selector) : null;
+    var visible = !!(el && el.offsetParent !== null);
+    if (step.selector && !visible && step.skipIfMissing) {
+      // Nothing to point at right now — move on in the direction we're going.
+      if (_tour.dir < 0 && _tour.i > 0) { _tour.i--; _tourShowStep(); }
+      else if (_tour.i < WA_TOUR_STEPS.length - 1) { _tour.i++; _tourShowStep(); }
+      else endTour();
+      return;
+    }
+    _tour.target = visible ? el : null;
+    if (_tour.target) {
+      try { _tour.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { _tour.target.scrollIntoView(); }
+      // Wait for the smooth scroll to settle before measuring.
+      setTimeout(_tourLayout, 260);
+    } else {
+      _tourLayout();
+    }
+  }, 90);
+}
+
+function _tourLayout() {
+  if (!_tour.active) return;
+  var els = _tourEnsureDom();
+  var step = WA_TOUR_STEPS[_tour.i];
+  var n = WA_TOUR_STEPS.length;
+  var isLast = _tour.i === n - 1;
+
+  els.tip.innerHTML =
+    '<div class="t-step">Step ' + (_tour.i + 1) + ' of ' + n + '</div>' +
+    '<div class="t-title">' + step.title + '</div>' +
+    '<div class="t-text">' + step.text + '</div>' +
+    '<div class="t-btns">' +
+      '<button class="btn btn-ghost btn-sm" onclick="endTour()">Skip tour</button>' +
+      '<span class="grow"></span>' +
+      (_tour.i > 0 ? '<button class="btn btn-secondary btn-sm" onclick="tourBack()">← Back</button>' : '') +
+      '<button class="btn btn-primary btn-sm" onclick="tourNext()">' + (isLast ? 'Finish' : 'Next →') + '</button>' +
+    '</div>';
+  els.tip.style.display = 'block';
+
+  var pad = 6;
+  if (_tour.target) {
+    var r = _tour.target.getBoundingClientRect();
+    els.backdrop.style.display = 'none';
+    els.cutout.style.display = 'block';
+    els.cutout.style.left   = (r.left - pad) + 'px';
+    els.cutout.style.top    = (r.top - pad) + 'px';
+    els.cutout.style.width  = (r.width + pad * 2) + 'px';
+    els.cutout.style.height = (r.height + pad * 2) + 'px';
+
+    // Desktop: below the target if it fits, else above; clamp to viewport.
+    if (window.innerWidth > 520) {
+      var tw = Math.min(360, window.innerWidth - 24);
+      els.tip.style.maxWidth = tw + 'px';
+      els.tip.style.right = 'auto'; els.tip.style.bottom = 'auto';
+      var th = els.tip.offsetHeight;
+      var top = r.bottom + 12;
+      if (top + th > window.innerHeight - 12) top = Math.max(12, r.top - th - 12);
+      var left = Math.max(12, Math.min(r.left, window.innerWidth - tw - 12));
+      els.tip.style.top = top + 'px';
+      els.tip.style.left = left + 'px';
+    }
+  } else {
+    els.cutout.style.display = 'none';
+    els.backdrop.style.display = 'block';
+    if (window.innerWidth > 520) {
+      var tw2 = Math.min(400, window.innerWidth - 24);
+      els.tip.style.maxWidth = tw2 + 'px';
+      els.tip.style.right = 'auto'; els.tip.style.bottom = 'auto';
+      var th2 = els.tip.offsetHeight;
+      els.tip.style.top  = Math.max(12, (window.innerHeight - th2) / 2) + 'px';
+      els.tip.style.left = Math.max(12, (window.innerWidth - tw2) / 2) + 'px';
+    }
+  }
+  // Keep keyboard focus on Next so Enter/arrows work without a click.
+  var nextBtn = els.tip.querySelector('.btn-primary');
+  if (nextBtn) { try { nextBtn.focus({ preventScroll: true }); } catch (e) { nextBtn.focus(); } }
+}
 </script>
 </body>
 </html>
