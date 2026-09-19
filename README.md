@@ -21,8 +21,11 @@ Guest Site (index.html)  ←→  Google Apps Script (Web App)  ←→  Google Sh
 1. Go to [script.google.com](https://script.google.com) → **New project** → rename to **Wedding RSVP 2027**
 2. Paste `appsscript/Code.gs` into the editor
 3. Click **+** → **HTML** → name it `admin` → paste `appsscript/admin.html`
-4. Verify `SHEET_ID` in Code.gs is `1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc`
-5. Change `ADMIN_PIN` in Code.gs to your chosen PIN (default: `2027`)
+4. Set the two secrets as **Script Properties** — never in Code.gs, this repo is public:
+   gear icon → **Project Settings** → **Script Properties** → *Add script property*
+   - `SHEET_ID` = the id from your Google Sheet's URL
+   - `ADMIN_PIN` = a strong PIN (8+ characters; do not reuse any value that has ever been committed)
+5. Run `setupProperties` from the function dropdown once — it only *checks* that both are set (it never writes or prints them) and refuses a weak or previously-published PIN.
 6. Select `setupSheet` from the function dropdown → click **Run** → authorise when prompted
 7. Verify 4 tabs appear in the Google Sheet: Events, Guests, RSVPs_by_family, RSVPs_by_event
 8. Update event dates/venues directly in the **Events** tab

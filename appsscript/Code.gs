@@ -3,10 +3,20 @@
 // Deploy as Web App: Execute as Me, Access: Anyone
 // ═══════════════════════════════════════════════════════
 
-const SHEET_ID  = PropertiesService.getScriptProperties().getProperty('SHEET_ID')
-                  || '1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc'; // fallback for initial setup
-const ADMIN_PIN = PropertiesService.getScriptProperties().getProperty('ADMIN_PIN')
-                  || '2027'; // fallback — run setupProperties() to configure
+// Security finding #1: NO literal fallbacks. This repo is public (it's the
+// GitHub Pages source), so any default baked in here is the live secret.
+// Both values MUST be set in Project Settings → Script Properties before
+// deploying; an unset property throws on every request rather than
+// silently running with a published PIN.
+const SHEET_ID  = _requiredProp('SHEET_ID');
+const ADMIN_PIN = _requiredProp('ADMIN_PIN');
+function _requiredProp(key) {
+  const v = PropertiesService.getScriptProperties().getProperty(key);
+  if (!v || !String(v).trim()) {
+    throw new Error('Script property "' + key + '" is not set. Open Project Settings → Script Properties and add it, then redeploy.');
+  }
+  return String(v).trim();
+}
 
 // Email address to receive RSVP notifications
 const NOTIFICATION_EMAIL = 'couple@example.com';
@@ -68,6 +78,10 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  // Hoisted so the catch block can tell admin from public callers when
+  // deciding how much of an error to reveal (security finding #7).
+  let action = '';
+  let isAdminAction = false;
   try {
     let body;
     try {
@@ -75,7 +89,8 @@ function doPost(e) {
     } catch (parseErr) {
       return jsonResponse({ ok: false, error: 'Invalid request format.' });
     }
-    const { action, payload = {}, pin } = body;
+    const { payload = {}, pin } = body;
+    action = String(body.action || '');
 
     // Actions that require admin PIN authorization
     const ADMIN_ACTIONS = [
@@ -88,19 +103,54 @@ function doPost(e) {
       'deleteRSVPSubmission',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
-    if (pinActions.indexOf(action) > -1) {
+    isAdminAction = pinActions.indexOf(action) > -1;
+
+    // ── Global throttle on PUBLIC actions (security finding #5) ──
+    // Every public action touches the sheet. With no limit, a few thousand
+    // requests exhaust the daily Apps Script execution quota and take the
+    // whole site down — admin included. A coarse per-minute ceiling across
+    // all unauthenticated traffic stops that without affecting real guests
+    // (700 guests won't collectively exceed it in a minute). Admin traffic
+    // is exempt: it's PIN-gated and the dashboard makes bursts on load.
+    if (!isAdminAction) {
+      const PUBLIC_RPM_CAP = 300;
+      const pubCache = CacheService.getScriptCache();
+      const pubKey = 'public_rpm';
+      const pubCount = parseInt(pubCache.get(pubKey) || '0', 10);
+      if (pubCount >= PUBLIC_RPM_CAP) {
+        return jsonResponse({ ok: false, error: 'The site is busy right now — please try again in a minute.' });
+      }
+      pubCache.put(pubKey, String(pubCount + 1), 60);
+    }
+
+    // ── Admin PIN gate (security finding #2 fix) ──
+    // Failure counter is a JSON {count, since} so the 60s window is anchored
+    // to the FIRST failure, not refreshed on every attempt. Previously each
+    // bad PIN re-put the key with a fresh TTL, so one wrong guess every 30s
+    // kept every admin locked out forever. A correct PIN clears the counter.
+    if (isAdminAction) {
       const pinRateKey = 'admin_pin_attempts';
       const pinCache = CacheService.getScriptCache();
-      const pinAttempts = parseInt(pinCache.get(pinRateKey) || '0', 10);
-      if (pinAttempts >= 10) {
+      const PIN_MAX = 10, PIN_WINDOW_MS = 60000;
+      let rl = { count: 0, since: Date.now() };
+      try { const raw = pinCache.get(pinRateKey); if (raw) rl = JSON.parse(raw); } catch (e) {}
+      if (Date.now() - (Number(rl.since) || 0) > PIN_WINDOW_MS) rl = { count: 0, since: Date.now() };
+      if (rl.count >= PIN_MAX) {
         return jsonResponse({ ok: false, error: 'Too many attempts. Please wait a minute and try again.' });
       }
       const pinToCheck = action === 'checkPin' ? String((payload || {}).pin || '') : String(pin || '');
       if (!constantTimeEquals(pinToCheck, String(ADMIN_PIN))) {
-        pinCache.put(pinRateKey, String(pinAttempts + 1), 60);
+        rl.count += 1;
+        // TTL = remaining window, so the key expires with the window rather
+        // than being extended by each failure.
+        const remainingSec = Math.max(1, Math.ceil((PIN_WINDOW_MS - (Date.now() - rl.since)) / 1000));
+        pinCache.put(pinRateKey, JSON.stringify(rl), remainingSec);
         Utilities.sleep(200 + Math.floor(Math.random() * 300));
         return jsonResponse({ ok: false, error: 'Unauthorized.' });
       }
+      // Correct PIN: a real admin is here, so a prior burst of failures
+      // (theirs or an attacker's) must not keep them locked out.
+      pinCache.remove(pinRateKey);
     }
 
     let result;
@@ -133,17 +183,23 @@ function doPost(e) {
       const rateKey = 'validate_' + String(payload.code || '').toUpperCase().trim();
       const cache = CacheService.getScriptCache();
       const attempts = parseInt(cache.get(rateKey) || '0', 10);
-      if (attempts >= 10) throw new Error('Too many attempts. Please wait a minute and try again.');
+      if (attempts >= 10) throw userError('Too many attempts. Please wait a minute and try again.');
       cache.put(rateKey, String(attempts + 1), 60);
       result = validateGuest(
         payload.code || '', payload.firstName || '', payload.lastName || ''
       );
     }
     else if (action === 'updateContact') {
-      const rateKey = 'contact_' + String(payload.guestId || '').trim();
+      // Security finding #3: key the limit on the identity that actually
+      // AUTHORISES the write (code + normalised name), not the client's
+      // guestId hint — a random guestId per request used to get a fresh key
+      // every time and still write via the code+name fallback.
+      const rateKey = 'contact_' +
+        String(payload.code || '').toUpperCase().trim() + '_' +
+        normaliseName(String(payload.firstName || '') + ' ' + String(payload.lastName || ''));
       const cache = CacheService.getScriptCache();
       const attempts = parseInt(cache.get(rateKey) || '0', 10);
-      if (attempts >= 10) throw new Error('Too many attempts. Please wait a minute and try again.');
+      if (attempts >= 10) throw userError('Too many attempts. Please wait a minute and try again.');
       cache.put(rateKey, String(attempts + 1), 60);
       result = updateGuestContact(
         payload.guestId || '', payload.email || '', payload.whatsapp || '',
@@ -170,7 +226,17 @@ function doPost(e) {
 
     return jsonResponse({ ok: true, data: result });
   } catch (err) {
-    return jsonResponse({ ok: false, error: err.message });
+    // Security finding #7. Admin callers have proven the PIN — give them the
+    // real message (code-in-use, STALE, etc.). Unauthenticated callers only
+    // get text that was deliberately thrown for them via userError();
+    // anything else ('Unknown action: …', 'Tab not found: …', 'Guest not
+    // found: <id>') is logged server-side and replaced with a generic reply.
+    const msg = (err && err.message) || 'Unknown error';
+    if (isAdminAction || (err && err.userFacing)) {
+      return jsonResponse({ ok: false, error: msg });
+    }
+    Logger.log('doPost public error [' + action + ']: ' + msg);
+    return jsonResponse({ ok: false, error: 'Something went wrong. Please try again, or contact the wedding team if it keeps happening.' });
   }
 }
 
@@ -243,6 +309,38 @@ function _guestRev(obj) {
 function _withRevs(list) {
   for (let i = 0; i < list.length; i++) list[i]._rev = _guestRev(list[i]);
   return list;
+}
+
+// ── Writable-field allowlist (security finding #6) ──────────
+// addGuest / updateGuest / bulkAddGuests build rows by walking the sheet
+// headers and copying any matching payload key. Without this gate a CSV
+// with a `status` column set to DELETED soft-deletes guests on import, and
+// the edit form could write `invite_sent_at` or `status` directly. Only
+// these columns are settable through the generic guest write paths;
+// everything else (id, status, invite_sent_at, *_table, _rev) has its own
+// dedicated action (deleteGuest/restoreGuest, markInviteSent, updateSeating).
+const GUEST_WRITABLE_FIXED = new Set([
+  'first_name', 'last_name', 'phone', 'email', 'relationship',
+  'notes', 'events', 'invitation_code', 'is_overseas',
+]);
+function _isGuestWritable(header) {
+  const h = String(header || '');
+  if (GUEST_WRITABLE_FIXED.has(h)) return true;
+  // Per-event seat allocations, e.g. Lg_guests, We_guests.
+  return /_guests$/.test(h) && EVENT_IDS.indexOf(h.replace(/_guests$/, '')) > -1;
+}
+
+// ── User-facing error tagging (security finding #7) ─────────
+// doPost only echoes err.message to UNAUTHENTICATED callers when the error
+// was thrown via userError(). Everything else is logged server-side and
+// replaced with a generic message, so internal details (tab names, action
+// names, guest ids) never reach the public endpoint. Admin actions are
+// exempt — the caller has already proven the PIN and benefits from the
+// real message (e.g. code-in-use, STALE).
+function userError(msg) {
+  const e = new Error(msg);
+  e.userFacing = true;
+  return e;
 }
 function cachedRead(keyPrefix, fn) {
   try {
@@ -408,13 +506,13 @@ function generateUniqueCode(usedCodes) {
 
 // ── updateGuestContact ───────────────────────────────────
 function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName, lastName) {
-  if (!email)   throw new Error('Email address required.');
-  if (!whatsapp) throw new Error('WhatsApp number required.');
-  if (!invitationCode) throw new Error('Invitation code required.');
-  if (!firstName) throw new Error('Guest name required.');
+  if (!email)   throw userError('Email address required.');
+  if (!whatsapp) throw userError('WhatsApp number required.');
+  if (!invitationCode) throw userError('Invitation code required.');
+  if (!firstName) throw userError('Guest name required.');
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error('Please enter a valid email address.');
+    throw userError('Please enter a valid email address.');
   }
 
   const sheet = getSheet(TABS.guests);
@@ -427,6 +525,11 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
   try {
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     let rowNum = guestId ? findRowById(sheet, guestId) : -1;
+    // Security finding #3: if the caller SUPPLIED a guestId and it doesn't
+    // exist, that's a bad request — don't quietly fall through to the
+    // code+name lookup (which let a junk guestId bypass the rate limit).
+    // The fallback is only for legitimately blank ids (legacy rows).
+    if (guestId && rowNum === -1) throw userError('Guest record not found.');
     if (rowNum === -1) {
       // Fallback: locate by invitation_code + combined name. Handles legacy rows
       // where the id column is blank / manually added rows / clients that don't
@@ -447,18 +550,18 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
           }
         }
       }
-      if (rowNum === -1) throw new Error('Guest record not found.');
+      if (rowNum === -1) throw userError('Guest record not found.');
     }
 
     const row      = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
     const codeCol  = headers.indexOf('invitation_code');
     const fnCol    = headers.indexOf('first_name');
     const lnCol    = headers.indexOf('last_name');
-    if (codeCol === -1 || fnCol === -1) throw new Error('Invalid sheet configuration.');
+    if (codeCol === -1 || fnCol === -1) throw userError('Invalid sheet configuration.');
 
     const storedCode = String(row[codeCol] || '').toUpperCase().trim();
     if (storedCode !== String(invitationCode).toUpperCase().trim()) {
-      throw new Error('Identity verification failed.');
+      throw userError('Identity verification failed.');
     }
     // Match on combined name so invites like "Paul & Mehreen" (blank last_name)
     // still verify. Client may pass firstName as the full display name and
@@ -466,7 +569,7 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
     const storedFull = normaliseName((row[fnCol] || '') + ' ' + (lnCol > -1 ? (row[lnCol] || '') : ''));
     const typedFull  = normaliseName((firstName || '') + ' ' + (lastName || ''));
     if (storedFull !== typedFull) {
-      throw new Error('Identity verification failed.');
+      throw userError('Identity verification failed.');
     }
 
     const emailCol = headers.indexOf('email');
@@ -523,7 +626,7 @@ function normaliseName(str) {
 // Returns guest record with allocations if match found, error if not
 function validateGuest(code, firstName, lastName) {
   if (!code || !firstName) {
-    throw new Error('Code and name are required.');
+    throw userError('Code and name are required.');
   }
 
   // Block validation after RSVP deadline to prevent data enumeration
@@ -531,7 +634,7 @@ function validateGuest(code, firstName, lastName) {
     const now      = new Date();
     const deadline = new Date(RSVP_DEADLINE);
     if (now >= deadline) {
-      throw new Error('The RSVP deadline has passed. Please contact us directly.');
+      throw userError('The RSVP deadline has passed. Please contact us directly.');
     }
   }
 
@@ -555,11 +658,11 @@ function validateGuest(code, firstName, lastName) {
 
   if (!match) {
     if (deletedHit) {
-      throw new Error(
+      throw userError(
         'We could not find your invitation. Please contact the wedding team for assistance.'
       );
     }
-    throw new Error(
+    throw userError(
       'No matching guest found. Please check your name and code.'
     );
   }
@@ -661,7 +764,7 @@ function getExistingRSVP(code, familyName, strict) {
   } catch (err) {
     Logger.log('getExistingRSVP error: ' + err.message);
     if (strict) {
-      throw new Error('Could not verify whether this RSVP was already submitted. Please try again.');
+      throw userError('Could not verify whether this RSVP was already submitted. Please try again.');
     }
     return null;
   }
@@ -733,6 +836,7 @@ function addGuest(payload) {
     const row = headers.map(h => {
       if (h === 'id') return id;
       if (h === 'events') return sortedIds.join(',');
+      if (!_isGuestWritable(h)) return '';   // status, invite_sent_at, *_table, _rev
       return sanitizeForSheet(payload[h] !== undefined ? payload[h] : '');
     });
     sheet.appendRow(row);
@@ -823,6 +927,7 @@ function updateGuest(payload) {
     let changed = false;
     headers.forEach((h, i) => {
       if (h === 'id') return;
+      if (!_isGuestWritable(h)) return;   // status / invite_sent_at / *_table have their own actions
       if (payload[h] !== undefined) {
         row[i] = sanitizeForSheet(payload[h]);
         changed = true;
@@ -1014,6 +1119,7 @@ function bulkAddGuests(payload) {
         const row = headers.map(h => {
           if (h === 'id') return id;
           if (h === 'events') return sortedEvIds.join(',');
+          if (!_isGuestWritable(h)) return '';   // a CSV `status` column can't soft-delete on import
           return sanitizeForSheet(g[h] !== undefined ? g[h] : '');
         });
         rowsToWrite.push(row);
@@ -1300,28 +1406,36 @@ function submitRSVP(payload) {
     const now      = new Date();
     const deadline = new Date(RSVP_DEADLINE);
     if (now >= deadline) {
-      throw new Error(
+      throw userError(
         'The RSVP deadline has passed. Please contact us directly if you need to update your response.'
       );
     }
   }
 
   const normCode = String(payload.invitationCode || '').toUpperCase().trim();
+  // Security finding #5: reject malformed codes BEFORE any sheet access so a
+  // spray of junk codes costs a regex, not a 700-row read each.
+  if (!validateCodeFormat(normCode)) {
+    throw userError('No matching guest found. Please check your name and code.');
+  }
   const { submissionName, submittedAt } = payload;
   const events = (payload.events || []).filter(ev => ev && EVENT_IDS.includes(ev.id));
-  if (events.length === 0) throw new Error('No valid events in submission.');
-  if (!submissionName) throw new Error('Submission name is required.');
+  if (events.length === 0) throw userError('No valid events in submission.');
+  if (!submissionName) throw userError('Submission name is required.');
   const invitationCode = normCode;
   const ts = new Date().toISOString();
 
   // Validate submissionName matches a real guest for this invitation code
-  const guestsForValidation = getGuests();
+  // Security finding #5: chunked-cache read, not a fresh full-sheet scan per
+  // public request. getGuestsCached includes DELETED rows so filter here.
+  const guestsForValidation = (getGuestsCached() || [])
+    .filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
   const nameMatchesCode = guestsForValidation.some(g =>
     String(g.invitation_code || '').toUpperCase().trim() === invitationCode &&
     normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName)
   );
   if (!nameMatchesCode) {
-    throw new Error('Submission name does not match any guest with this invitation code.');
+    throw userError('Submission name does not match any guest with this invitation code.');
   }
 
   // Replace client-supplied event names with canonical server-side values
@@ -1339,7 +1453,7 @@ function submitRSVP(payload) {
     // Guests should never see Apps Script's raw "Lock timeout: another
     // process was holding the lock" text. This fires when an admin is
     // mid bulk-import (30s lock) — tell them to try again in a moment.
-    throw new Error('We’re updating the guest list right now — please try again in a moment.');
+    throw userError('We’re updating the guest list right now — please try again in a moment.');
   }
   try {
     // ── Duplicate check — name + code (inside lock to prevent race).
@@ -1348,7 +1462,7 @@ function submitRSVP(payload) {
     // through).
     const existing = getExistingRSVP(normCode, payload.submissionName, true);
     if (existing) {
-      throw new Error(
+      throw userError(
         'An RSVP has already been received for this name and invitation code. ' +
         'Please contact the wedding team if you need to make any changes.'
       );
@@ -1506,12 +1620,12 @@ function submitRSVP(payload) {
     String(g.invitation_code || '').toUpperCase().trim() === invitationCode &&
     normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName)
   );
-  // Prefer the email just captured on this submit (piggybacked contact save)
-  // over the stale sheet value, so the confirmation lands in the right inbox.
-  const guestEmailAddr = String(
-    (payload.email || '').trim() ||
-    (guestEmailLookup ? guestEmailLookup.email : '') || ''
-  ).trim();
+  // Security finding #4: the confirmation goes to the address ALREADY ON
+  // THE SHEET when one exists. The piggybacked payload.email is only used
+  // for first-time entrants (stored address blank). Otherwise anyone holding
+  // a code + name could redirect a real guest's confirmation to themselves.
+  const storedEmail = String((guestEmailLookup ? guestEmailLookup.email : '') || '').trim();
+  const guestEmailAddr = storedEmail || String(payload.email || '').trim();
   const validGuestEmail = guestEmailAddr && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmailAddr);
 
   // Enqueue for the background trigger. If the enqueue can't get the lock
@@ -2982,14 +3096,27 @@ function sendDailyDigest() {
 
 // ── setupProperties ─────────────────────────────────────
 // Run once from Apps Script editor to store secrets securely.
-// After running, remove the hardcoded fallback values from the top of this file.
+// Security finding #1: this function used to WRITE the sheet ID and a
+// default PIN as literals — in a public repo that IS the live secret. It is
+// now a read-only checker. Set the two properties by hand in the editor:
+//   gear icon → Project Settings → Script Properties → Add script property
+//     SHEET_ID  = <your Google Sheet id from its URL>
+//     ADMIN_PIN = <a strong PIN, 8+ chars; never '2027'>
+// Then run this to confirm they're present. It never prints the PIN.
 function setupProperties() {
   const props = PropertiesService.getScriptProperties();
-  props.setProperties({
-    SHEET_ID:  '1vMYAD7IvF3sz-10oRRkeqg2R-xHrVhwQ5d__Vo53fEc', // ← your sheet ID
-    ADMIN_PIN: '2027', // ← change to a strong PIN
-  });
-  Logger.log('Properties saved. You can now remove the fallback values from the top of Code.gs.');
+  const sheetId = String(props.getProperty('SHEET_ID') || '').trim();
+  const pin     = String(props.getProperty('ADMIN_PIN') || '').trim();
+  const problems = [];
+  if (!sheetId) problems.push('SHEET_ID is not set.');
+  if (!pin)     problems.push('ADMIN_PIN is not set.');
+  else if (pin === '2027') problems.push('ADMIN_PIN is still the old published default "2027" — rotate it.');
+  else if (pin.length < 8) problems.push('ADMIN_PIN is shorter than 8 characters — choose a stronger one.');
+  if (problems.length) {
+    Logger.log('NOT READY:\n  - ' + problems.join('\n  - '));
+    throw new Error(problems.join(' '));
+  }
+  Logger.log('OK — SHEET_ID set (' + sheetId.slice(0, 6) + '…), ADMIN_PIN set (' + pin.length + ' chars, not shown).');
 }
 
 // ── Message Config (server-persisted) ───────────────────

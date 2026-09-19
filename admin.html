@@ -4866,7 +4866,7 @@ function buildMsgProgress(opts) {
 
 function buildMsgRow(g, mode, skips, nextUp) {
   var fullName   = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
-  var flashId    = 'flash-msg-' + g.id;
+  var flashId    = 'flash-msg-' + escapeAttr(g.id);   // security finding #8: only unwrapped id interpolation in the file
   var defaultTpl = getDefaultTemplateId(g);
   var sentAt     = sanitiseValue(g.invite_sent_at);
   var isSkipped  = skips.has(g.id);

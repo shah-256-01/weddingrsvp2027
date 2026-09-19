@@ -955,6 +955,18 @@ function _getPendingBackups() {
 }
 
 function checkForPendingBackups() {
+  // Security finding #9: backups hold email/phone/names. On a shared family
+  // device they'd otherwise persist forever. Drop anything older than 7 days
+  // on every load, whether or not it was confirmed.
+  try {
+    var all = JSON.parse(localStorage.getItem('rsvp_backups') || '[]');
+    var cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    var kept = all.filter(function(b) {
+      var t = b && b.savedAt ? Date.parse(b.savedAt) : NaN;
+      return isFinite(t) && t >= cutoff;
+    });
+    if (kept.length !== all.length) localStorage.setItem('rsvp_backups', JSON.stringify(kept));
+  } catch (e) {}
   var pending = _getPendingBackups();
   var banner = document.getElementById('pending-rsvp-banner');
   if (!banner) return;
