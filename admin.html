@@ -469,6 +469,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <span class="admin-nav-title">&#10022; Wedding Admin</span>
     <div style="display:flex;gap:.6rem;align-items:center;">
       <span id="deadline-chip" class="hidden" style="font-size:.72rem;color:var(--gold-lt);padding:.25rem .6rem;border:1px solid var(--gold-lt);border-radius:999px;"></span>
+      <button class="btn btn-sm btn-secondary" onclick="switchTab('help', document.querySelector('.admin-tab[data-tab=help]'))" title="Step-by-step guide to every workflow">&#10067; Teach me</button>
       <button class="btn btn-sm btn-danger" onclick="adminLogout()">Logout</button>
     </div>
   </nav>
@@ -480,6 +481,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <button class="admin-tab" data-tab="rsvps" onclick="switchTab('rsvps',this)">&#128203; RSVPs</button>
     <button class="admin-tab" data-tab="settings" onclick="switchTab('settings',this)">&#9881;&#65039; Settings</button>
     <button class="admin-tab" data-tab="csv" onclick="switchTab('csv',this)">&#128228; CSV Upload</button>
+    <button class="admin-tab" data-tab="help" onclick="switchTab('help',this)">&#128214; Help</button>
   </div>
 
   <!-- ── TAB: GUESTS ── -->
@@ -649,12 +651,12 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <p style="font-size:.67rem;color:var(--muted);margin-top:.75rem;font-style:italic;">Events are managed in the Google Sheet "Events" tab. Changes are live immediately.</p>
     </div>
     <div class="admin-card">
-      <div class="admin-card-title">Instructions</div>
+      <div class="admin-card-title">How it works</div>
       <div style="font-size:.78rem;color:var(--ink);line-height:1.7;">
-        <p style="margin-bottom:.6rem;"><strong>6 Events:</strong> L (Lagnotri), S (Mehendi &amp; Sangeet), A (Mandvo), G (Meet &amp; Greet), W (Wedding), B (Black Tie)</p>
-        <p style="margin-bottom:.6rem;"><strong>Codes</strong> are auto-generated from the events each guest is invited to (e.g. LSAGWB2026 for all events).</p>
-        <p style="margin-bottom:.6rem;"><strong>Allocations</strong> let you set how many seats each guest gets per event.</p>
-        <p><strong>CSV Upload</strong> allows bulk-adding guests from a template file.</p>
+        <p style="margin-bottom:.6rem;"><strong>6 Events:</strong> Lg (Lagnotri), MS (Mehendi &amp; Sangeet), Ma (Mandvo), MG (Meet &amp; Greet), We (Wedding), BT (Black Tie).</p>
+        <p style="margin-bottom:.6rem;"><strong>Invitation codes</strong> are unique 6-character codes generated automatically for each guest (never reuse or guess them).</p>
+        <p style="margin-bottom:.6rem;"><strong>Seats per event</strong> are set on each guest &mdash; a guest can only RSVP up to their allocation.</p>
+        <p>Full step-by-step workflows are on the <a href="#" onclick="switchTab('help', document.querySelector('.admin-tab[data-tab=help]')); return false;" style="color:var(--wine);font-weight:600;">&#128214; Help</a> tab &mdash; or tap <strong>Teach me</strong> at the top.</p>
       </div>
     </div>
 
@@ -750,6 +752,159 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div id="msg-no-phone-section"></div>
     </div>
 
+  </div>
+
+  <!-- ── TAB: HELP ── -->
+  <div class="admin-panel" id="tab-help">
+    <style>
+      #tab-help details{border:1px solid var(--border);border-radius:2px;background:#fff;margin-bottom:.7rem;}
+      #tab-help summary{cursor:pointer;padding:.85rem 1rem;font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--wine);list-style:none;display:flex;align-items:center;gap:.6rem;}
+      #tab-help summary::-webkit-details-marker{display:none;}
+      #tab-help summary::before{content:'\25B8';font-size:.8rem;color:var(--gold);transition:transform .15s;}
+      #tab-help details[open] summary::before{transform:rotate(90deg);}
+      #tab-help .help-body{padding:0 1rem 1rem;font-size:.82rem;line-height:1.7;color:var(--ink);}
+      #tab-help ol,#tab-help ul{padding-left:1.3rem;margin:.4rem 0 .6rem;}
+      #tab-help li{margin-bottom:.35rem;}
+      #tab-help kbd{background:var(--gold-pale);border:1px solid var(--gold);border-radius:3px;padding:.05rem .4rem;font-size:.75rem;font-family:'Jost',sans-serif;white-space:nowrap;}
+      #tab-help .tip{background:var(--gold-pale);border-left:3px solid var(--gold);padding:.55rem .8rem;border-radius:2px;font-size:.78rem;margin:.5rem 0;}
+      #tab-help .warn{background:#fff4f2;border-left:3px solid var(--red);padding:.55rem .8rem;border-radius:2px;font-size:.78rem;margin:.5rem 0;}
+      #tab-help code{background:#f3efe7;padding:.05rem .35rem;border-radius:2px;font-size:.78rem;}
+    </style>
+
+    <div class="admin-card" style="margin-bottom:1rem;">
+      <div class="admin-card-title">&#128214; Teach me how to use this</div>
+      <p style="font-size:.82rem;line-height:1.7;color:var(--ink);margin-bottom:.4rem;">
+        Everything an admin needs, in the order you'll actually do it. Tap a section to open it.
+        Buttons are written <kbd>like this</kbd> so you can match them on screen.
+      </p>
+      <div class="tip">The three things you'll do most: <strong>1 &middot; Upload the guest list</strong> &rarr; <strong>2 &middot; Send invites</strong> &rarr; <strong>3 &middot; Watch the responses come in.</strong></div>
+    </div>
+
+    <details>
+      <summary>0 &middot; Getting in &amp; staying safe</summary>
+      <div class="help-body">
+        <ul>
+          <li>Everyone uses the <strong>same admin PIN</strong>. Don't paste it into group chats — send it to each person directly.</li>
+          <li>On a shared or family phone, tap <kbd>Logout</kbd> when you're done. The session also ends by itself after 30 minutes of no activity.</li>
+          <li>Each person's filters and view are remembered <em>on that phone/tab only</em>. Two people on different phones never see each other's filters.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details open>
+      <summary>1 &middot; Upload the guest list</summary>
+      <div class="help-body">
+        <p><strong>Best for adding many guests at once.</strong> Go to the <kbd>&#128228; CSV Upload</kbd> tab.</p>
+        <ol>
+          <li>Tap <kbd>&#11015; Download Template</kbd>. Open it in Excel / Google Sheets / Numbers.</li>
+          <li>One row per <em>invitation</em> (a couple who share an invite = one row). Fill in:
+            <ul>
+              <li><code>first_name</code> &mdash; the name exactly as you want it on the invite. <em>"Paul &amp; Mehreen"</em> is fine here. This is what the guest will type to sign in.</li>
+              <li><code>last_name</code> &mdash; optional. Leave blank if the name above is complete.</li>
+              <li><code>phone</code> &mdash; include the country code, e.g. <code>+254712345678</code>. Needed for WhatsApp.</li>
+              <li><code>email</code> &mdash; optional but lets us send a confirmation.</li>
+              <li><code>relationship</code> &mdash; one of: Bride's Family, Groom's Family, Bride's Friend, Groom's Friend. (Or leave it and use the dropdown in step 4.)</li>
+              <li><code>is_overseas</code> &mdash; <code>TRUE</code> or <code>FALSE</code>.</li>
+              <li>One <code>&hellip; Guests</code> column per event &mdash; how many <em>seats</em> that invitation gets for that event. <code>0</code> or blank = not invited to that event.</li>
+              <li><code>invitation_code</code> &mdash; <strong>leave blank.</strong> A unique code is created for each row automatically.</li>
+            </ul>
+          </li>
+          <li>Save as CSV, then tap the box that says <em>Click to select a CSV file</em> (or drag the file onto it). You'll see a preview of every row.</li>
+          <li>If every row in this file is the same relationship, pick it under <kbd>Apply relationship to every row</kbd> &mdash; it saves typing it 200 times.</li>
+          <li>Tap <kbd>Upload Guests</kbd>. Any row with a problem is listed with its row number; fix those in the file and upload just those rows again.</li>
+        </ol>
+        <p><strong>Adding one guest?</strong> On the <kbd>&#128101; Guests</kbd> tab tap <kbd>+ Add Guest</kbd>. Tick the events they're invited to and set seats per event. The code is generated for you.</p>
+        <div class="tip">The <strong>Needs attention</strong> strip at the top of the Guests tab tells you how many guests are missing a phone, email or relationship &mdash; tap a chip to see just those and fix them.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>2 &middot; Send out the invites</summary>
+      <div class="help-body">
+        <p>Go to the <kbd>&#9993; Messages</kbd> tab. Invites go out one at a time over WhatsApp from <em>your</em> phone, so guests see it come from you.</p>
+        <ol>
+          <li><strong>Before your first send</strong>, go to <kbd>&#9881;&#65039; Settings</kbd> &rarr; <em>Message Templates</em> and tap <kbd>&#128172; Send test to my phone</kbd> on the template. Read it on WhatsApp. Fix any typo <em>once</em> here rather than in 700 messages.</li>
+          <li>Back on Messages, pick who you are under <kbd>Sending as:</kbd>. This locks the list to your group &mdash; the bride sees only Bride's Friends, the groom's mum only Groom's Family &mdash; so nobody messages someone else's guests by accident.</li>
+          <li>Make sure <kbd>&#9993; Initial Invite</kbd> is selected (not Chase-Up) and the filter says <em>Not sent yet</em>.</li>
+          <li>Tap the big <kbd>&#9654; Send next: &lt;name&gt;</kbd> button. A preview opens showing the exact message and number.
+            <ul>
+              <li>Happy with it? Tap <kbd>&#128172; Send via WhatsApp</kbd>. WhatsApp opens with the message ready &mdash; press send there, then come back.</li>
+              <li>Want to add a personal line? Just edit the text in the preview first. It only changes this one message.</li>
+              <li>Not now? <kbd>Skip</kbd> (or press <kbd>s</kbd>). They go to the bottom of your queue for today.</li>
+            </ul>
+          </li>
+          <li>The guest is <strong>marked as sent automatically</strong>, the list scrolls to the next person, and the <em>Sent today</em> counter ticks up.</li>
+          <li>Turn on <kbd>Auto-advance: on</kbd> and the next preview opens by itself after each send &mdash; fastest way through a long list.</li>
+        </ol>
+        <p><strong>Handing off to family:</strong> pick their group under <em>Sending as</em>, tap <kbd>Share link</kbd>, and send them that link. Opening it lands them straight on their queue.</p>
+        <p><strong>Guests without a phone number</strong> are listed under the main list. Tap <kbd>Add phone</kbd> to fill it in, or if they have an email you'll see an <kbd>&#9993; Email</kbd> button instead.</p>
+        <p><strong>Chasing people who haven't replied:</strong> switch to <kbd>&#128274; Chase-Up</kbd>. Same flow, different message, only shows guests who haven't responded yet.</p>
+        <div class="tip">Sent to the wrong person, or WhatsApp didn't actually go? Tap the small <kbd>&#10007;</kbd> next to their "Sent" tag to clear it. You get an <kbd>Undo</kbd> for a few seconds after most actions.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>3 &middot; Review the responses</summary>
+      <div class="help-body">
+        <p><strong>Quick glance &mdash; <kbd>&#128101; Guests</kbd> tab:</strong></p>
+        <ul>
+          <li>The cards at the top: total guests, how many have RSVP'd, how many are still pending, and confirmed headcount.</li>
+          <li><strong>Recent RSVPs</strong> shows the last few people who responded and how long ago.</li>
+          <li>Tap <kbd>&#10003; RSVP Status</kbd> to see two columns: everyone who's submitted, everyone who hasn't.</li>
+          <li>Coloured dots on every row: <span style="color:var(--red);">&#9679;</span> invite not sent &nbsp; <span style="color:#c98a00;">&#9679;</span> sent, awaiting reply &nbsp; <span style="color:var(--green);">&#9679;</span> replied.</li>
+        </ul>
+        <p><strong>The detail &mdash; <kbd>&#128203; RSVPs</kbd> tab:</strong></p>
+        <ul>
+          <li>The row of event cards at the top shows Yes / No / guest count <em>per event</em>, and updates as you filter.</li>
+          <li><kbd>&#9776; Submissions</kbd> &mdash; every response, newest first, with a pill per event (green Yes, red No).</li>
+          <li><kbd>&#128197; By Event</kbd> &mdash; pick an event, see who's attending and who declined.</li>
+          <li><kbd>&#8862; Matrix</kbd> &mdash; one big grid: guests down, events across, seat counts in the cells. Great for the caterer.</li>
+          <li>Use the search and dropdowns to narrow it down, then <kbd>&#8595; Export CSV</kbd> to download exactly what's on screen.</li>
+        </ul>
+        <p><strong>Seating:</strong> Guests tab &rarr; <kbd>&#128197; By Event</kbd> &rarr; pick the event. For anyone attending you can type a table number straight into the row. <kbd>Export Seating CSV</kbd> gives the venue a list.</p>
+        <div class="warn">If the RSVP Status view shows a <strong>&#9888; Duplicate Submissions</strong> box, someone responded twice. Only the newest counts. Tap <kbd>Delete this submission</kbd> on the older one to tidy it up.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary>4 &middot; Fixing things</summary>
+      <div class="help-body">
+        <ul>
+          <li><strong>Edit a guest</strong> &mdash; Guests tab, tap <kbd>&#9998; Edit</kbd> on their row. Change anything, tap <kbd>Save Guest</kbd>.</li>
+          <li><strong>"Updated by someone else" message when saving?</strong> Another admin edited the same guest while you had it open. Tap <kbd>Reload</kbd>, then make your change again. Nothing was lost.</li>
+          <li><strong>Delete a guest</strong> &mdash; tap <kbd>&#10005; Delete</kbd>. There's no confirm box because you get <kbd>Undo</kbd> for 8 seconds, and they can always be restored from the <em>Deleted</em> section at the bottom of the list.</li>
+          <li><strong>Change lots of guests at once</strong> &mdash; tick the boxes on the left of the rows (or the top box for the whole page). A gold bar appears with: mark invite sent, set relationship, tag overseas, delete selected.</li>
+          <li><strong>A guest RSVP'd wrong and asked you to fix it</strong> &mdash; RSVPs tab, find their submission, open it and edit. Guests can't change their own answer once sent; they contact you.</li>
+          <li><strong>A guest says their code doesn't work</strong> &mdash; check the name on their row matches what they're typing. They must type the name exactly as it appears on the invite (spaces and capitals don't matter, but "Paul &amp; Mehreen" won't match "Paul").</li>
+          <li><strong>Can't find someone</strong> &mdash; check the filters at the top of the Guests tab; tap <kbd>Clear filters</kbd>.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary>5 &middot; Settings (do once)</summary>
+      <div class="help-body">
+        <ul>
+          <li><strong>Message Settings</strong> &mdash; the RSVP website address, the reply-by dates, and your default country code (e.g. <code>+254</code>) so phone numbers without one still work. There's a <kbd>Copy</kbd> button next to the website address.</li>
+          <li><strong>Message Templates</strong> &mdash; the actual text of the invite and chase-up. Use the buttons to drop in <code>{{name}}</code>, <code>{{code}}</code>, <code>{{url}}</code> and <code>{{deadline}}</code> &mdash; they're replaced for each guest. Open <em>Preview with sample guest</em> to see the result. Always <kbd>Send test to my phone</kbd> before a real send.</li>
+          <li><strong>Relationship Defaults</strong> &mdash; which template each group gets by default (family might get a more formal one than friends). You can still change it per guest in the preview.</li>
+          <li><strong>Events Configuration</strong> is read-only here &mdash; events are edited in the Google Sheet's <em>Events</em> tab.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary>6 &middot; If something looks wrong</summary>
+      <div class="help-body">
+        <ul>
+          <li><em>"The site is busy right now"</em> &mdash; wait a minute and try again. It protects the site from being flooded.</li>
+          <li><em>"We're updating the guest list"</em> (a guest sees this) &mdash; someone is uploading a big CSV. It clears in under a minute.</li>
+          <li>A <strong>red banner about legacy event IDs</strong> on load &mdash; tell whoever set the site up; it's a one-off fix in the Google Sheet script.</li>
+          <li>The dashboard feels stale &mdash; pull down to refresh, or tap the tab again. Everything re-fetches.</li>
+          <li>Still stuck &mdash; screenshot what you see and send it to whoever set the site up.</li>
+        </ul>
+      </div>
+    </details>
   </div>
 
 </div><!-- /admin-dashboard -->
