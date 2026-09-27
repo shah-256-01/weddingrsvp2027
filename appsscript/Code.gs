@@ -657,13 +657,15 @@ function generateUniqueCode(usedCodes) {
 }
 
 // ── updateGuestContact ───────────────────────────────────
+// WhatsApp is required; email is optional. A blank email never overwrites
+// one already on file.
 function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName, lastName) {
-  if (!email)   throw userError('Email address required.');
+  email = String(email || '').trim();
   if (!whatsapp) throw userError('WhatsApp number required.');
   if (!invitationCode) throw userError('Invitation code required.');
   if (!firstName) throw userError('Guest name required.');
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw userError('Please enter a valid email address.');
   }
 
@@ -727,7 +729,7 @@ function updateGuestContact(guestId, email, whatsapp, invitationCode, firstName,
     const emailCol = headers.indexOf('email');
     const phoneCol = headers.indexOf('phone');
 
-    if (emailCol > -1) sheet.getRange(rowNum, emailCol + 1).setValue(sanitizeForSheet(email.trim()));
+    if (emailCol > -1 && email) sheet.getRange(rowNum, emailCol + 1).setValue(sanitizeForSheet(email));
     if (phoneCol > -1) sheet.getRange(rowNum, phoneCol + 1).setValue(sanitizeForSheet(whatsapp.trim()));
   } finally {
     lock.releaseLock();

@@ -514,7 +514,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 
   <!-- ═══ RSVP Section ═══ -->
   <div class="guest-section active" id="section-rsvp">
-  <!-- Contact details screen — shown if email or WhatsApp missing -->
+  <!-- Contact details screen — shown only if WhatsApp is missing (email optional) -->
   <div id="contact-screen" class="hidden">
     <div class="contact-screen-inner">
       <div style="text-align:center;margin-bottom:2rem;">
@@ -526,10 +526,10 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       </div>
       <div class="contact-form">
         <div class="contact-field">
-          <label class="contact-label" for="contact-email">Email Address *</label>
+          <label class="contact-label" for="contact-email">Email Address <span style="font-weight:400;opacity:.7;">(optional)</span></label>
           <input class="contact-input" id="contact-email" type="email"
             placeholder="your@email.com" autocomplete="email" inputmode="email"/>
-          <span class="contact-field-hint">For your RSVP confirmation and all wedding updates.</span>
+          <span class="contact-field-hint">Add one if you'd like an emailed copy of your RSVP. You can leave it blank.</span>
         </div>
         <div class="contact-field">
           <label class="contact-label" for="contact-whatsapp">WhatsApp Number *</label>
@@ -1193,10 +1193,13 @@ function loadGuestPage() {
   }
 
   // ── Missing contact details? ─────────────────────────
+  // Only WhatsApp is required (it's how the couple contacts everyone). Email
+  // is optional — it's just for the RSVP confirmation — so a guest with a
+  // WhatsApp number on file but no email goes straight to the RSVP.
   var hasEmail    = currentGuest.email && currentGuest.email.trim();
   var hasWhatsApp = currentGuest.whatsapp && currentGuest.whatsapp.trim();
 
-  if (!hasEmail || !hasWhatsApp) {
+  if (!hasWhatsApp) {
     // Pre-fill any existing values
     if (hasEmail) document.getElementById('contact-email').value = currentGuest.email;
     if (hasWhatsApp) document.getElementById('contact-whatsapp').value = currentGuest.whatsapp;
@@ -1329,12 +1332,13 @@ async function submitContactDetails() {
   errEl.textContent = '';
   errEl.classList.add('hidden');
 
-  if (!email || !whatsapp) {
-    errEl.textContent = 'Please provide both your email address and WhatsApp number.';
+  if (!whatsapp) {
+    errEl.textContent = 'Please provide your WhatsApp number.';
     errEl.classList.remove('hidden');
     return;
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  // Email is optional, but if they typed one it must look like an email.
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errEl.textContent = 'Please enter a valid email address.';
     errEl.classList.remove('hidden');
     return;
