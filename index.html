@@ -1673,16 +1673,19 @@ function _joinNames(list) {
   return list.slice(0, -1).join(', ') + ' & ' + list[list.length - 1];
 }
 // Per-event line shown at the top of each event card:
-//   reserved names  → "Mike, Tinu, Krisha, Kashi & Krish"
-//   seats > cover   → "First & Last and Family"
-//   otherwise       → "First & Last"
+//   reserved names            → "Mike, Tinu, Krisha, Kashi & Krish"
+//   seats > max(people, 2)    → "First & Last and Family"
+//   otherwise                 → "First & Last"
+// "and Family" means MORE THAN A COUPLE. A named single guest with 2 seats
+// ("Shan Shah", 2) is them plus a partner, not a family — only 3+ seats (or
+// more seats than the names already cover) earns "and Family".
 function inviteeLabelFor(id) {
   var r = eventRSVPs[id] || {};
   if (r.reserved && r.reserved.length) return _joinNames(r.reserved);
   var cover = [currentGuest && currentGuest.firstName, currentGuest && currentGuest.lastName]
     .filter(Boolean).join(' ').trim();
   var seats = r.isUnallocated ? 0 : (Number(r.maxGuests) || 0);
-  return seats > coverHeadcount(cover) ? cover + ' and Family' : cover;
+  return seats > Math.max(coverHeadcount(cover), 2) ? cover + ' and Family' : cover;
 }
 
 function toggleReservedName(id, idx, on) {
