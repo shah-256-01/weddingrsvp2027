@@ -18,13 +18,31 @@ function _requiredProp(key) {
   return String(v).trim();
 }
 
-// Email address to receive RSVP notifications
-const NOTIFICATION_EMAIL = 'couple@example.com';
+// ── Notification email ──────────────────────────────────
+// Where "New RSVP" alerts and the daily summary go. Set as a Script Property
+// (Project Settings → Script Properties → NOTIFICATION_EMAIL), NOT in code —
+// this repo is public and an address here gets scraped by spammers.
+// Multiple addresses: comma-separated ("jaini@x.com, shanay@y.com").
+// Unset = alerts are skipped (RSVPs still save normally).
+// This was previously the placeholder 'couple@example.com', so alerts were
+// going nowhere.
+const NOTIFICATION_EMAIL = _emailListProp('NOTIFICATION_EMAIL');
+function _emailListProp(key) {
+  const raw = String(PropertiesService.getScriptProperties().getProperty(key) || '');
+  return raw.split(/[,;\s]+/)
+    .map(function(s) { return s.trim(); })
+    .filter(function(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s); })
+    .join(',');
+}
 
 // ── Guest Confirmation Email Config ───────────────────
 const GUEST_EMAIL_ENABLED   = true;
-const GUEST_EMAIL_FROM_NAME = 'The Wedding Team';   // ← update with couple names
-const GUEST_EMAIL_REPLY_TO  = 'YOUR_EMAIL@gmail.com'; // ← update with contact email
+const GUEST_EMAIL_FROM_NAME = 'Jaini & Shanay';
+// When a guest hits Reply on their confirmation, it goes here — the first
+// notification address. Previously the placeholder 'YOUR_EMAIL@gmail.com',
+// which is a real Gmail account belonging to a stranger. Empty = no
+// reply-to header, so replies go to the Google account the script runs as.
+const GUEST_EMAIL_REPLY_TO  = NOTIFICATION_EMAIL.split(',')[0] || '';
 const WEDDING_SITE_URL      = 'https://jainishanay.com/';
 
 // RSVP deadline — submissions after this date/time are rejected
@@ -2066,12 +2084,24 @@ function sendRSVPNotification(payload) {
     return '  ' + ev.name + ': No';
   }).join('\n');
 
+  // Relationship tells the couple at a glance whose side this is. Cached read
+  // — this runs from the deferred queue, never on the guest's request path.
+  let relationship = '';
+  try {
+    const g = (getGuestsCached() || []).find(function(x) {
+      return String(x.invitation_code || '').toUpperCase().trim() === code;
+    });
+    relationship = g ? _canonRel(g.relationship) : '';
+  } catch (e) { /* best-effort */ }
+
   const subject = 'New RSVP: ' + name.replace(/[\r\n]/g, '') + ' (' + code.replace(/[\r\n]/g, '') + ')';
   const body = 'A new RSVP has been submitted.\n\n' +
     'Name: ' + name + '\n' +
+    (relationship ? 'Relationship: ' + relationship + '\n' : '') +
     'Invitation Code: ' + code + '\n' +
     'Submitted: ' + ts + '\n\n' +
-    'Event Responses:\n' + eventLines;
+    'Event Responses:\n' + eventLines + '\n\n' +
+    'Open the admin: ' + WEDDING_SITE_URL.replace(/\/?$/, '/') + 'admin.html';
 
   MailApp.sendEmail(NOTIFICATION_EMAIL, subject, body);
 }
@@ -2202,14 +2232,15 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
       GUEST_EMAIL_FROM_NAME,
     ].join('\n');
 
-    MailApp.sendEmail({
+    const mailOpts = {
       to:       guestEmail,
-      replyTo:  GUEST_EMAIL_REPLY_TO,
       subject:  'Your RSVP is confirmed — Jaini & Shanay\'s Wedding',
       body:     plainBody,
       htmlBody: htmlBody,
       name:     GUEST_EMAIL_FROM_NAME,
-    });
+    };
+    if (GUEST_EMAIL_REPLY_TO) mailOpts.replyTo = GUEST_EMAIL_REPLY_TO;
+    MailApp.sendEmail(mailOpts);
 
     Logger.log('Confirmation email sent to: ' + guestEmail);
   } catch (err) {
@@ -3310,6 +3341,11 @@ function setupProperties() {
     throw new Error(problems.join(' '));
   }
   Logger.log('OK — SHEET_ID set (' + sheetId.slice(0, 6) + '…), ADMIN_PIN set (' + pin.length + ' chars, not shown).');
+  // Optional, but without it nobody hears about new RSVPs.
+  const notify = _emailListProp('NOTIFICATION_EMAIL');
+  Logger.log(notify
+    ? 'NOTIFICATION_EMAIL set — RSVP alerts go to ' + notify.split(',').length + ' address(es): ' + notify
+    : 'NOTE: NOTIFICATION_EMAIL is not set — no "New RSVP" emails will be sent. Add it in Script Properties.');
 }
 
 // ── Message Config (server-persisted) ───────────────────
