@@ -298,8 +298,12 @@ function bumpAdminCacheVersion() {
 //   *_table        — seating, edited via its own updateSeating flow
 const REV_EXCLUDE = new Set(['id', '_rev', 'invite_sent_at']);
 function _guestRev(obj) {
+  // Empty values are skipped so that appending a new (blank) column to the
+  // sheet — e.g. the {id}_names columns — doesn't change every guest's rev
+  // and throw false "updated by someone else" conflicts.
   const keys = Object.keys(obj)
     .filter(k => !REV_EXCLUDE.has(k) && !/_table$/.test(k))
+    .filter(k => obj[k] !== '' && obj[k] != null)
     .sort();
   const s = keys.map(k => k + '=' + String(obj[k] == null ? '' : obj[k])).join('');
   const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, s, Utilities.Charset.UTF_8);
@@ -326,8 +330,59 @@ const GUEST_WRITABLE_FIXED = new Set([
 function _isGuestWritable(header) {
   const h = String(header || '');
   if (GUEST_WRITABLE_FIXED.has(h)) return true;
-  // Per-event seat allocations, e.g. Lg_guests, We_guests.
-  return /_guests$/.test(h) && EVENT_IDS.indexOf(h.replace(/_guests$/, '')) > -1;
+  // Per-event seat allocations (Lg_guests) and reserved names (Lg_names).
+  const m = /^(.+)_(guests|names)$/.exec(h);
+  return !!m && EVENT_IDS.indexOf(m[1]) > -1;
+}
+
+// ── Reserved names per event ─────────────────────────────
+// An event cell is either a seat COUNT ("7" — the family decides who comes)
+// or a list of RESERVED names ("Mike, Tinu, Krisha, Kashi, Krish" — exactly
+// these people, no substitutions). Reserved names live in `{id}_names`,
+// stored pipe-separated. When present they are authoritative: the seat count
+// for that event is forced to the number of names, and submitRSVP only
+// accepts names from the list.
+function _parseReservedNames(v) {
+  if (Array.isArray(v)) v = v.join('|');
+  const seen = new Set();
+  const out = [];
+  String(v == null ? '' : v).split(/[|,\n;]/).forEach(function(raw) {
+    const n = raw.replace(/\s+/g, ' ').trim().slice(0, 100);
+    if (!n) return;
+    const key = normaliseName(n);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(n);
+  });
+  return out.slice(0, 30);
+}
+
+// Canonicalise any `{id}_names` keys present on a guest payload IN PLACE:
+// pipe-join the cleaned list and force `{id}_guests` to its length. Returns
+// true if any event carries reserved names (so callers know to make sure the
+// sheet has the columns).
+function _normaliseReservedPayload(obj) {
+  let any = false;
+  EVENT_IDS.forEach(function(id) {
+    const key = id + '_names';
+    if (obj[key] === undefined) return;
+    const names = _parseReservedNames(obj[key]);
+    obj[key] = names.join('|');
+    if (names.length) { obj[id + '_guests'] = names.length; any = true; }
+  });
+  return any;
+}
+
+// Append any missing `{id}_names` header columns. Returns the (possibly
+// extended) header array. Only called when a write actually carries names,
+// so sheets that never use reserved names are never touched. Caller holds
+// the script lock.
+function _ensureGuestNameColumns(sheet, headers) {
+  const missing = EVENT_IDS.map(function(id) { return id + '_names'; })
+    .filter(function(h) { return headers.indexOf(h) === -1; });
+  if (!missing.length) return headers;
+  sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+  return headers.concat(missing);
 }
 
 // ── User-facing error tagging (security finding #7) ─────────
@@ -438,10 +493,15 @@ function constantTimeEquals(a, b) {
   return match && result === 0;
 }
 
+// Reads only column A (id) — not the full grid. Called on every single-guest
+// write (updateGuest, markInviteSent ×700 in a send session, etc.).
 function findRowById(sheet, id) {
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) return i + 1;
+  const last = sheet.getLastRow();
+  if (last < 2) return -1;
+  const ids = sheet.getRange(2, 1, last - 1, 1).getValues();
+  const target = String(id);
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === target) return i + 2;
   }
   return -1;
 }
@@ -454,7 +514,7 @@ function sanitiseSheetValue(val) {
 
 function guestHeaders() {
   const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status','invite_sent_at'];
-  const alloc = EVENT_IDS.flatMap(id => [id + '_guests', id + '_table']);
+  const alloc = EVENT_IDS.flatMap(id => [id + '_guests', id + '_names', id + '_table']);
   return [...fixed, ...alloc];
 }
 
@@ -675,8 +735,10 @@ function validateGuest(code, firstName, lastName) {
 
   const allocations = {};
   eventIds.forEach(function(id) {
+    const reserved = _parseReservedNames(match[id + '_names']);
     allocations[id] = {
-      guests: Number(match[id + '_guests']) || 0,
+      guests: reserved.length || Number(match[id + '_guests']) || 0,
+      names:  reserved,   // non-empty = reserved seats; guest ticks from this list
     };
   });
 
@@ -832,7 +894,8 @@ function addGuest(payload) {
     }
 
     const id = 'g-' + Utilities.getUuid();
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (_normaliseReservedPayload(payload)) headers = _ensureGuestNameColumns(sheet, headers);
     const row = headers.map(h => {
       if (h === 'id') return id;
       if (h === 'events') return sortedIds.join(',');
@@ -877,7 +940,10 @@ function updateGuest(payload) {
     const rowNum = findRowById(sheet, payload.id);
     if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
 
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    // Canonicalise reserved names (forces {id}_guests = count). Only extend
+    // the sheet with {id}_names columns when this edit actually uses them.
+    if (_normaliseReservedPayload(payload)) headers = _ensureGuestNameColumns(sheet, headers);
 
     // ── Optimistic concurrency check ──────────────────────
     // If the client sent the _rev it loaded the edit form with, compare it
@@ -1075,7 +1141,12 @@ function bulkAddGuests(payload) {
     if (sheet.getLastRow() < 1) {
       sheet.appendRow(guestHeaders());
     }
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    // Canonicalise reserved names on every row first; if any row uses them,
+    // add the {id}_names columns once before building rows against headers.
+    let anyReserved = false;
+    (payload.guests || []).forEach(g => { if (g && _normaliseReservedPayload(g)) anyReserved = true; });
+    if (anyReserved) headers = _ensureGuestNameColumns(sheet, headers);
     // Snapshot existing codes once; mutate the map as we build so CSV-internal
     // duplicates (and newly-generated ones) are detected within this batch.
     const used = collectExistingCodes();
@@ -1094,9 +1165,11 @@ function bulkAddGuests(payload) {
         }
         if (!g.last_name) g.last_name = '';
         const id  = 'g-' + Utilities.getUuid();
-        const sortedEvIds = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
-          .map(s => s.trim()).filter(Boolean)
-          .sort((a, b) => EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b));
+        const evSet = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
+          .map(s => s.trim()).filter(Boolean);
+        // An event with reserved names is by definition one they're invited to.
+        EVENT_IDS.forEach(eid => { if (g[eid + '_names'] && evSet.indexOf(eid) === -1) evSet.push(eid); });
+        const sortedEvIds = evSet.sort((a, b) => EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b));
 
         const requested = String(g.invitation_code || '').toUpperCase().trim();
         if (requested) {
@@ -1479,6 +1552,25 @@ function submitRSVP(payload) {
       events.forEach(ev => {
         if (!ev.attending) {
           ev.names = [];
+          return;
+        }
+        // Reserved seats: only names on the invitation list are accepted
+        // (no swaps). Store the canonical spelling from the list, and the
+        // seat count is simply how many were ticked.
+        const reserved = _parseReservedNames(guestRecord[ev.id + '_names']);
+        if (reserved.length) {
+          const byKey = {};
+          reserved.forEach(n => { byKey[normaliseName(n)] = n; });
+          const picked = [];
+          (Array.isArray(ev.names) ? ev.names : []).forEach(n => {
+            const canon = byKey[normaliseName(String(n || ''))];
+            if (canon && picked.indexOf(canon) === -1) picked.push(canon);
+          });
+          if (!picked.length) {
+            throw userError('Please tick who from your invitation is attending ' + (ev.name || 'this event') + '.');
+          }
+          ev.names = picked;
+          ev.guests = picked.length;
           return;
         }
         const maxGuests = Number(guestRecord[ev.id + '_guests']) || 0;

@@ -276,6 +276,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .alloc-grid .alloc-evt{font-size:.78rem;color:var(--ink);display:flex;align-items:center;gap:.4rem;}
 .alloc-grid input[type="number"]{width:100%;border:1px solid rgba(0,0,0,.11);background:transparent;padding:.45rem .5rem;border-radius:2px;font-family:'Jost',sans-serif;font-size:.82rem;text-align:center;outline:none;transition:border-color .2s;}
 .alloc-grid input[type="number"]:focus{border-color:var(--gold);}
+.alloc-grid input[type="number"]:disabled{background:var(--gold-pale);color:var(--wine);font-weight:600;}
+.alloc-grid .alloc-names{grid-column:1 / -1;margin:-.15rem 0 .5rem;border:1px dashed rgba(0,0,0,.14);background:transparent;padding:.4rem .55rem;border-radius:2px;font-family:'Jost',sans-serif;font-size:.76rem;outline:none;}
+.alloc-grid .alloc-names:focus{border-style:solid;border-color:var(--gold);}
+.alloc-grid .alloc-names:not(:placeholder-shown){border-style:solid;border-color:var(--gold);background:var(--gold-pale);}
 /* ── Event filter bar (By Event view) ── */
 .event-filter-bar{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;}
 .event-filter-btn{font-family:'Cinzel',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);text-transform:uppercase;padding:.5rem 1rem;border:1px solid rgba(0,0,0,.1);background:transparent;cursor:pointer;border-radius:2px;color:var(--muted);transition:all .18s;}
@@ -810,6 +814,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
               <li><code>relationship</code> &mdash; one of: Bride's Family, Groom's Family, Bride's Friend, Groom's Friend. (Or leave it and use the dropdown in step 4.)</li>
               <li><code>is_overseas</code> &mdash; <code>TRUE</code> or <code>FALSE</code>.</li>
               <li>One <code>&hellip; Guests</code> column per event &mdash; how many <em>seats</em> that invitation gets for that event. <code>0</code> or blank = not invited to that event.</li>
+              <li>Optional <code>&hellip; Names</code> column per event &mdash; for events where only <em>specific people</em> are invited (e.g. Black Tie: <code>Mike, Tinu, Krisha, Kashi, Krish</code>). The guest ticks who's coming from that list and can't add anyone else. The seat count becomes the number of names.</li>
               <li><code>invitation_code</code> &mdash; <strong>leave blank.</strong> A unique code is created for each row automatically.</li>
             </ul>
           </li>
@@ -817,7 +822,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <li>If every row in this file is the same relationship, pick it under <kbd>Apply relationship to every row</kbd> &mdash; it saves typing it 200 times.</li>
           <li>Tap <kbd>Upload Guests</kbd>. Any row with a problem is listed with its row number; fix those in the file and upload just those rows again.</li>
         </ol>
-        <p><strong>Adding one guest?</strong> On the <kbd>&#128101; Guests</kbd> tab tap <kbd>+ Add Guest</kbd>. Tick the events they're invited to and set seats per event. The code is generated for you.</p>
+        <p><strong>Already have your own master sheet?</strong> Save it as CSV and upload it as-is. Columns like <em>Cover Name</em>, <em>Phone No</em>, and one column per event (<em>Lagnotri, Mendhi, Mandvo, Meet &amp; Greet, Wedding, Blacktie</em>) are recognised. In an event column, a <strong>number</strong> means seats and <strong>names</strong> mean only those people. Check the preview before tapping Upload.</p>
+        <p><strong>Adding one guest?</strong> On the <kbd>&#128101; Guests</kbd> tab tap <kbd>+ Add Guest</kbd>. Tick the events they're invited to and set seats per event. For an event where only certain people are invited, type their names in the box under that event instead. The code is generated for you.</p>
+        <div class="tip">On the guest's RSVP page each event shows who it's for: <em>"First &amp; Last and Family"</em> when there are more seats than people in the name, just <em>"First &amp; Last"</em> when there aren't, or the list of reserved names.</div>
         <div class="tip">The <strong>Needs attention</strong> strip at the top of the Guests tab tells you how many guests are missing a phone, email or relationship &mdash; tap a chip to see just those and fix them.</div>
       </div>
     </details>
@@ -2264,6 +2271,10 @@ function selectEventFilter(eventId, keepPage) {
               (g.relationship ? '<span>' + escapeAttr(sanitiseValue(g.relationship)) + '</span>' : '') +
               (g.phone ? '<span>' + phoneWhatsAppHtml(g.phone) + '</span>' : '') +
             '</div>' +
+            (g[eventId + '_names']
+              ? '<div class="event-guest-sub"><span>Reserved: ' +
+                  escapeAttr(_splitNames(sanitiseValue(g[eventId + '_names'])).join(', ')) + '</span></div>'
+              : '') +
           '</div>' +
         '</div>' +
       '</td>' +
@@ -2654,15 +2665,41 @@ function updateModalAllocations(existingGuest) {
     var ev = eventsById[id];
     var evLabel = ev ? escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) : escapeAttr(id);
     var gVal = 2;
+    var namesVal = '';
     if (existingGuest) {
       var rawG = sanitiseValue(existingGuest[id + '_guests']);
       gVal = rawG !== '' ? Number(rawG) || 0 : 0;
+      namesVal = _splitNames(sanitiseValue(existingGuest[id + '_names'])).join(', ');
     }
+    var sid = escapeAttr(id);
+    var locked = !!namesVal;
     html += '<span class="alloc-evt">' + evLabel + '</span>' +
-      '<input type="number" id="alloc-' + escapeAttr(id) + '-guests" min="0" max="99" value="' + gVal + '"/>';
+      '<input type="number" id="alloc-' + sid + '-guests" min="0" max="99" value="' + gVal + '"' +
+        (locked ? ' disabled title="Set by the reserved names below"' : '') + '/>' +
+      '<input type="text" id="alloc-' + sid + '-names" class="alloc-names" maxlength="600" ' +
+        'value="' + escapeAttr(namesVal) + '" ' +
+        'placeholder="Reserved names (optional) — only these people, e.g. Mike, Tinu, Krisha" ' +
+        'oninput="onAllocNamesInput(\'' + sid + '\')"/>';
   });
 
   grid.innerHTML = html;
+}
+
+// Typing reserved names locks the seat count to the number of names; clearing
+// them hands the count back to the admin.
+function onAllocNamesInput(id) {
+  var nEl = document.getElementById('alloc-' + id + '-names');
+  var gEl = document.getElementById('alloc-' + id + '-guests');
+  if (!nEl || !gEl) return;
+  var names = _splitNames(nEl.value);
+  if (names.length) {
+    gEl.value = names.length;
+    gEl.disabled = true;
+    gEl.title = 'Set by the reserved names below';
+  } else {
+    gEl.disabled = false;
+    gEl.title = '';
+  }
 }
 
 function closeGuestModal() {
@@ -2770,7 +2807,11 @@ function saveGuest() {
   // Allocation columns
   eventIds.forEach(function(id) {
     var gEl = document.getElementById('alloc-' + id + '-guests');
-    payload[id + '_guests'] = gEl ? Number(gEl.value) || 0 : 0;
+    var nEl = document.getElementById('alloc-' + id + '-names');
+    var names = nEl ? _splitNames(nEl.value) : [];
+    // Always send _names (even empty) so clearing reserved names sticks.
+    payload[id + '_names']  = names.join('|');
+    payload[id + '_guests'] = names.length || (gEl ? Number(gEl.value) || 0 : 0);
   });
 
   // Zero out allocations for non-selected events
@@ -2778,6 +2819,7 @@ function saveGuest() {
   allIds.forEach(function(id) {
     if (eventIds.indexOf(id) === -1) {
       payload[id + '_guests'] = 0;
+      payload[id + '_names']  = '';
     }
   });
 
@@ -2976,11 +3018,16 @@ function openViewGuest(id) {
         var ev = eventsById[eid];
         var icon = ev ? escapeAttr(ev.icon) : '';
         var name = escapeAttr(ev ? ev.name : eid);
-        var count = Number(g[eid + '_guests']) || 0;
+        var reserved = _splitNames(sanitiseValue(g[eid + '_names']));
+        var count = reserved.length || Number(g[eid + '_guests']) || 0;
         var countLabel = 'guest' + (count === 1 ? '' : 's');
-        return '<div class="view-guest-alloc">' +
+        return '<div class="view-guest-alloc" style="flex-wrap:wrap;">' +
           '<div class="view-guest-alloc__event"><span class="view-guest-alloc__icon">' + icon + '</span>' + name + '</div>' +
           '<div class="view-guest-alloc__count"><strong>' + count + '</strong>' + countLabel + '</div>' +
+          (reserved.length
+            ? '<div style="flex-basis:100%;font-size:.72rem;color:var(--muted);margin-top:-.2rem;">Reserved: ' +
+                escapeAttr(reserved.join(', ')) + '</div>'
+            : '') +
         '</div>';
       }).join('') +
       '</div>'
@@ -3281,7 +3328,10 @@ function downloadCSVTemplate() {
   ];
   var guestCols = events.map(function(ev) { return ev.name + ' Guests'; });
   var tableCols = events.map(function(ev) { return ev.name + ' Table'; });
-  var headers = fixed.concat(guestCols).concat(tableCols);
+  // Optional reserved names per event ("Mike, Tinu, Krisha"). When filled,
+  // they replace the Guests number for that event — only those people.
+  var namesCols = events.map(function(ev) { return ev.name + ' Names'; });
+  var headers = fixed.concat(guestCols).concat(namesCols).concat(tableCols);
 
   // Example row: guest invited to Mehendi & Sangeet, Wedding, Black Tie.
   // The events column is ignored on import (auto-derived from per-event
@@ -3295,7 +3345,8 @@ function downloadCSVTemplate() {
   ];
   var guestRow = events.map(function(ev) { return String(attending[ev.id] || 0); });
   var tableRow = events.map(function() { return ''; });
-  var row = fixedRow.concat(guestRow).concat(tableRow);
+  var namesRow = events.map(function() { return ''; });
+  var row = fixedRow.concat(guestRow).concat(namesRow).concat(tableRow);
 
   var csv  = [headers.join(','), row.join(',')].join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
@@ -3341,25 +3392,39 @@ function parseCSV(text) {
     headers.forEach(function(h, idx) {
       obj[h] = (vals[idx] || '').trim();
     });
+    _applyFriendlyCSVHeaders(obj);
     // Normalise is_overseas to TRUE or FALSE regardless of how it was entered
     var rawOverseas = String(obj.is_overseas || 'FALSE').trim().toUpperCase();
     obj.is_overseas = (rawOverseas === 'TRUE' || rawOverseas === 'YES' || rawOverseas === '1')
       ? 'TRUE' : 'FALSE';
-    // Remap friendly CSV headers "{Event Name} Guests" / "{Event Name} Table"
-    // into the internal sheet columns "{id}_guests" / "{id}_table", then
-    // auto-derive the events list from any allocation > 0 (overrides any
-    // manual "events" column in the CSV).
+    // Remap friendly CSV headers "{Event Name} Guests" / "{Event Name} Names" /
+    // "{Event Name} Table" into the internal sheet columns, then auto-derive
+    // the events list from any allocation > 0 or reserved names (overrides
+    // any manual "events" column in the CSV).
     var derivedEventIds = [];
     (allEvents || []).forEach(function(ev) {
       var guestHeader = ev.name + ' Guests';
+      var namesHeader = ev.name + ' Names';
       var tableHeader = ev.name + ' Table';
       if (obj[guestHeader] !== undefined) {
         obj[ev.id + '_guests'] = obj[guestHeader];
         delete obj[guestHeader];
       }
+      if (obj[namesHeader] !== undefined) {
+        obj[ev.id + '_names'] = obj[namesHeader];
+        delete obj[namesHeader];
+      }
       if (obj[tableHeader] !== undefined) {
         obj[ev.id + '_table'] = obj[tableHeader];
         delete obj[tableHeader];
+      }
+      // Reserved names win: seat count = number of names.
+      var reserved = _splitNames(obj[ev.id + '_names']);
+      if (reserved.length) {
+        obj[ev.id + '_names'] = reserved.join('|');
+        obj[ev.id + '_guests'] = String(reserved.length);
+      } else if (obj[ev.id + '_names'] !== undefined) {
+        delete obj[ev.id + '_names'];
       }
       if (Number(obj[ev.id + '_guests']) > 0) derivedEventIds.push(ev.id);
     });
@@ -3368,6 +3433,72 @@ function parseCSV(text) {
     rows.push(obj);
   }
   return rows;
+}
+
+// ── Accept the couple's own master-sheet layout ─────────
+// Their list looks like:  Cover Name | Phone No | Lagnotri | Mendhi | … | Blacktie
+// where each event cell is EITHER a seat count ("7") OR the reserved names
+// ("Mike, Tinu, Krisha, Kashi, Krish"). Map that onto the template columns so
+// it uploads without reformatting. Template-style headers still work as-is.
+var _EVENT_HEADER_ALIASES = {
+  Lg: ['lagnotri', 'lagan', 'lagna'],
+  MS: ['mehendi', 'mendhi', 'mehndi', 'mehendisangeet', 'mendhisangeet', 'mehndisangeet', 'sangeet'],
+  Ma: ['mandvo', 'mandva', 'mandap'],
+  MG: ['meetgreet', 'meetandgreet', 'meetngreet'],
+  We: ['wedding', 'weddingday', 'weddingceremony'],
+  BT: ['blacktie', 'blacktieevent', 'blacktieparty'],
+};
+function _normHeader(h) { return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+function _splitNames(v) {
+  var seen = {};
+  return String(v == null ? '' : v).split(/[|,\n;]/).map(function(s) {
+    return s.replace(/\s+/g, ' ').trim();
+  }).filter(function(s) {
+    if (!s) return false;
+    var k = s.toLowerCase();
+    if (seen[k]) return false;
+    seen[k] = true;
+    return true;
+  });
+}
+function _applyFriendlyCSVHeaders(obj) {
+  var byNorm = {};
+  Object.keys(obj).forEach(function(k) { byNorm[_normHeader(k)] = k; });
+  function take(norms, target) {
+    if (obj[target] !== undefined && obj[target] !== '') return;
+    for (var i = 0; i < norms.length; i++) {
+      var k = byNorm[norms[i]];
+      if (k !== undefined && k !== target) { obj[target] = obj[k]; delete obj[k]; return; }
+    }
+  }
+  take(['covername', 'name', 'invitename', 'guestname', 'fullname'], 'first_name');
+  take(['phoneno', 'phone', 'phonenumber', 'mobile', 'whatsapp', 'whatsappno'], 'phone');
+  take(['emailaddress', 'email'], 'email');
+  take(['relationship', 'side'], 'relationship');
+  take(['international', 'overseas'], 'is_overseas');
+
+  // Bare event columns: number → seats, anything else → reserved names.
+  (allEvents || []).forEach(function(ev) {
+    var candidates = [_normHeader(ev.name), _normHeader(ev.id)].concat(_EVENT_HEADER_ALIASES[ev.id] || []);
+    for (var i = 0; i < candidates.length; i++) {
+      var k = byNorm[candidates[i]];
+      if (k === undefined || obj[k] === undefined) continue;
+      var cell = String(obj[k]).trim();
+      delete obj[k];
+      if (!cell) return;
+      if (/^\d+$/.test(cell)) {
+        if (obj[ev.name + ' Guests'] === undefined) obj[ev.name + ' Guests'] = cell;
+      } else {
+        if (obj[ev.name + ' Names'] === undefined) obj[ev.name + ' Names'] = cell;
+      }
+      return;
+    }
+  });
+
+  // Phone numbers pasted without a leading "+" (254733866869) — add it so the
+  // country code isn't mistaken for a local number.
+  var p = String(obj.phone || '').trim();
+  if (/^\d{11,15}$/.test(p)) obj.phone = '+' + p;
 }
 
 function parseCSVLine(line) {
@@ -3396,7 +3527,17 @@ function parseCSVLine(line) {
 
 function renderCSVPreview(rows) {
   var maxShow = Math.min(rows.length, 10);
-  var cols = ['first_name','last_name','events','invitation_code'];
+  var cols = ['first_name','last_name','phone','seats'];
+  // Per-event summary so the admin can eyeball that "7" went to seats and
+  // "Mike, Tinu, …" went to reserved names before uploading.
+  var seatsOf = function(r) {
+    return (allEvents || []).map(function(ev) {
+      var names = _splitNames(r[ev.id + '_names']);
+      if (names.length) return ev.id + ': ' + names.join(', ');
+      var n = Number(r[ev.id + '_guests']) || 0;
+      return n ? ev.id + ': ' + n : '';
+    }).filter(Boolean).join(' · ');
+  };
   var html = '<div style="font-size:.76rem;color:var(--muted);margin-bottom:.5rem;">' +
     'Showing ' + maxShow + ' of ' + rows.length + ' rows</div>' +
     '<table class="csv-preview-table"><thead><tr>' +
@@ -3404,7 +3545,8 @@ function renderCSVPreview(rows) {
     '</tr></thead><tbody>';
   for (var i = 0; i < maxShow; i++) {
     html += '<tr>' + cols.map(function(c) {
-      return '<td>' + escapeAttr(rows[i][c] || '') + '</td>';
+      var v = c === 'seats' ? seatsOf(rows[i]) : (rows[i][c] || '');
+      return '<td>' + escapeAttr(v) + '</td>';
     }).join('') + '</tr>';
   }
   html += '</tbody></table>';
