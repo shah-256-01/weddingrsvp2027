@@ -514,7 +514,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 
   <!-- ═══ RSVP Section ═══ -->
   <div class="guest-section active" id="section-rsvp">
-  <!-- Contact details screen — shown only if WhatsApp is missing (email optional) -->
+  <!-- Contact details screen — shown if email or WhatsApp is missing. WhatsApp required, email optional. -->
   <div id="contact-screen" class="hidden">
     <div class="contact-screen-inner">
       <div style="text-align:center;margin-bottom:2rem;">
@@ -1194,13 +1194,13 @@ function loadGuestPage() {
   }
 
   // ── Missing contact details? ─────────────────────────
-  // Only WhatsApp is required (it's how the couple contacts everyone). Email
-  // is optional — it's just for the RSVP confirmation — so a guest with a
-  // WhatsApp number on file but no email goes straight to the RSVP.
+  // Shown whenever either is missing, so we get the chance to ask. WhatsApp
+  // is required (it's how the couple contacts everyone); email is optional —
+  // a guest can leave it blank and tap Continue.
   var hasEmail    = currentGuest.email && currentGuest.email.trim();
   var hasWhatsApp = currentGuest.whatsapp && currentGuest.whatsapp.trim();
 
-  if (!hasWhatsApp) {
+  if (!hasEmail || !hasWhatsApp) {
     // Pre-fill any existing values
     if (hasEmail) document.getElementById('contact-email').value = currentGuest.email;
     if (hasWhatsApp) document.getElementById('contact-whatsapp').value = currentGuest.whatsapp;
