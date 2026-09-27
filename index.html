@@ -730,18 +730,24 @@ const WEDDING_VENUE = 'Aurora Bustani, Albizzia · Thika';
 //   - a string path → same image for everyone (e.g. the Wedding Day)
 //   - an object { brides, grooms } → side-specific images (resolved from
 //     the guest's `relationship`, see resolveInviteImage below).
+//
+// Keys MUST match the event IDs in the Events sheet (Lg, MS, Ma, MG, We, BT).
+// They were previously the pre-rename single letters (L, S, A, G, W, B), which
+// matched no event — so no card ever showed its image. A listed file that
+// doesn't exist yet is harmless: the card falls back to the text design.
 const INVITE_IMAGES = {
-  S: 'invitations/mehndi-sangeet.jpg',
-  W: 'invitations/wedding-day.jpg',
-  B: 'invitations/black-tie.jpg',
-  L: {
+  Lg: {
     brides: 'invitations/lagnotri-brides.jpg',
     grooms: 'invitations/lagnotri-grooms.jpg',
   },
-  A: {
+  MS: 'invitations/mehndi-sangeet.jpg',
+  Ma: {
     brides: 'invitations/mandvo-brides.jpg',
     grooms: 'invitations/mandvo-grooms.jpg',
   },
+  MG: 'invitations/meet-greet.jpg',
+  We: 'invitations/wedding-day.jpg',
+  BT: 'invitations/black-tie.jpg',
 };
 
 // Non-event "opening" image displayed once at the top of the RSVP section.
