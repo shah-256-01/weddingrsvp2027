@@ -657,7 +657,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <div class="admin-card">
       <div class="admin-card-title">How it works</div>
       <div style="font-size:.78rem;color:var(--ink);line-height:1.7;">
-        <p style="margin-bottom:.6rem;"><strong>6 Events:</strong> Lg (Lagnotri), MS (Mehendi &amp; Sangeet), Ma (Mandvo), MG (Meet &amp; Greet), We (Wedding), BT (Black Tie).</p>
+        <p style="margin-bottom:.6rem;"><strong>7 Events:</strong> Lg (Lagnotri), MS (Mehendi &amp; Sangeet), Ma (Mandvo), Lu (Luncheon), MG (Meet &amp; Greet), We (Wedding), BT (Black Tie).</p>
+        <p style="margin-bottom:.6rem;"><strong>Luncheon</strong> is for the bride&#8217;s side only. Any bride&#8217;s-side guest invited to the Mandvo is automatically invited to the Luncheon with the same seats and names. You can also invite bride&#8217;s-side guests to the Luncheon alone.</p>
         <p style="margin-bottom:.6rem;"><strong>Invitation codes</strong> are unique 6-character codes generated automatically for each guest (never reuse or guess them).</p>
         <p style="margin-bottom:.6rem;"><strong>Seats per event</strong> are set on each guest &mdash; a guest can only RSVP up to their allocation.</p>
         <p>Full step-by-step workflows are on the <a href="#" onclick="switchTab('help', document.querySelector('.admin-tab[data-tab=help]')); return false;" style="color:var(--wine);font-weight:600;">&#128214; Help</a> tab &mdash; or tap <strong>Teach me</strong> at the top.</p>
@@ -2876,6 +2877,11 @@ function saveGuest() {
               if (k === '_rev') continue;
               allGuests[i][k] = payload[k];
             }
+            // The server may have derived fields on save (the Luncheon
+            // follows the Mandvo for bride's-side guests) — take its word.
+            ['events', 'Lu_guests', 'Lu_names'].forEach(function(f) {
+              if (res && res[f] !== undefined) allGuests[i][f] = res[f];
+            });
             if (newRev) allGuests[i]._rev = newRev;
             delete allGuests[i]._search;   // any patched field could affect the searchable string
             break;
@@ -3380,6 +3386,7 @@ function downloadCSVTemplate() {
     { id: 'Lg', name: 'Lagnotri' },
     { id: 'MS', name: 'Mehendi & Sangeet' },
     { id: 'Ma', name: 'Mandvo' },
+    { id: 'Lu', name: 'Luncheon' },
     { id: 'MG', name: 'Meet & Greet' },
     { id: 'We', name: 'Wedding' },
     { id: 'BT', name: 'Black Tie' }
@@ -3508,6 +3515,7 @@ var _EVENT_HEADER_ALIASES = {
   Lg: ['lagnotri', 'lagan', 'lagna'],
   MS: ['mehendi', 'mendhi', 'mehndi', 'mehendisangeet', 'mendhisangeet', 'mehndisangeet', 'sangeet'],
   Ma: ['mandvo', 'mandva', 'mandap'],
+  Lu: ['luncheon', 'lunch'],
   MG: ['meetgreet', 'meetandgreet', 'meetngreet'],
   We: ['wedding', 'weddingday', 'weddingceremony'],
   BT: ['blacktie', 'blacktieevent', 'blacktieparty'],

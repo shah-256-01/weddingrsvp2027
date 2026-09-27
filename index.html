@@ -731,7 +731,7 @@ const WEDDING_VENUE = 'Aurora Bustani, Albizzia · Thika';
 //   - an object { brides, grooms } → side-specific images (resolved from
 //     the guest's `relationship`, see resolveInviteImage below).
 //
-// Keys MUST match the event IDs in the Events sheet (Lg, MS, Ma, MG, We, BT).
+// Keys MUST match the event IDs in the Events sheet (Lg, MS, Ma, Lu, MG, We, BT).
 // They were previously the pre-rename single letters (L, S, A, G, W, B), which
 // matched no event — so no card ever showed its image. A listed file that
 // doesn't exist yet is harmless: the card falls back to the text design.
@@ -745,6 +745,7 @@ const INVITE_IMAGES = {
     brides: 'invitations/mandvo-brides.jpg',
     grooms: 'invitations/mandvo-grooms.jpg',
   },
+  Lu: 'invitations/luncheon.jpg',
   MG: 'invitations/meet-greet.jpg',
   We: 'invitations/wedding-day.jpg',
   BT: 'invitations/black-tie.jpg',

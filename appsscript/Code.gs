@@ -57,7 +57,9 @@ const TABS = {
   rsvpByEvent:  'RSVPs_by_event',
 };
 
-const EVENT_IDS = ['Lg','MS','Ma','MG','We','BT'];
+// Lu (Luncheon) follows the Mandvo on the same day. Bride's side only — see
+// _applyLuncheonRuleToRow for how it's auto-assigned from the Mandvo.
+const EVENT_IDS = ['Lg','MS','Ma','Lu','MG','We','BT'];
 
 // ── Routing ──────────────────────────────────────────────
 function doGet(e) {
@@ -454,15 +456,135 @@ function repairGuestSheet() {
       });
       if (fixed) rng.setValues(vals);
     }
+    // Backfill the Luncheon for every bride's-side Mandvo guest (and clear it
+    // from any groom's-side guest). Runs after the relationship fix above so
+    // hand-typed apostrophes are already canonical.
+    const lunch = _applyLuncheonRuleToSheet(sheet, null);
+    // Make sure the Luncheon exists as an event. Same day and venue as the
+    // Mandvo; time left TBC for the couple to fill in on the Events tab.
+    const addedEvent = _ensureLuncheonEvent();
     bumpAdminCacheVersion();
     const msg = 'repairGuestSheet: added ' + missing.length + ' column(s)' +
       (missing.length ? ' [' + missing.join(', ') + ']' : '') +
-      '; normalised ' + fixed + ' relationship value(s).';
+      '; normalised ' + fixed + ' relationship value(s)' +
+      '; Luncheon updated for ' + lunch + ' guest(s)' +
+      (addedEvent ? '; added Luncheon to the Events tab (set its time there).' : '.');
     Logger.log(msg);
     return msg;
   } finally {
     lock.releaseLock();
   }
+}
+
+// ── Luncheon rule ────────────────────────────────────────
+// The Luncheon (Lu) follows the Mandvo (Ma) on the same day and is for the
+// BRIDE'S SIDE only:
+//   - Bride's-side guest invited to the Mandvo → invited to the Luncheon
+//     with exactly the same seats and the same reserved names. Enforced on
+//     every write so the two can't drift apart.
+//   - Bride's-side guest NOT at the Mandvo → Luncheon left as the admin set
+//     it (lunch-only invitations are allowed).
+//   - Groom's-side guest → never invited to the Luncheon; any Lu allocation
+//     is cleared.
+//   - Relationship blank/unknown → left untouched (don't guess a side).
+// Operates on a raw sheet row (array aligned with `headers`) so it sees the
+// full merged state regardless of what a partial payload contained. Returns
+// true if the row changed. Needs Lu_guests in headers — callers use
+// _ensureLuncheonColumns first.
+const LUNCHEON_ID = 'Lu';
+const MANDVO_ID   = 'Ma';
+function _ensureLuncheonColumns(sheet, headers) {
+  headers = _ensureGuestColumn(sheet, headers, LUNCHEON_ID + '_guests').headers;
+  headers = _ensureGuestColumn(sheet, headers, LUNCHEON_ID + '_names').headers;
+  return headers;
+}
+function _applyLuncheonRuleToRow(row, headers) {
+  const col = function(h) { return headers.indexOf(h); };
+  const relI = col('relationship'), evI = col('events');
+  const luG = col(LUNCHEON_ID + '_guests'), luN = col(LUNCHEON_ID + '_names');
+  const maG = col(MANDVO_ID + '_guests'),   maN = col(MANDVO_ID + '_names');
+  if (relI < 0 || evI < 0 || luG < 0) return false;
+
+  const rel = _relKey(row[relI]);
+  const side = rel.indexOf('bride') === 0 ? 'bride' : rel.indexOf('groom') === 0 ? 'groom' : '';
+  if (!side) return false;
+
+  const events = String(row[evI] || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  const hasLu = events.indexOf(LUNCHEON_ID) > -1;
+  const before = [String(row[evI] || ''), String(row[luG]), luN > -1 ? String(row[luN] || '') : ''].join('\u0001');
+
+  if (side === 'groom') {
+    if (hasLu) events.splice(events.indexOf(LUNCHEON_ID), 1);
+    row[luG] = '';
+    if (luN > -1) row[luN] = '';
+  } else {
+    const maSeats = maG > -1 ? (Number(row[maG]) || 0) : 0;
+    const atMandvo = maSeats > 0 || events.indexOf(MANDVO_ID) > -1;
+    if (atMandvo) {
+      row[luG] = maSeats;
+      if (luN > -1) row[luN] = maN > -1 ? String(row[maN] || '') : '';
+      if (!hasLu) events.push(LUNCHEON_ID);
+    }
+  }
+  events.sort(function(a, b) { return EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b); });
+  row[evI] = events.join(',');
+  const after = [String(row[evI] || ''), String(row[luG]), luN > -1 ? String(row[luN] || '') : ''].join('\u0001');
+  return before !== after;
+}
+// Add the Luncheon row to the Events tab if it's missing, copying the
+// Mandvo's date and venue (same day). Returns true if a row was added.
+function _ensureLuncheonEvent() {
+  const ev = getSheet(TABS.events);
+  const lastRow = ev.getLastRow();
+  if (lastRow < 1) return false;
+  const lastCol = ev.getLastColumn();
+  const data = ev.getRange(1, 1, lastRow, lastCol).getValues();
+  const h = data[0];
+  const idI = h.indexOf('id');
+  if (idI < 0) return false;
+  if (data.some(function(r) { return String(r[idI]).trim() === LUNCHEON_ID; })) return false;
+  const ma = data.find(function(r) { return String(r[idI]).trim() === MANDVO_ID; }) || [];
+  const row = h.map(function(col, i) {
+    switch (col) {
+      case 'id':      return LUNCHEON_ID;
+      case 'name':    return 'Luncheon';
+      case 'date':    return ma[i] || 'TBC';
+      case 'time':    return 'TBC';
+      case 'venue':   return ma[i] || 'TBC';
+      case 'icon':    return '🍽️';
+      case 'active':  return 'TRUE';
+      case 'seating': return 'FALSE';
+      default:        return '';
+    }
+  });
+  ev.appendRow(row);
+  _eventsCache = null;
+  return true;
+}
+
+// Apply the rule across the whole Guests sheet (or just `onlyIds`), writing
+// back only the three affected columns in one setValues each. Caller holds
+// the script lock. Returns the number of guests changed.
+function _applyLuncheonRuleToSheet(sheet, onlyIds) {
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  headers = _ensureLuncheonColumns(sheet, headers);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const idI = headers.indexOf('id');
+  let changed = 0;
+  data.forEach(function(row) {
+    if (onlyIds && !onlyIds.has(String(row[idI]))) return;
+    if (_applyLuncheonRuleToRow(row, headers)) changed++;
+  });
+  if (changed) {
+    ['events', LUNCHEON_ID + '_guests', LUNCHEON_ID + '_names'].forEach(function(h) {
+      const c = headers.indexOf(h);
+      if (c < 0) return;
+      sheet.getRange(2, c + 1, data.length, 1).setValues(data.map(function(r) { return [r[c]]; }));
+    });
+  }
+  return changed;
 }
 
 // Append any missing `{id}_names` header columns. Returns the (possibly
@@ -990,12 +1112,18 @@ function addGuest(payload) {
     const id = 'g-' + Utilities.getUuid();
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     if (_normaliseReservedPayload(payload)) headers = _ensureGuestNameColumns(sheet, headers);
+    headers = _ensureLuncheonColumns(sheet, headers);
     const row = headers.map(h => {
       if (h === 'id') return id;
       if (h === 'events') return sortedIds.join(',');
       if (!_isGuestWritable(h)) return '';   // status, invite_sent_at, *_table, _rev
       return sanitizeForSheet(payload[h] !== undefined ? payload[h] : '');
     });
+    // Luncheon follows the Mandvo for bride's-side guests. Reflect the
+    // outcome in the returned payload so the admin's optimistic copy is right.
+    if (_applyLuncheonRuleToRow(row, headers)) {
+      ['events', 'Lu_guests', 'Lu_names'].forEach(h => { payload[h] = row[headers.indexOf(h)]; });
+    }
     sheet.appendRow(row);
     // Stamp a _rev on the new guest so an immediate edit from the admin's
     // optimistic local copy passes the concurrency check without a reload.
@@ -1038,6 +1166,9 @@ function updateGuest(payload) {
     // Canonicalise reserved names (forces {id}_guests = count). Only extend
     // the sheet with {id}_names columns when this edit actually uses them.
     if (_normaliseReservedPayload(payload)) headers = _ensureGuestNameColumns(sheet, headers);
+    // Before the row read below, so the row array covers the Lu columns.
+    // New blank columns don't change the rev (empty values are skipped).
+    headers = _ensureLuncheonColumns(sheet, headers);
 
     // ── Optimistic concurrency check ──────────────────────
     // If the client sent the _rev it loaded the edit form with, compare it
@@ -1093,6 +1224,12 @@ function updateGuest(payload) {
         changed = true;
       }
     });
+    // Luncheon follows the Mandvo — applied to the MERGED row so a partial
+    // payload (e.g. only relationship changed) still gets the right result.
+    if (_applyLuncheonRuleToRow(row, headers)) {
+      changed = true;
+      ['events', 'Lu_guests', 'Lu_names'].forEach(h => { payload[h] = row[headers.indexOf(h)]; });
+    }
     if (changed) rangeForRev.setValues([row]);
     // Hand back the post-write rev so the client can update its copy without
     // a full reload — the next save from that form will then pass the check.
@@ -1266,6 +1403,7 @@ function bulkAddGuests(payload) {
     let anyReserved = false;
     (payload.guests || []).forEach(g => { if (g && _normaliseReservedPayload(g)) anyReserved = true; });
     if (anyReserved) headers = _ensureGuestNameColumns(sheet, headers);
+    headers = _ensureLuncheonColumns(sheet, headers);
     // Snapshot existing codes once; mutate the map as we build so CSV-internal
     // duplicates (and newly-generated ones) are detected within this batch.
     const used = collectExistingCodes();
@@ -1314,6 +1452,7 @@ function bulkAddGuests(payload) {
           if (!_isGuestWritable(h)) return '';   // a CSV `status` column can't soft-delete on import
           return sanitizeForSheet(g[h] !== undefined ? g[h] : '');
         });
+        _applyLuncheonRuleToRow(row, headers);   // bride's-side Mandvo → Luncheon
         rowsToWrite.push(row);
         results.added++;
       } catch (err) {
@@ -1473,6 +1612,11 @@ function bulkUpdate(payload) {
       range.setValues(patched);
       updated += Object.keys(resolved.rows).length;
     });
+    // Changing relationship can move a guest onto or off the bride's side,
+    // which changes their Luncheon invitation.
+    if (fieldKeys.indexOf('relationship') > -1) {
+      _applyLuncheonRuleToSheet(sheet, new Set(Object.keys(resolved.rows)));
+    }
     return { updated: Object.keys(resolved.rows).length, fieldCount: fieldKeys.length, missing: resolved.missing };
   } finally { lock.releaseLock(); }
 }
@@ -2520,6 +2664,7 @@ function setupSheet() {
       ['Lg','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE','FALSE'],
       ['MS','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE','FALSE'],
       ['Ma','Mandvo',           'TBC','TBC','TBC','🎶','TRUE','FALSE'],
+      ['Lu','Luncheon',         'TBC','TBC','TBC','🍽️','TRUE','FALSE'],
       ['MG','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE','FALSE'],
       ['We','Wedding',          'TBC','TBC','TBC','💍','TRUE','FALSE'],
       ['BT','Black Tie',        'TBC','TBC','TBC','🎩','TRUE','FALSE'],
@@ -2711,17 +2856,18 @@ function _templateRebuildEventsTab(ss, log) {
     sheet.getRange(2, 1, remapped.length, headers.length).setValues(remapped);
     log.push('Events: rebuilt, preserved ' + remapped.length + ' rows.');
   } else {
-    // Seed with the six default events when sheet was empty
+    // Seed with the default events when sheet was empty
     const seed = [
       ['Lg', 'Lagnotri',          'TBC', 'TBC', 'TBC', '🪔', 'TRUE', 'FALSE'],
       ['MS', 'Mehendi & Sangeet', 'TBC', 'TBC', 'TBC', '🌿', 'TRUE', 'FALSE'],
       ['Ma', 'Mandvo',            'TBC', 'TBC', 'TBC', '🍛', 'TRUE', 'FALSE'],
+      ['Lu', 'Luncheon',          'TBC', 'TBC', 'TBC', '🍽️', 'TRUE', 'FALSE'],
       ['MG', 'Meet & Greet',      'TBC', 'TBC', 'TBC', '🥂', 'TRUE', 'FALSE'],
       ['We', 'Wedding',           'TBC', 'TBC', 'TBC', '💍', 'TRUE', 'FALSE'],
       ['BT', 'Black Tie',         'TBC', 'TBC', 'TBC', '🎩', 'TRUE', 'FALSE'],
     ];
     sheet.getRange(2, 1, seed.length, headers.length).setValues(seed);
-    log.push('Events: rebuilt, seeded 6 default events.');
+    log.push('Events: rebuilt, seeded ' + seed.length + ' default events.');
   }
 
   // Dropdowns
