@@ -517,10 +517,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <input type="text" id="guest-search" placeholder="Search name, contact, notes..." oninput="debouncedApplyFilters()"/>
       <select id="filter-relationship" onchange="applyFilters()">
         <option value="">All Relationships</option>
-        <option value="Bride's Family">Bride's Family</option>
-        <option value="Groom's Family">Groom's Family</option>
-        <option value="Bride's Friend">Bride's Friend</option>
-        <option value="Groom's Friend">Groom's Friend</option>
+        <option value="Bride&#8217;s Family">Bride&#8217;s Family</option>
+        <option value="Groom&#8217;s Family">Groom&#8217;s Family</option>
+        <option value="Bride&#8217;s Friend">Bride&#8217;s Friend</option>
+        <option value="Groom&#8217;s Friend">Groom&#8217;s Friend</option>
       </select>
       <select id="filter-rsvp" onchange="applyFilters()">
         <option value="">All RSVP Status</option>
@@ -562,10 +562,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <label for="csv-relationship-apply" style="font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:var(--wine);text-transform:uppercase;display:block;margin-bottom:.5rem;">Apply relationship to every row</label>
         <select id="csv-relationship-apply" style="width:100%;padding:.55rem .75rem;font-family:'Jost',sans-serif;font-size:.82rem;border:1px solid rgba(0,0,0,.1);background:#fff;border-radius:2px;color:var(--ink);">
           <option value="">Keep values from CSV</option>
-          <option value="Bride's Family">Bride's Family</option>
-          <option value="Groom's Family">Groom's Family</option>
-          <option value="Bride's Friend">Bride's Friend</option>
-          <option value="Groom's Friend">Groom's Friend</option>
+          <option value="Bride&#8217;s Family">Bride&#8217;s Family</option>
+          <option value="Groom&#8217;s Family">Groom&#8217;s Family</option>
+          <option value="Bride&#8217;s Friend">Bride&#8217;s Friend</option>
+          <option value="Groom&#8217;s Friend">Groom&#8217;s Friend</option>
         </select>
         <p style="font-size:.7rem;color:var(--muted);margin-top:.45rem;line-height:1.5;">Pick one to apply it to every uploaded row (overrides the <code>relationship</code> column). Leave on <em>Keep values from CSV</em> if each row already has the right value.</p>
       </div>
@@ -979,10 +979,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <label>Relationship / Side</label>
           <select id="m-relationship">
             <option value="">&mdash; Select &mdash;</option>
-            <option>Bride's Family</option>
-            <option>Groom's Family</option>
-            <option>Bride's Friend</option>
-            <option>Groom's Friend</option>
+            <option>Bride&#8217;s Family</option>
+            <option>Groom&#8217;s Family</option>
+            <option>Bride&#8217;s Friend</option>
+            <option>Groom&#8217;s Friend</option>
           </select>
         </div>
         <div class="form-row">
@@ -1138,6 +1138,33 @@ var allDuplicates = [];
 // sync via setDuplicates(). O(1) lookup for the getRSVPStatus render hot
 // path — the .some() scan was O(n·m) across guest × duplicate lists.
 var allDuplicateCodes = new Set();
+// ── Canonical relationship values ─────────────
+// Sheet cells typed by hand mix straight (') and curly (’) apostrophes.
+// Every relationship comparison in this file is a plain ===, so a guest
+// stored as "Groom's Family" vanished from "Sending as: Groom’s Family".
+// Normalise at the point data enters the page; all comparisons then match.
+var CANON_RELATIONSHIPS = ['Bride’s Family', 'Groom’s Family', 'Bride’s Friend', 'Groom’s Friend'];
+function _relKey(s) {
+  return String(s == null ? '' : s).toLowerCase()
+    .replace(/[‘’'`´]/g, '').replace(/\s+/g, ' ').trim();
+}
+var _REL_CANON = {};
+CANON_RELATIONSHIPS.forEach(function(r) { _REL_CANON[_relKey(r)] = r; });
+function canonRel(v) {
+  var s = String(v == null ? '' : v).trim();
+  return _REL_CANON[_relKey(s)] || s;
+}
+function _canonGuests(list) {
+  (list || []).forEach(function(g) { if (g && g.relationship) g.relationship = canonRel(g.relationship); });
+  return list || [];
+}
+function _canonRelDefaults(cfg) {
+  if (!cfg || !cfg.relationshipDefaults) return;
+  var out = {};
+  Object.keys(cfg.relationshipDefaults).forEach(function(k) { out[canonRel(k)] = cfg.relationshipDefaults[k]; });
+  cfg.relationshipDefaults = out;
+}
+
 function setDuplicates(list) {
   allDuplicates = list || [];
   allDuplicateCodes = new Set(allDuplicates.map(function(d) { return d.code; }));
@@ -1820,21 +1847,21 @@ function loadGuests() {
     // Events come along in the same payload now — one less round-trip on boot.
     var eventsInPayload = Array.isArray(data.events) && data.events.length > 0;
     if (eventsInPayload) { setAllEvents(data.events); afterEventsLoaded(); }
-    allGuests          = data.guests         || [];
+    allGuests          = _canonGuests(data.guests);
     allRSVPs           = data.rsvps          || [];
     allSubmittedCodes  = new Set(data.submittedCodes || []);
     setDuplicates(data.duplicates);
-    allDeletedGuests   = data.deletedGuests  || [];
+    allDeletedGuests   = _canonGuests(data.deletedGuests);
     refreshStats();
     renderGuestView();
   }).catch(function() {
     // Fallback path for old deployments — parallel fan-out, render when all done.
     Promise.all([
-      gasAsync('getGuests').then(function(d) { allGuests = d || []; }),
+      gasAsync('getGuests').then(function(d) { allGuests = _canonGuests(d); }),
       gasAsync('getRSVPsByFamily').then(function(d) { allRSVPs = d || []; }).catch(function() {}),
       gasAsync('getSubmittedCodes').then(function(d) { allSubmittedCodes = new Set(d || []); }).catch(function() {}),
       gasAsync('getDuplicates').then(function(d) { setDuplicates(d); }).catch(function() {}),
-      gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = d || []; }).catch(function() {})
+      gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = _canonGuests(d); }).catch(function() {})
     ]).then(function() {
       refreshStats();
       renderGuestView();
@@ -3430,6 +3457,7 @@ function parseCSV(text) {
     });
     obj.events = derivedEventIds.join(',');
     obj.invitation_code = String(obj.invitation_code || '').toUpperCase().trim();
+    if (obj.relationship) obj.relationship = canonRel(obj.relationship);
     rows.push(obj);
   }
   return rows;
@@ -3568,7 +3596,7 @@ function uploadCSV() {
     rowsToUpload = parsedCSVRows.map(function(r) {
       var copy = {};
       Object.keys(r).forEach(function(k) { copy[k] = r[k]; });
-      copy.relationship = applyRel;
+      copy.relationship = canonRel(applyRel);
       return copy;
     });
   }
@@ -4056,6 +4084,9 @@ function loadMessageConfigFromServer() {
   google.script.run
     .withSuccessHandler(function(cfg) {
       messageConfig = cfg;
+      // Defaults saved under a straight-apostrophe key would otherwise miss
+      // guests whose relationship is now canonicalised to the curly form.
+      _canonRelDefaults(messageConfig);
       try { localStorage.setItem(MSG_LOCAL_KEY, JSON.stringify(cfg)); } catch (e) {}
       migrateLocalStorageMessages();
       renderDeadlineChip();
@@ -4064,7 +4095,7 @@ function loadMessageConfigFromServer() {
       console.error('Failed to load message config from server, using local fallback:', err);
       try {
         var local = JSON.parse(localStorage.getItem(MSG_LOCAL_KEY) || 'null');
-        if (local && local.templates && local.templates.length) { messageConfig = local; renderDeadlineChip(); return; }
+        if (local && local.templates && local.templates.length) { messageConfig = local; _canonRelDefaults(messageConfig); renderDeadlineChip(); return; }
       } catch (e) {}
       messageConfig = JSON.parse(JSON.stringify(DEFAULT_MSG_CONFIG));
       renderDeadlineChip();

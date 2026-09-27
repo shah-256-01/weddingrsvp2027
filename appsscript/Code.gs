@@ -357,11 +357,33 @@ function _parseReservedNames(v) {
   return out.slice(0, 30);
 }
 
-// Canonicalise any `{id}_names` keys present on a guest payload IN PLACE:
-// pipe-join the cleaned list and force `{id}_guests` to its length. Returns
-// true if any event carries reserved names (so callers know to make sure the
-// sheet has the columns).
+// ── Canonical relationship values ────────────────────────
+// Hand-typed sheet cells mix straight (') and curly (’) apostrophes, and
+// "Groom's Family" ≠ "Groom’s Family" to every === in the app — a guest
+// silently vanished from the "Sending as" queue. Everything is stored in
+// the curly form used by the sheet's data-validation dropdown.
+const CANON_RELATIONSHIPS = [
+  'Bride’s Family', 'Groom’s Family', 'Bride’s Friend', 'Groom’s Friend',
+];
+function _relKey(s) {
+  return String(s == null ? '' : s).toLowerCase()
+    .replace(/[‘’'`´]/g, '').replace(/\s+/g, ' ').trim();
+}
+const _REL_CANON = {};
+CANON_RELATIONSHIPS.forEach(function(r) { _REL_CANON[_relKey(r)] = r; });
+function _canonRel(v) {
+  const s = String(v == null ? '' : v).trim();
+  return _REL_CANON[_relKey(s)] || s;
+}
+
+// Canonicalise a guest payload IN PLACE before any write:
+//   - relationship → canonical curly-apostrophe form
+//   - `{id}_names` → cleaned, pipe-joined, and `{id}_guests` forced to its length
+// Returns true if any event carries reserved names (so callers know to make
+// sure the sheet has the columns). Called by addGuest, updateGuest and
+// bulkAddGuests.
 function _normaliseReservedPayload(obj) {
+  if (obj.relationship !== undefined) obj.relationship = _canonRel(obj.relationship);
   let any = false;
   EVENT_IDS.forEach(function(id) {
     const key = id + '_names';
@@ -371,6 +393,57 @@ function _normaliseReservedPayload(obj) {
     if (names.length) { obj[id + '_guests'] = names.length; any = true; }
   });
   return any;
+}
+
+// Append one header column if it's missing. Returns { headers, idx }.
+// Caller holds the script lock.
+function _ensureGuestColumn(sheet, headers, name) {
+  let idx = headers.indexOf(name);
+  if (idx > -1) return { headers: headers, idx: idx };
+  sheet.getRange(1, headers.length + 1).setValue(name);
+  return { headers: headers.concat([name]), idx: headers.length };
+}
+
+// One-click repair for a sheet that's been built or edited by hand.
+// Run from the Apps Script editor (function dropdown → repairGuestSheet → Run).
+//   1. Adds every template column that's missing (invite_sent_at, *_table,
+//      *_names, status, …) as empty headers at the end. Never removes or
+//      reorders anything, never touches existing values.
+//   2. Rewrites the relationship column to the canonical curly-apostrophe
+//      form so filters and "Sending as" match every row.
+// Safe to re-run.
+function repairGuestSheet() {
+  const sheet = getSheet(TABS.guests);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const missing = guestHeaders().filter(function(h) { return headers.indexOf(h) === -1; });
+    if (missing.length) {
+      sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+      headers = headers.concat(missing);
+    }
+    let fixed = 0;
+    const relIdx = headers.indexOf('relationship');
+    const lastRow = sheet.getLastRow();
+    if (relIdx > -1 && lastRow >= 2) {
+      const rng = sheet.getRange(2, relIdx + 1, lastRow - 1, 1);
+      const vals = rng.getValues();
+      vals.forEach(function(r) {
+        const c = _canonRel(r[0]);
+        if (c !== String(r[0])) { r[0] = c; fixed++; }
+      });
+      if (fixed) rng.setValues(vals);
+    }
+    bumpAdminCacheVersion();
+    const msg = 'repairGuestSheet: added ' + missing.length + ' column(s)' +
+      (missing.length ? ' [' + missing.join(', ') + ']' : '') +
+      '; normalised ' + fixed + ' relationship value(s).';
+    Logger.log(msg);
+    return msg;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Append any missing `{id}_names` header columns. Returns the (possibly
@@ -1346,7 +1419,7 @@ function bulkUpdate(payload) {
       const range = sheet.getRange(2, ci + 1, lastRow - 1, 1);
       const cur = range.getValues();
       const patched = cur.slice();
-      const val = sanitizeForSheet(fields[k]);
+      const val = sanitizeForSheet(k === 'relationship' ? _canonRel(fields[k]) : fields[k]);
       Object.keys(resolved.rows).forEach(function(id) {
         const rowNum = resolved.rows[id];
         patched[rowNum - 2] = [val];
@@ -1365,8 +1438,8 @@ function bulkMarkInviteSent(payload) {
   lock.waitLock(30000);
   try {
     const resolved = _bulkResolveRows(sheet, payload && payload.ids);
-    const sentIdx = resolved.headers.indexOf('invite_sent_at');
-    if (sentIdx === -1) throw new Error('invite_sent_at column missing on Guests sheet');
+    // Hand-built sheets may not have this column yet — add it rather than fail.
+    const sentIdx = _ensureGuestColumn(sheet, resolved.headers, 'invite_sent_at').idx;
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return { updated: 0, missing: resolved.missing };
     const range = sheet.getRange(2, sentIdx + 1, lastRow - 1, 1);
@@ -1460,8 +1533,10 @@ function markInviteSent(guestId, clear) {
   lock.waitLock(10000);
   try {
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const sentCol = headers.indexOf('invite_sent_at');
-    if (sentCol < 0) throw new Error('invite_sent_at column missing — run rebuildSheetToTemplate()');
+    // Hand-built sheets may not have this column yet. Previously this threw,
+    // and the admin's Send flow swallowed the error — so every WhatsApp send
+    // silently failed to mark the guest as sent. Add the column instead.
+    const sentCol = _ensureGuestColumn(sheet, headers, 'invite_sent_at').idx;
     const rowNum = findRowById(sheet, guestId);
     if (rowNum === -1) throw new Error('Guest not found: ' + guestId);
     const ts = clear ? '' : new Date().toISOString();
