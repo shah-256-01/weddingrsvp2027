@@ -100,7 +100,7 @@ function doPost(e) {
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
       'generateCode', 'markInviteSent', 'updateRSVP', 'getBootstrap',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
-      'deleteRSVPSubmission',
+      'deleteRSVPSubmission', 'resetGuestRSVP',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     isAdminAction = pinActions.indexOf(action) > -1;
@@ -178,6 +178,7 @@ function doPost(e) {
     else if (action === 'bulkUpdate')       result = bulkUpdate(payload);
     else if (action === 'bulkMarkInviteSent') result = bulkMarkInviteSent(payload);
     else if (action === 'deleteRSVPSubmission') result = deleteRSVPSubmission(payload);
+    else if (action === 'resetGuestRSVP')   result = resetGuestRSVP(payload);
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'validate') {
       const rateKey = 'validate_' + String(payload.code || '').toUpperCase().trim();
@@ -218,7 +219,7 @@ function doPost(e) {
       'bulkAddGuests', 'updateSeating', 'updateContact',
       'submitRSVP', 'updateRSVP',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
-      'deleteRSVPSubmission',
+      'deleteRSVPSubmission', 'resetGuestRSVP',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
       try { bumpAdminCacheVersion(); } catch (e) { /* best-effort */ }
@@ -1130,30 +1131,55 @@ function deleteGuest(payload) {
 
 // Marks all RSVP rows for a single guest's code as DELETED. Since invitation
 // codes are unique per guest, this only ever touches that one guest's rows.
+// Marks every active RSVP row for a code as DELETED in both RSVP tabs.
+// Reads just the code + status columns and writes the status column back in
+// one setValues per tab (was one setValue per matching row). Returns the
+// number of rows changed so callers can tell "nothing to reset" apart from
+// success. Used by deleteGuest and resetGuestRSVP.
 function markRSVPRowsDeleted(invitationCode) {
   const normCode = String(invitationCode).toUpperCase().trim();
+  let changed = 0;
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(tabName => {
       try {
         const sheet = getSheet(tabName);
-        if (sheet.getLastRow() < 2) return;
+        const lastRow = sheet.getLastRow();
+        if (lastRow < 2) return;
         const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
         const statusIdx = headers.indexOf('status');
         const codeIdx   = headers.indexOf('invitation_code');
         if (statusIdx === -1 || codeIdx === -1) return;
-        const data = sheet.getDataRange().getValues();
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][codeIdx]).toUpperCase().trim() === normCode) {
-            sheet.getRange(i + 1, statusIdx + 1).setValue('DELETED');
-          }
+        const codes = sheet.getRange(2, codeIdx + 1, lastRow - 1, 1).getValues();
+        const statusRng = sheet.getRange(2, statusIdx + 1, lastRow - 1, 1);
+        const status = statusRng.getValues();
+        let touched = false;
+        for (let i = 0; i < codes.length; i++) {
+          if (String(codes[i][0]).toUpperCase().trim() !== normCode) continue;
+          if (String(status[i][0] || '').toUpperCase() === 'DELETED') continue;
+          status[i][0] = 'DELETED';
+          touched = true;
+          changed++;
         }
-      } catch (e) { /* tab may not exist yet */ }
+        if (touched) statusRng.setValues(status);
+      } catch (e) { Logger.log('markRSVPRowsDeleted ' + tabName + ': ' + e.message); }
     });
   } finally {
     lock.releaseLock();
   }
+  return changed;
+}
+
+// Admin: clear a guest's RSVP so they can respond again. Soft — rows are
+// marked DELETED (kept for the record), exactly as deleting a guest does.
+// The guest's row, code and invite_sent_at are untouched, so they drop back
+// to "Awaiting RSVP" and can sign in and resubmit.
+function resetGuestRSVP(payload) {
+  const code = String((payload && payload.code) || '').toUpperCase().trim();
+  if (!code) throw new Error('Invitation code required.');
+  const rows = markRSVPRowsDeleted(code);
+  return { reset: rows > 0, rows: rows, code: code };
 }
 
 // ── restoreGuest ─────────────────────────────────────────

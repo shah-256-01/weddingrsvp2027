@@ -886,6 +886,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <li><strong>Delete a guest</strong> &mdash; tap <kbd>&#10005; Delete</kbd>. There's no confirm box because you get <kbd>Undo</kbd> for 8 seconds, and they can always be restored from the <em>Deleted</em> section at the bottom of the list.</li>
           <li><strong>Change lots of guests at once</strong> &mdash; tick the boxes on the left of the rows (or the top box for the whole page). A gold bar appears with: mark invite sent, set relationship, tag overseas, delete selected.</li>
           <li><strong>A guest RSVP'd wrong and asked you to fix it</strong> &mdash; RSVPs tab, find their submission, open it and edit. Guests can't change their own answer once sent; they contact you.</li>
+          <li><strong>A guest wants to start their RSVP again</strong> (or you're clearing a test) &mdash; Guests tab, tap <kbd>&#128065; View</kbd> on their row, then <kbd>&#8634; Reset RSVP</kbd>. Their answers are cleared and they go back to <em>Awaiting RSVP</em>, so they can sign in and respond again. Their invite and code stay the same.</li>
           <li><strong>A guest says their code doesn't work</strong> &mdash; check the name on their row matches what they're typing. They must type the name exactly as it appears on the invite (spaces and capitals don't matter, but "Paul &amp; Mehreen" won't match "Paul").</li>
           <li><strong>Can't find someone</strong> &mdash; check the filters at the top of the Guests tab; tap <kbd>Clear filters</kbd>.</li>
         </ul>
@@ -3080,6 +3081,10 @@ function openViewGuest(id) {
       '<div class="view-guest-status view-guest-status--rsvp">' +
         '<span class="view-guest-status__dot" style="background:var(--green);"></span>' +
         '<div class="view-guest-status__body"><div class="view-guest-status__label">RSVP submitted</div>' + detail + '</div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;margin-top:.6rem;">' +
+        '<button class="btn btn-danger-ghost btn-sm" onclick="resetGuestRSVP(\'' + escapeAttr(g.id) + '\', this)" ' +
+          'title="Clear their response so they can RSVP again">&#8634; Reset RSVP</button>' +
       '</div>';
   } else if (sanitiseValue(g.invite_sent_at)) {
     statusHtml =
@@ -3104,6 +3109,37 @@ function openViewGuest(id) {
   document.getElementById('view-modal-title').textContent = rawFullName;
   document.getElementById('view-modal-body').innerHTML = html;
   document.getElementById('view-modal-overlay').classList.remove('hidden');
+}
+
+// Clear a guest's RSVP so they can respond again (they asked to change it,
+// or it was a test). Rows are soft-deleted server-side, same as deleting a
+// guest does, so nothing is lost from the sheet. Confirm first: unlike most
+// actions this has no Undo — the guest would have to resubmit.
+function resetGuestRSVP(guestId, btn) {
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  if (!g) return;
+  var name = ((g.first_name || '') + ' ' + (g.last_name || '')).trim() || 'this guest';
+  if (!confirm('Reset the RSVP for ' + name + '?\n\nTheir current answers are cleared and they go back to "Awaiting RSVP". They can then sign in and respond again.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Resetting…'; }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var code = String(g.invitation_code || '').toUpperCase().trim();
+      // Reflect it immediately; loadGuests below refetches the truth.
+      allSubmittedCodes = new Set(Array.from(allSubmittedCodes).filter(function(c) {
+        return String(c).toUpperCase().trim() !== code;
+      }));
+      var ov = document.getElementById('view-modal-overlay');
+      if (ov) ov.classList.add('hidden');
+      showToast(res && res.reset
+        ? 'RSVP reset for ' + name + '. They can respond again.'
+        : name + ' had no active RSVP to reset.', res && res.reset ? 'success' : 'info');
+      loadGuests();
+    })
+    .withFailureHandler(function(err) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '&#8634; Reset RSVP'; }
+      showToast('Reset failed: ' + ((err && err.message) || 'Unknown error'), 'error');
+    })
+    .resetGuestRSVP({ code: g.invitation_code });
 }
 
 // Holds the RSVP currently open in the edit modal so saveRSVPEdits can read
