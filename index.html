@@ -173,7 +173,18 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
    — attend/decline + guest counter are always visible below. */
 .event-card--with-image .event-card-header{flex-direction:column;align-items:stretch;gap:0;padding:0;cursor:default;}
 .event-card--with-image .event-card-header{border-bottom-color:transparent;}
-.event-card-image{display:block;width:100%;height:auto;background:var(--blush);}
+/* The artwork is a short cropped strip; tapping it opens the full invite in
+   the lightbox. INVITE_IMAGE_FOCUS picks which part of the art shows. */
+.invite-thumb{position:relative;display:block;width:100%;padding:0;margin:0;border:0;background:var(--blush);cursor:zoom-in;overflow:hidden;-webkit-tap-highlight-color:transparent;}
+.invite-thumb img{display:block;width:100%;height:170px;object-fit:cover;object-position:center 20%;transition:transform .4s ease;}
+.invite-thumb:hover img{transform:scale(1.03);}
+.invite-thumb:focus-visible{outline:2px solid var(--gold);outline-offset:-2px;}
+.invite-thumb-hint{position:absolute;right:.5rem;bottom:.5rem;padding:.2rem .55rem;background:rgba(255,255,255,.88);color:var(--wine);font-family:var(--sans);font-size:.72rem;letter-spacing:.02em;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.12);pointer-events:none;}
+@media (min-width:600px){.invite-thumb img{height:220px;}}
+.invite-lightbox{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:3.2rem 12px 12px;background:rgba(20,10,14,.92);opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s;}
+.invite-lightbox.open{opacity:1;visibility:visible;}
+.invite-lightbox img{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 10px 40px rgba(0,0,0,.5);}
+.invite-lightbox-close{position:absolute;top:.6rem;right:.6rem;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;font-size:1.6rem;line-height:1;cursor:pointer;}
 .event-card--with-image .event-card-footer{display:flex;align-items:center;gap:1rem;padding:1rem 1.4rem;background:var(--cream);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
 .event-card--with-image .event-card-footer .event-card-meta{flex:1;min-width:0;}
 .event-card--with-image .event-card-body{max-height:none;}
@@ -240,7 +251,6 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .invite-card:hover{transform:translateY(-1px);box-shadow:0 12px 36px -18px rgba(107,39,55,.22);}
 /* Image-backed invite card: the custom invitation artwork fills the card */
 .invite-card--image{padding:0;overflow:hidden;}
-.invite-card-image{display:block;width:100%;height:auto;background:var(--blush);}
 .invite-card-confirm{display:flex;align-items:center;gap:.7rem;padding:1rem 1.2rem;background:var(--cream);border-top:1px solid var(--rule);font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui);letter-spacing:.18em;text-transform:uppercase;color:var(--green);flex-wrap:wrap;}
 .invite-card-confirm .invite-card-footer-check{margin-right:.15rem;}
 .invite-card-confirm-names{color:var(--muted);font-family:var(--sans);letter-spacing:0;font-size:var(--ui-sm);text-transform:none;}
@@ -750,6 +760,62 @@ const INVITE_IMAGES = {
   We: 'invitations/wedding-day.jpg',
   BT: 'invitations/black-tie.jpg',
 };
+
+// Which part of each artwork shows in the short strip on the card
+// (CSS object-position: 'center top', 'center 60%', …). Unlisted events
+// use 'center 20%'. The full image is always one tap away.
+const INVITE_IMAGE_FOCUS = {
+  BT: 'center 32%',
+};
+
+function inviteThumbHtml(eventId, src, alt) {
+  var focus = INVITE_IMAGE_FOCUS[eventId];
+  return '<button type="button" class="invite-thumb" data-full="' + escapeAttr(src) + '" data-alt="' + escapeAttr(alt) +
+      '" aria-label="' + escapeAttr('View full ' + alt.charAt(0).toLowerCase() + alt.slice(1)) + '">' +
+    '<img src="' + escapeAttr(src) + '" alt="' + escapeAttr(alt) + '" loading="lazy"' +
+      (focus ? ' style="object-position:' + escapeAttr(focus) + '"' : '') + '/>' +
+    '<span class="invite-thumb-hint" aria-hidden="true">⤢ Tap to view</span>' +
+  '</button>';
+}
+
+// One shared full-screen viewer, built on first use. Tap anywhere, the ×,
+// or Escape closes it. Pinch-zoom works natively on phones.
+var _lightboxReturnFocus = null;
+function openInviteLightbox(src, alt) {
+  var box = document.getElementById('invite-lightbox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'invite-lightbox';
+    box.className = 'invite-lightbox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.innerHTML = '<button type="button" class="invite-lightbox-close" aria-label="Close">×</button><img alt=""/>';
+    box.addEventListener('click', closeInviteLightbox);
+    document.body.appendChild(box);
+  }
+  var img = box.querySelector('img');
+  img.src = src;
+  img.alt = alt || '';
+  box.setAttribute('aria-label', alt || 'Invitation');
+  _lightboxReturnFocus = document.activeElement;
+  box.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  box.querySelector('.invite-lightbox-close').focus();
+}
+function closeInviteLightbox() {
+  var box = document.getElementById('invite-lightbox');
+  if (!box || !box.classList.contains('open')) return;
+  box.classList.remove('open');
+  document.body.style.overflow = '';
+  if (_lightboxReturnFocus && _lightboxReturnFocus.focus) _lightboxReturnFocus.focus();
+}
+document.addEventListener('click', function(e) {
+  var t = e.target.closest && e.target.closest('.invite-thumb');
+  if (t) openInviteLightbox(t.getAttribute('data-full'), t.getAttribute('data-alt'));
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeInviteLightbox();
+});
 
 // Non-event "opening" image displayed once at the top of the RSVP section.
 // Side-specific — nothing is shown if we can't resolve a side.
@@ -1423,7 +1489,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
       if (imagePath) {
         var alt = 'Invitation to ' + (evt.name || ev.name || 'event');
         return '<article class="invite-card invite-card--image" data-fallback="' + escapeAttr(textCard) + '">' +
-            '<img class="invite-card-image" src="' + escapeAttr(imagePath) + '" alt="' + escapeAttr(alt) + '" loading="lazy"/>' +
+            inviteThumbHtml(ev.id, imagePath, alt) +
             '<div class="invite-card-confirm">' + confirmBadge + namesBlock + '</div>' +
           '</article>';
       }
@@ -1482,7 +1548,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
 
   // Graceful image fallback: if the custom invitation image can't load,
   // replace the image-backed card with its text-based equivalent.
-  screen.querySelectorAll('.invite-card--image img').forEach(function(img) {
+  screen.querySelectorAll('.invite-card--image .invite-thumb img').forEach(function(img) {
     img.addEventListener('error', function() {
       var card = img.closest('.invite-card');
       if (!card) return;
@@ -1538,10 +1604,11 @@ function renderEventCards() {
     let header;
     if (hasImage) {
       const alt = 'Invitation to ' + (evt.name || 'event');
-      // Image fills the card top; a slim footer bar carries name/date/badge.
-      // No chevron — the attend controls below are always visible.
+      // A short strip of the artwork (tap for the full invite); a slim footer
+      // bar carries name/date/badge. No chevron — the attend controls below
+      // are always visible.
       header = '<div class="event-card-header">' +
-        '<img class="event-card-image" src="' + escapeAttr(imagePath) + '" alt="' + escapeAttr(alt) + '" loading="lazy"/>' +
+        inviteThumbHtml(evt.id, imagePath, alt) +
         '<div class="event-card-footer">' +
           '<div class="event-card-meta">' +
             '<div class="event-name">' + escapeHtml(evt.name) + '</div>' +
@@ -1619,10 +1686,10 @@ function renderEventCards() {
     // If the invitation image fails to load (file missing / 404), drop the
     // image variant gracefully so the card still shows a usable header.
     if (hasImage) {
-      const img = el.querySelector('.event-card-image');
+      const img = el.querySelector('.invite-thumb img');
       if (img) {
         img.addEventListener('error', () => {
-          img.remove();
+          img.closest('.invite-thumb').remove();
           el.classList.remove('event-card--with-image');
           // Prepend a Roman-numeral index to the now-bare footer so it reads like the text card.
           const footer = el.querySelector('.event-card-footer');
