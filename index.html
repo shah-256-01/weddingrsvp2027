@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="app-build" content="20261003154533"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1275,6 +1276,48 @@ function showEventLoadError(message) {
   if (msgEl && message) msgEl.textContent = message;
 }
 
+// ── Always serve the latest version ──────────────────────
+// Phones keep a saved copy of this page for a while after an update. Each
+// page carries a build number (<meta name="app-build">, stamped on every
+// commit); here we fetch the live page bypassing any saved copy and, if its
+// build is newer, move to it (a "?v=<build>" address is always fetched
+// fresh). At most one automatic reload per build per tab, so it can never
+// loop.
+function _fetchLiveBuild() {
+  return fetch(location.pathname + '?build-check=' + Date.now(), { cache: 'no-store', credentials: 'omit' })
+    .then(function(r) { return r.ok ? r.text() : ''; })
+    .then(function(html) {
+      var m = /<meta name="app-build" content="20261003154533"]+)"/.exec(html || '');
+      return m ? m[1] : '';
+    })
+    .catch(function() { return ''; });
+}
+function _myBuild() {
+  var el = document.querySelector('meta[name="app-build"]');
+  return el ? el.getAttribute('content') : '';
+}
+function _goToBuild(build) {
+  try {
+    if (sessionStorage.getItem('wa:reloadedFor') === build) return false;
+    sessionStorage.setItem('wa:reloadedFor', build);
+  } catch (e) { return false; }
+  location.replace(location.pathname + '?v=' + encodeURIComponent(build) + location.hash);
+  return true;
+}
+function checkForNewVersion() {
+  var mine = _myBuild();
+  if (!mine || mine === '0') return;
+  _fetchLiveBuild().then(function(live) {
+    if (!live || live === mine) return;
+    // Only before sign-in, so nobody loses answers they've started.
+    if (!currentGuest) _goToBuild(live);
+  });
+}
+document.addEventListener('DOMContentLoaded', checkForNewVersion);
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && !currentGuest) checkForNewVersion();
+});
+
 document.addEventListener('DOMContentLoaded', init);
 
 // Offline banner — hide/show the fixed red bar in step with connectivity.
@@ -2161,6 +2204,9 @@ function goToStep(n) {
   renderStepHead();
   renderSummary();
   updateRsvpBar();
+  // Wake the server (it sleeps after a few idle minutes) while the guest
+  // checks their answers, so "Send my reply" answers quickly.
+  if (isReview) { try { fetchEvents().catch(function() {}); } catch (e) {} }
   var target = isReview ? document.getElementById('rsvp-summary') : evSec;
   if (target) target.scrollIntoView({ block: 'start' });
 }

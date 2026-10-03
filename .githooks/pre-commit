@@ -1,0 +1,12 @@
+#!/bin/sh
+# Stamp a fresh build number into any page being committed, so the page's
+# "is there a newer version?" check (see checkForNewVersion) can tell old
+# copies saved on phones from the latest one. Enable once per clone with:
+#   git config core.hooksPath .githooks
+BUILD=$(date -u +%Y%m%d%H%M%S)
+for f in index.html admin.html; do
+  if git diff --cached --name-only | grep -qx "$f"; then
+    sed -i "s/<meta name=\"app-build\" content=\"[^\"]*\"/<meta name=\"app-build\" content=\"$BUILD\"/" "$f"
+    git add "$f"
+  fi
+done

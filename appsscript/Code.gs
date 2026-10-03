@@ -267,10 +267,22 @@ function jsonResponse(obj) {
 }
 
 // ── Sheet helpers ─────────────────────────────────────────
+// SpreadsheetApp.openById is one of the slowest calls in Apps Script
+// (often 0.5–1.5 s). It used to run on every getSheet() — 4–5 times per RSVP
+// submit, 2–3 per sign-in. Open the spreadsheet once per request and reuse
+// it and its tabs (each doPost/doGet is a fresh execution, so nothing goes
+// stale between requests).
+let _ssCache = null;
+const _sheetCache = {};
+function _spreadsheet() {
+  if (!_ssCache) _ssCache = SpreadsheetApp.openById(SHEET_ID);
+  return _ssCache;
+}
 function getSheet(name) {
-  const ss    = SpreadsheetApp.openById(SHEET_ID);
-  const sheet = ss.getSheetByName(name);
+  if (_sheetCache[name]) return _sheetCache[name];
+  const sheet = _spreadsheet().getSheetByName(name);
   if (!sheet) throw new Error('Tab not found: ' + name);
+  _sheetCache[name] = sheet;
   return sheet;
 }
 
@@ -2504,7 +2516,7 @@ function resetForLaunch() {
       'CONFIRM_RESET with the value YES (Project Settings → Script Properties), then run resetForLaunch again.');
   }
   props.deleteProperty('CONFIRM_RESET');
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = _spreadsheet();
   const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
   const backup = ss.copy(ss.getName() + ' — backup before reset ' + stamp);
   const lock = LockService.getScriptLock();
@@ -2835,7 +2847,7 @@ function checkPin(pin) {
 // ── setupSheet ────────────────────────────────────────────
 // Run once from Apps Script editor to initialise all tabs
 function setupSheet() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = _spreadsheet();
 
   // Events — only seed if empty (never overwrite existing event data)
   let evSheet = ss.getSheetByName(TABS.events);
@@ -2910,7 +2922,7 @@ function setupSheet() {
 // code expects (first_name, invitation_code, Lg_guests, etc.). The
 // "clear labelling" lives in the per-cell notes and in the dropdowns.
 function rebuildSheetToTemplate() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = _spreadsheet();
   const log = [];
 
   _templateRebuildEventsTab(ss, log);
@@ -3397,7 +3409,7 @@ function migrateEventIdsToV5() {
 // Safe to run multiple times — only adds missing columns, never overwrites.
 // Run once from Apps Script editor, then you can delete this function.
 function migrateToV2() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = _spreadsheet();
   const log = [];
 
   function ensureColumns(sheet, requiredHeaders, defaults) {
@@ -3450,7 +3462,7 @@ function migrateToV2() {
 // Merges adults/children columns into single guests columns.
 // Safe to run multiple times — only adds missing columns, never overwrites.
 function migrateToV3() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = _spreadsheet();
   const log = [];
 
   function getHeaders(sheet) {
