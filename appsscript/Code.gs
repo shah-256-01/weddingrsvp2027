@@ -611,23 +611,37 @@ function _ensureLuncheonEvent() {
   return true;
 }
 
-// ── Per-side event details ───────────────────────────────
+// ── Event details (from the printed invitations) ─────────
 // Lagnotri and Mandvo are held separately by each side, at different times
-// and venues. The Events tab can carry optional columns time_brides,
+// and venues. The Events tab carries optional columns time_brides,
 // venue_brides, time_grooms, venue_grooms (date_brides / date_grooms work
 // too); the guest page shows each guest their side's values, falling back
 // to the shared time/venue when blank.
-// Run once from the Apps Script editor: adds the columns and fills Lagnotri
-// and Mandvo from the printed invitations — only into EMPTY cells, so it
-// never overwrites anything you've typed. Safe to re-run.
+//
+// setupEventDetails() — run once from the Apps Script editor:
+//   - adds the four per-side columns
+//   - fills date / time / venue (and the per-side columns) for every event
+//     from the invitations, but ONLY where the cell is empty or "TBC", so it
+//     never overwrites anything you've typed
+//   - sets Black Tie as the seated event (seating = TRUE)
+// Text is stored as plain text so Sheets doesn't reformat "10:00 AM" or
+// "Saturday 26 December 2026". Safe to re-run.
 const SIDE_EVENT_COLUMNS = ['time_brides', 'venue_brides', 'time_grooms', 'venue_grooms'];
-const SIDE_EVENT_DEFAULTS = {
-  Lg: { time_brides: '10:00 AM', venue_brides: 'Our residence, 22 Nile Road, Riverside Estate, Thika',
+const EVENT_DETAIL_DEFAULTS = {
+  Lg: { date: 'Saturday 26 December 2026', time: 'See invitation', venue: 'Thika / Nairobi',
+        time_brides: '10:00 AM', venue_brides: 'Our residence, 22 Nile Road, Riverside Estate, Thika',
         time_grooms: '11:30 AM', venue_grooms: 'Glam Hotel, Nairobi' },
-  Ma: { time_brides: '10:30 AM', venue_brides: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika',
+  MS: { date: 'Saturday 26 December 2026', time: '4:00 PM', venue: 'Thika Gymkhana' },
+  Ma: { date: 'Sunday 27 December 2026', time: 'See invitation', venue: 'Thika / Nairobi',
+        time_brides: '10:30 AM', venue_brides: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika',
         time_grooms: '10:00 AM', venue_grooms: 'Oshwal Centre, Nairobi' },
+  Lu: { date: 'Sunday 27 December 2026', time: 'After the Mandvo', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika' },
+  MG: { date: 'Sunday 27 December 2026', time: '6:45 PM', venue: 'Oshwal Centre, Ring Road, Westlands, Nairobi' },
+  We: { date: 'Monday 28 December 2026', time: '8:30 AM', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika' },
+  BT: { date: 'Tuesday 29 December 2026', time: '6:30 PM', venue: 'Sarit Centre, Expo Hall, Nairobi', seating: 'TRUE' },
 };
-function setupSideEventDetails() {
+const _TEXT_EVENT_COLUMNS = ['date', 'time', 'venue'].concat(SIDE_EVENT_COLUMNS);
+function setupEventDetails() {
   const sheet = getSheet(TABS.events);
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -643,35 +657,46 @@ function setupSideEventDetails() {
     const lastRow = sheet.getLastRow();
     let filled = 0;
     if (idI > -1 && lastRow >= 2) {
-      // Read the whole table, but write back ONLY the four new columns, one
-      // column at a time — rewriting other columns trips any data-validation
-      // rules on them (e.g. a TRUE/FALSE dropdown on `seating`).
-      const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
-      SIDE_EVENT_COLUMNS.forEach(function(h) {
+      const n = lastRow - 1;
+      const data = sheet.getRange(2, 1, n, headers.length).getValues();
+      // Write column by column, touching only the columns we fill — writing
+      // the whole table trips data-validation rules on other columns.
+      _TEXT_EVENT_COLUMNS.concat(['seating']).forEach(function(h) {
         const c = headers.indexOf(h);
-        // These are free-text columns. Older layouts of the Events tab left
-        // TRUE/FALSE dropdowns on the columns they now occupy (column I), so
-        // clear any validation on them first.
-        sheet.getRange(2, c + 1, Math.max(sheet.getMaxRows() - 1, 1), 1).clearDataValidations();
+        if (c < 0) return;
         let changed = false;
         const col = data.map(function(row) {
-          const defs = SIDE_EVENT_DEFAULTS[String(row[idI]).trim()];
+          const defs = EVENT_DETAIL_DEFAULTS[String(row[idI]).trim()] || {};
           const cur = row[c];
-          if (defs && defs[h] && String(cur == null ? '' : cur).trim() === '') { changed = true; filled++; return [defs[h]]; }
-          return [cur];
+          const curS = String(cur == null ? '' : cur).trim();
+          if (!defs[h]) return [cur];
+          const replace = h === 'seating' ? curS.toUpperCase() !== defs[h] : (curS === '' || curS.toUpperCase() === 'TBC');
+          if (!replace) return [cur];
+          changed = true; filled++;
+          return [defs[h]];
         });
-        if (changed) sheet.getRange(2, c + 1, col.length, 1).setValues(col);
+        if (!changed) return;
+        const rng = sheet.getRange(2, c + 1, n, 1);
+        if (_TEXT_EVENT_COLUMNS.indexOf(h) > -1) {
+          // Free-text columns: drop leftover TRUE/FALSE dropdowns from older
+          // layouts, and store as plain text so Sheets keeps it as typed.
+          sheet.getRange(2, c + 1, Math.max(sheet.getMaxRows() - 1, 1), 1).clearDataValidations();
+          rng.setNumberFormat('@');
+        }
+        rng.setValues(col);
       });
     }
     bumpAdminCacheVersion();
-    const msg = 'setupSideEventDetails: added ' + added.length + ' column(s)' +
-      (added.length ? ' [' + added.join(', ') + ']' : '') + '; filled ' + filled + ' empty cell(s) for Lagnotri/Mandvo.';
+    const msg = 'setupEventDetails: added ' + added.length + ' column(s)' +
+      (added.length ? ' [' + added.join(', ') + ']' : '') + '; filled ' + filled + ' cell(s).';
     Logger.log(msg);
     return msg;
   } finally {
     lock.releaseLock();
   }
 }
+// Old name, kept so the earlier instructions still work.
+function setupSideEventDetails() { return setupEventDetails(); }
 
 // Canonicalise the whole Guests sheet (or just `onlyIds`). Writes back only
 // the columns that can change (events, *_guests, legacy *_names), one
