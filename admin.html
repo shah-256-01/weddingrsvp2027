@@ -1969,6 +1969,8 @@ function loadGuests() {
     allSubmittedCodes  = new Set(data.submittedCodes || []);
     setDuplicates(data.duplicates);
     allDeletedGuests   = _canonGuests(data.deletedGuests);
+    _applyPendingMarks();
+    _scheduleMarkFlush(1000);
     refreshStats();
     renderGuestView();
     _refreshMessagesIfOpen();
@@ -1981,6 +1983,8 @@ function loadGuests() {
       gasAsync('getDuplicates').then(function(d) { setDuplicates(d); }).catch(function() {}),
       gasAsync('getDeletedGuests').then(function(d) { allDeletedGuests = _canonGuests(d); }).catch(function() {})
     ]).then(function() {
+      _applyPendingMarks();
+      _scheduleMarkFlush(1000);
       refreshStats();
       renderGuestView();
       _refreshMessagesIfOpen();
@@ -4472,10 +4476,7 @@ function openEmail(guestId, section, bodyOverride) {
   if (section === 'invite') {
     g.invite_sent_at = new Date().toISOString();
     _rememberLastSent(guestId);
-    google.script.run
-      .withSuccessHandler(function(res) { if (res && res.invite_sent_at) g.invite_sent_at = res.invite_sent_at; })
-      .withFailureHandler(function(err) { console.warn('markInviteSent failed:', err && err.message); })
-      .markInviteSent({ guestId: guestId });
+    queueInviteMark(guestId, false);   // the mail app suspends the page too
   }
 }
 
@@ -4675,6 +4676,87 @@ function formatSentAt(iso) {
   if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
+
+/* ══════════════════════════════════════════════
+   "Invite sent" saves that survive switching to WhatsApp
+   Tapping Open WhatsApp suspends this page on phones. A save fired at that
+   moment reaches Apps Script (so the invite IS marked) but the reply hop
+   expires while the page is paused and comes back as HTTP 404 — which used
+   to flip the guest back to "not sent". Now the screen updates at once,
+   the save is queued in localStorage, sent once the page is visible again,
+   and retried until it succeeds. markInviteSent is idempotent, so a retry
+   after a "failed" request that actually landed is harmless.
+══════════════════════════════════════════════ */
+var _PENDING_MARKS_KEY = 'wa:pendingMarks';
+function _readPendingMarks() {
+  try { return JSON.parse(localStorage.getItem(_PENDING_MARKS_KEY) || '[]') || []; } catch (e) { return []; }
+}
+function _writePendingMarks(list) {
+  try { localStorage.setItem(_PENDING_MARKS_KEY, JSON.stringify(list)); } catch (e) {}
+}
+// clear=false marks sent, clear=true marks not sent. A newer action for the
+// same guest replaces any older queued one.
+function queueInviteMark(id, clear) {
+  var list = _readPendingMarks().filter(function(x) { return x.id !== id; });
+  list.push({ id: id, clear: !!clear, tries: 0 });
+  _writePendingMarks(list);
+  _scheduleMarkFlush(1200);
+}
+// Re-apply queued actions on top of freshly loaded guests so a refresh
+// before the save lands doesn't show stale state.
+function _applyPendingMarks() {
+  _readPendingMarks().forEach(function(m) {
+    var g = allGuests.find(function(x) { return x.id === m.id; });
+    if (!g) return;
+    if (m.clear) g.invite_sent_at = '';
+    else if (!sanitiseValue(g.invite_sent_at)) g.invite_sent_at = new Date().toISOString();
+  });
+}
+var _markFlushTimer = null, _markFlushing = false;
+function _scheduleMarkFlush(ms) {
+  clearTimeout(_markFlushTimer);
+  _markFlushTimer = setTimeout(_flushInviteMarks, ms);
+}
+function _flushInviteMarks() {
+  if (_markFlushing) return;
+  if (document.visibilityState === 'hidden') return;   // wait until we're back from WhatsApp
+  if (!sessionStorage.getItem(ADMIN_PIN_KEY) && !_rememberedPin()) return;
+  var m = _readPendingMarks()[0];
+  if (!m) return;
+  _markFlushing = true;
+  var same = function(x) { return x.id === m.id && x.clear === m.clear; };
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _markFlushing = false;
+      _writePendingMarks(_readPendingMarks().filter(function(x) { return !same(x); }));
+      var g = allGuests.find(function(x) { return x.id === m.id; });
+      var stillQueued = _readPendingMarks().some(function(x) { return x.id === m.id; });
+      if (g && !m.clear && !stillQueued && res && res.invite_sent_at) g.invite_sent_at = res.invite_sent_at;
+      _flushInviteMarks();
+    })
+    .withFailureHandler(function(err) {
+      _markFlushing = false;
+      if (/not found/i.test(String(err && err.message))) {   // guest deleted meanwhile — nothing to save
+        _writePendingMarks(_readPendingMarks().filter(function(x) { return !same(x); }));
+        _flushInviteMarks();
+        return;
+      }
+      var tries = 0;
+      var list = _readPendingMarks();
+      list.forEach(function(x) { if (same(x)) { x.tries = (x.tries || 0) + 1; tries = x.tries; } });
+      _writePendingMarks(list);
+      if (tries === 4) {
+        var g = allGuests.find(function(x) { return x.id === m.id; });
+        showToast('Still saving “' + (m.clear ? 'not sent' : 'sent') + '” for ' + (g ? _msgxName(g) : 'a guest') + ' — it will keep retrying. Check your connection.', 'info', 5000);
+      }
+      _scheduleMarkFlush(Math.min(30000, 2000 * Math.pow(2, Math.min(tries, 4))));
+    })
+    .markInviteSent({ guestId: m.id, clear: m.clear });
+}
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') _scheduleMarkFlush(800);
+});
+window.addEventListener('online', function() { _scheduleMarkFlush(500); });
 
 /* ══════════════════════════════════════════════
    MESSAGES — guided flow (groups → list → one guest)
@@ -5155,24 +5237,17 @@ function msgxDraft(id, v) {
 function msgxToggleEdit() { _msgx.editing = !_msgx.editing; _msgxRenderSend(); }
 
 // The WhatsApp link opens on its own (it's a real link — reliable on
-// phones). This marks the invite as sent straight away; "Mark as not sent"
-// undoes it if WhatsApp didn't go through.
+// phones). This marks the invite as sent on screen straight away and queues
+// the save for when the page is back (see queueInviteMark). "Mark as not
+// sent" undoes it if WhatsApp didn't go through.
 function msgxSent() {
   var g = _msgxFind(_msgx.current);
   if (!g) return;
   var id = g.id;
   if (msgMode === 'invite') {
-    var prev = g.invite_sent_at || '';
     g.invite_sent_at = new Date().toISOString();
     _rememberLastSent(id);
-    google.script.run
-      .withSuccessHandler(function(res) { if (res && res.invite_sent_at) g.invite_sent_at = res.invite_sent_at; })
-      .withFailureHandler(function(err) {
-        g.invite_sent_at = prev;
-        showToast('Couldn’t mark ' + _msgxName(g) + ' as sent: ' + (err && err.message) + '. Check your connection.', 'error');
-        if (_msgx.step === 'send' && _msgx.current === id) { _msgx.sent = false; _msgxRenderSend(); }
-      })
-      .markInviteSent({ guestId: id });
+    queueInviteMark(id, false);
   }
   // Let the browser follow the link first, then swap the screen.
   setTimeout(function() {
@@ -5186,21 +5261,14 @@ function msgxSent() {
 function msgxUndoSent() {
   var g = _msgxFind(_msgx.current);
   if (!g) return;
-  var prev = g.invite_sent_at || '';
   g.invite_sent_at = '';
   var v = _readSentToday();
   v.ids = v.ids.filter(function(x) { return x !== g.id; });
   _writeSentToday(v);
   _msgx.sent = false;
   _msgxRenderSend();
-  google.script.run
-    .withSuccessHandler(function() { showToast(_msgxName(g) + ' is back in the queue.', 'info', 2200); })
-    .withFailureHandler(function(err) {
-      g.invite_sent_at = prev;
-      showToast('Couldn’t undo: ' + (err && err.message), 'error');
-      if (_msgx.current === g.id) _msgxRenderSend();
-    })
-    .markInviteSent({ guestId: g.id, clear: true });
+  queueInviteMark(g.id, true);
+  showToast(_msgxName(g) + ' is back in the queue.', 'info', 2200);
 }
 
 function msgxNext() {
