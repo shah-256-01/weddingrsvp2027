@@ -161,6 +161,17 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 /* Non-interactive "from the bride's side / groom's side" opener image
    shown above the RSVP list. Hidden when we can't resolve a side. */
 .welcome-image{margin:0 auto 2rem;max-width:520px;border:1px solid var(--rule);background:#fff;overflow:hidden;}
+/* Front page: the bride's-side or groom's-side welcome artwork, shown full
+   size after sign-in (and contact details) and before the event list. */
+.front-screen{max-width:560px;margin:0 auto;padding:1.4rem 16px 1.5rem;text-align:center;}
+/* While the front page is up it IS the page: only the top bar shows. */
+#page-guest.front-mode .guest-hero,
+#page-guest.front-mode .welcome-banner,
+#page-guest.front-mode .countdown-strip,
+#page-guest.front-mode .guest-subnav{display:none!important;}
+.front-figure{margin:0 0 1.2rem;border:1px solid var(--rule);background:var(--blush);box-shadow:0 14px 40px -20px rgba(107,39,55,.35);min-height:200px;}
+.front-figure img{display:block;width:100%;height:auto;}
+.front-continue{display:flex;align-items:center;justify-content:center;text-align:center;margin:0 auto;position:sticky;bottom:calc(12px + env(safe-area-inset-bottom));width:100%;max-width:420px;min-height:56px;box-shadow:0 6px 20px rgba(107,39,55,.25);}
 .welcome-image img{display:block;width:100%;height:auto;background:var(--blush);}
 .section-tag{font-family:var(--label);font-weight:500;font-variant-caps:all-small-caps;font-feature-settings:"smcp","c2sc";font-size:var(--ui-sm);letter-spacing:.35em;color:var(--gold);text-transform:uppercase;display:block;margin-bottom:.45rem;}
 .section-title{font-family:var(--serif);font-size:var(--display-md);font-weight:300;font-style:italic;color:var(--wine);}
@@ -592,6 +603,10 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         </p>
       </div>
     </div>
+  </div>
+  <div id="front-screen" class="front-screen hidden">
+    <figure class="front-figure"><img id="front-img" alt=""/></figure>
+    <button type="button" class="btn btn-primary front-continue" id="front-continue" onclick="continueFromFront()">View my invitation</button>
   </div>
   <div class="events-section" id="events-section">
     <figure class="welcome-image hidden" id="welcome-image">
@@ -1381,13 +1396,50 @@ function loadGuestPage() {
     return;
   }
 
-  // ── All good — show RSVP flow ────────────────────────
-  showRSVPFlow();
+  // ── All good — front page, then the RSVP flow ────────
+  showFrontPage();
   startCountdown();
+}
+
+// Front page: the side-specific welcome image (WELCOME_IMAGES) with a
+// "View my invitation" button. Skipped straight to the event list when the
+// guest's side is unknown or the image isn't uploaded / fails to load.
+function showFrontPage() {
+  var side = getGuestSide(currentGuest && currentGuest.relationship);
+  var src = side ? WELCOME_IMAGES[side] : '';
+  var screen = document.getElementById('front-screen');
+  var img = document.getElementById('front-img');
+  if (!src || !screen || !img) { showRSVPFlow(); return; }
+  hideRSVPFlow();
+  img.removeAttribute('data-retried');
+  img.alt = 'Welcome from the ' + (side === 'brides' ? 'Bride' : 'Groom') + '’s side';
+  img.onerror = function() {
+    if (_retryImageOnce(img)) return;
+    if (!screen.classList.contains('hidden')) continueFromFront();   // no art yet → straight on
+  };
+  img.src = _imgUrl(src);
+  screen.classList.remove('hidden');
+  var page = document.getElementById('page-guest');
+  if (page) page.classList.add('front-mode');
+  window.scrollTo(0, 0);
+  if (page) page.scrollTop = 0;
+}
+function continueFromFront() {
+  var screen = document.getElementById('front-screen');
+  if (screen) screen.classList.add('hidden');
+  var page = document.getElementById('page-guest');
+  if (page) page.classList.remove('front-mode');
+  showRSVPFlow();
+  var ev = document.getElementById('events-section');
+  if (ev) ev.scrollIntoView({ block: 'start' });
 }
 
 function showRSVPFlow() {
   document.getElementById('contact-screen').classList.add('hidden');
+  var front = document.getElementById('front-screen');
+  if (front) front.classList.add('hidden');
+  var pg = document.getElementById('page-guest');
+  if (pg) pg.classList.remove('front-mode');
 
   // Filter out event IDs that don't exist in EVENTS array. Log dropped IDs
   // so the next time we hit a sheet/code event-ID mismatch (e.g. legacy
@@ -1533,7 +1585,7 @@ async function submitContactDetails() {
   currentGuest.whatsapp       = whatsapp;
   currentGuest._pendingContact = true;
   document.getElementById('contact-screen').classList.add('hidden');
-  showRSVPFlow();
+  showFrontPage();
 }
 
 function showAlreadySubmittedScreen(existingRSVP) {
@@ -1677,7 +1729,13 @@ var ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 
 // Show the side-specific opening image above the RSVP list. Hidden if we
 // can't resolve a side (missing/typo in relationship) or the image fails to load.
+// The welcome art now has its own front page (showFrontPage), so it's no
+// longer repeated above the event list.
 function renderWelcomeImage() {
+  var wrap = document.getElementById('welcome-image');
+  if (wrap) wrap.classList.add('hidden');
+}
+function _unusedOldRenderWelcomeImage() {
   var wrap = document.getElementById('welcome-image');
   var img = document.getElementById('welcome-image-img');
   if (!wrap || !img) return;
@@ -2034,7 +2092,7 @@ var _submitInView = false;
 function _rsvpFlowActive() {
   var ev = document.getElementById('events-section');
   var ok = ev && !ev.classList.contains('hidden') && currentEventIds.length > 0;
-  ['success-screen', 'already-submitted-screen', 'contact-screen'].forEach(function(sid) {
+  ['success-screen', 'already-submitted-screen', 'contact-screen', 'front-screen'].forEach(function(sid) {
     var el = document.getElementById(sid);
     if (el && !el.classList.contains('hidden')) ok = false;
   });
