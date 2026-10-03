@@ -1063,6 +1063,22 @@ let currentCode = '', currentEventIds = [], eventRSVPs = {};
 /* ══════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════ */
+// Built-in copy of the Events tab, used only until the server answers (or
+// if it can't be reached). The live Events tab always wins once it loads,
+// so editing the sheet is enough — but update this too if dates or venues
+// change, so a guest on a bad connection never sees stale details.
+var FALLBACK_EVENTS = [
+  { id: 'Lg', name: 'Lagnotri', date: 'Saturday 26 December 2026', time: 'See invitation', venue: 'Thika / Nairobi', icon: '🪔', active: 'TRUE', seating: 'FALSE',
+    time_brides: '10:00 AM', venue_brides: 'Our residence, 22 Nile Road, Riverside Estate, Thika', time_grooms: '11:30 AM', venue_grooms: 'Glam Hotel, Nairobi' },
+  { id: 'MS', name: 'Mehendi & Sangeet', date: 'Saturday 26 December 2026', time: '4:00 PM', venue: 'Thika Gymkhana', icon: '🌿', active: 'TRUE', seating: 'FALSE' },
+  { id: 'Ma', name: 'Mandvo', date: 'Sunday 27 December 2026', time: 'See invitation', venue: 'Thika / Nairobi', icon: '🎶', active: 'TRUE', seating: 'FALSE',
+    time_brides: '10:30 AM', venue_brides: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika', time_grooms: '10:00 AM', venue_grooms: 'Oshwal Centre, Nairobi' },
+  { id: 'Lu', name: 'Luncheon', date: 'Sunday 27 December 2026', time: 'After the Mandvo', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika', icon: '🍽️', active: 'TRUE', seating: 'FALSE' },
+  { id: 'MG', name: 'Meet & Greet', date: 'Sunday 27 December 2026', time: '6:45 PM', venue: 'Oshwal Centre, Ring Road, Westlands, Nairobi', icon: '🥂', active: 'TRUE', seating: 'FALSE' },
+  { id: 'We', name: 'Wedding', date: 'Monday 28 December 2026', time: '8:30 AM', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika', icon: '💍', active: 'TRUE', seating: 'FALSE' },
+  { id: 'BT', name: 'Black Tie', date: 'Tuesday 29 December 2026', time: '6:30 PM', venue: 'Sarit Centre, Expo Hall, Nairobi', icon: '🎩', active: 'TRUE', seating: 'TRUE' },
+];
+
 // The background refresh of event details started at page load (when saved
 // details were used to open fast). Sign-in waits briefly for it so a guest
 // doesn't see stale dates/times.
@@ -1089,40 +1105,22 @@ async function init() {
   // previous submit attempt but never confirmed.
   checkForPendingBackups();
 
-  // Stale-while-revalidate: if we've loaded events before, use them
-  // immediately so the code entry is usable, then refresh in the
-  // background. First-time visitors see the spinner as before.
+  // Never block the landing page on the server. Open straight away with
+  // the details saved on this phone, or else the built-in copy below, and
+  // refresh from the server in the background. Sign-in waits briefly for
+  // that refresh (see submitEntry) so guests still see current details.
   var cached = loadCachedEvents();
-  if (cached) {
-    EVENTS = cached;
-    hideLoadingSpinner();
-    _eventsRefresh = fetchEvents()
-      .then(function(fresh) {
-        if (Array.isArray(fresh) && fresh.length) {
-          EVENTS = fresh;
-          saveCachedEvents(fresh);
-          refreshEventDetailsOnPage();   // in case the guest is already in
-        }
-      })
-      .catch(function(err) { console.warn('Background events refresh failed:', err); });
-    return;
-  }
-
-  showLoadingSpinner();
-  try {
-    EVENTS = await fetchEvents();
-    if (!EVENTS || EVENTS.length === 0) {
-      hideLoadingSpinner();
-      showEventLoadError('Events are not yet configured. Please contact the wedding team.');
-      return;
-    }
-    saveCachedEvents(EVENTS);
-    hideLoadingSpinner();
-  } catch (err) {
-    hideLoadingSpinner();
-    console.error('Event load failed:', err);
-    showEventLoadError('Unable to load event data (' + (err.message || 'unknown') + '). Please refresh the page.');
-  }
+  EVENTS = cached || FALLBACK_EVENTS.slice();
+  hideLoadingSpinner();
+  _eventsRefresh = fetchEvents()
+    .then(function(fresh) {
+      if (Array.isArray(fresh) && fresh.length) {
+        EVENTS = fresh;
+        saveCachedEvents(fresh);
+        refreshEventDetailsOnPage();   // in case the guest is already in
+      }
+    })
+    .catch(function(err) { console.warn('Background events refresh failed:', err); });
 }
 
 // ── Pending RSVP retry ─────────────────────────
