@@ -460,9 +460,16 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   <div class="admin-login">
     <div class="admin-login-card">
       <div class="admin-login-title">Admin Access</div>
-      <input class="admin-login-input" id="pin-input" type="password" placeholder="Enter PIN" onkeydown="if(event.key==='Enter')submitPin()"/>
-      <span class="admin-login-err" id="pin-error"></span>
-      <button class="btn btn-primary" style="width:100%;" onclick="submitPin()">Enter</button>
+      <div id="login-checking" class="hidden" style="color:rgba(255,255,255,.75);font-size:.9rem;padding:1rem 0;text-align:center;">Signing you in&hellip;</div>
+      <div id="login-form">
+        <input class="admin-login-input" id="pin-input" type="password" placeholder="Enter PIN" onkeydown="if(event.key==='Enter')submitPin()"/>
+        <span class="admin-login-err" id="pin-error"></span>
+        <label style="display:flex;align-items:center;gap:.5rem;justify-content:center;color:rgba(255,255,255,.75);font-size:.8rem;margin:-.2rem 0 .8rem;cursor:pointer;">
+          <input type="checkbox" id="remember-me" checked style="width:18px;height:18px;accent-color:var(--gold);"/>
+          Keep me signed in on this phone
+        </label>
+        <button class="btn btn-primary" style="width:100%;" onclick="submitPin()">Enter</button>
+      </div>
     </div>
   </div>
 </div>
@@ -843,7 +850,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div class="help-body">
         <ul>
           <li>Everyone uses the <strong>same admin PIN</strong>. Don't paste it into group chats — send it to each person directly.</li>
-          <li>On a shared or family phone, tap <kbd>Logout</kbd> when you're done. The session also ends by itself after 30 minutes of no activity.</li>
+          <li>On your own phone, leave <em>Keep me signed in on this phone</em> ticked when you enter the PIN &mdash; you won&rsquo;t be asked again for 14 days, even after a refresh.</li>
+          <li>On a shared or family phone, untick it, and tap <kbd>Logout</kbd> when you're done. Without it ticked, the session ends by itself after 30 minutes of no activity.</li>
           <li>Each person's filters and view are remembered <em>on that phone/tab only</em>. Two people on different phones never see each other's filters.</li>
         </ul>
       </div>
@@ -1066,10 +1074,30 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 ══════════════════════════════════════════════ */
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2K9wdBFRYbkyELWEVuhBvUrZCIrOyzuXTNbjd7rMOJN9a0PojQo1MUEbjNek1wo7Shg/exec';
 var ADMIN_PIN_KEY = 'adminAuth';
+// "Keep me signed in on this phone": the PIN is kept in localStorage for
+// 14 days so a refresh — or iPhone Safari dropping the tab while you're in
+// WhatsApp — doesn't ask again. Logout clears it.
+var REMEMBER_KEY = 'wa:rememberAuth';
+var REMEMBER_DAYS = 14;
+function _rememberedPin() {
+  try {
+    var v = JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null');
+    if (v && v.pin && v.exp > Date.now()) return String(v.pin);
+    if (v) localStorage.removeItem(REMEMBER_KEY);
+  } catch (e) {}
+  return '';
+}
+function _rememberPin(pin) {
+  try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ pin: pin, exp: Date.now() + REMEMBER_DAYS * 864e5 })); } catch (e) {}
+}
+function _forgetPin() {
+  try { sessionStorage.removeItem(ADMIN_PIN_KEY); localStorage.removeItem(REMEMBER_KEY); } catch (e) {}
+}
+function _isRemembered() { return !!_rememberedPin(); }
 
 (function installBackendShim() {
   function getPin() {
-    try { return sessionStorage.getItem(ADMIN_PIN_KEY) || ''; } catch (e) { return ''; }
+    try { return sessionStorage.getItem(ADMIN_PIN_KEY) || _rememberedPin() || ''; } catch (e) { return ''; }
   }
 
   // 30s abort: without it a hung Apps Script request left "Saving…" latched
@@ -1489,6 +1517,8 @@ function checkLogin() {
     .withSuccessHandler(function(ok) {
       if (ok) {
         try { sessionStorage.setItem(ADMIN_PIN_KEY, pin); } catch (e) {}
+        var rem = document.getElementById('remember-me');
+        if (rem && rem.checked) _rememberPin(pin); else { try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {} }
         loadDashboard();
       } else {
         document.getElementById('pin-error').textContent = 'Incorrect PIN. Please try again.';
@@ -1501,15 +1531,43 @@ function checkLogin() {
 }
 
 // Auto-login on page load — verify stored PIN with server before showing dashboard
+// Shows "Signing you in…" instead of the PIN box while that check runs. The
+// stored PIN is only discarded when the server says it's wrong (e.g. it was
+// rotated) — a slow or failed connection retries, then falls back to the
+// PIN box with the PIN pre-filled so one tap on Enter gets you in.
 (function() {
-  try {
-    var storedPin = sessionStorage.getItem(ADMIN_PIN_KEY);
-    if (!storedPin) return;
+  var storedPin = '';
+  try { storedPin = sessionStorage.getItem(ADMIN_PIN_KEY) || _rememberedPin(); } catch (e) {}
+  if (!storedPin) return;
+  var checking = document.getElementById('login-checking');
+  var form = document.getElementById('login-form');
+  function showForm(msg) {
+    if (checking) checking.classList.add('hidden');
+    if (form) form.classList.remove('hidden');
+    document.getElementById('pin-error').textContent = msg || '';
+  }
+  if (checking) checking.classList.remove('hidden');
+  if (form) form.classList.add('hidden');
+  var attempt = function(n) {
     google.script.run
-      .withSuccessHandler(function(ok) { if (ok) loadDashboard(); else sessionStorage.removeItem(ADMIN_PIN_KEY); })
-      .withFailureHandler(function() { sessionStorage.removeItem(ADMIN_PIN_KEY); })
+      .withSuccessHandler(function(ok) {
+        if (ok) {
+          try { sessionStorage.setItem(ADMIN_PIN_KEY, storedPin); } catch (e) {}
+          showForm('');
+          loadDashboard();
+        } else {
+          _forgetPin();
+          showForm('The PIN has changed — please enter the new one.');
+        }
+      })
+      .withFailureHandler(function() {
+        if (n < 2) { setTimeout(function() { attempt(n + 1); }, 1500); return; }
+        document.getElementById('pin-input').value = storedPin;
+        showForm('Couldn’t reach the server. Check your connection and tap Enter.');
+      })
       .checkPin(storedPin);
-  } catch (e) {}
+  };
+  attempt(1);
 })();
 
 // ── Tab Switching ──────────────────────────
@@ -2514,7 +2572,7 @@ function clearAllFilters() {
 function adminLogout() {
   clearSessionTimers();
   hideSessionWarning();
-  sessionStorage.removeItem('adminAuth');
+  _forgetPin();
   document.getElementById('admin-dashboard').classList.add('hidden');
   document.getElementById('admin-login-screen').classList.remove('hidden');
   document.getElementById('pin-input').value = '';
@@ -2524,6 +2582,8 @@ function adminLogout() {
 // ── Session Timeout Management ────────────────
 function startSessionTimer() {
   clearSessionTimers();
+  // "Keep me signed in" devices skip the 30-minute idle logout.
+  if (_isRemembered()) return;
 
   warningTimer = setTimeout(function() {
     showSessionWarning();
