@@ -664,8 +664,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <div class="admin-card">
       <div class="admin-card-title">How it works</div>
       <div style="font-size:.78rem;color:var(--ink);line-height:1.7;">
-        <p style="margin-bottom:.6rem;"><strong>7 Events:</strong> Lg (Lagnotri), MS (Mehendi &amp; Sangeet), Ma (Mandvo), Lu (Luncheon), MG (Meet &amp; Greet), We (Wedding), BT (Black Tie).</p>
-        <p style="margin-bottom:.6rem;"><strong>Luncheon</strong> is for the bride&#8217;s side only. Any bride&#8217;s-side guest invited to the Mandvo is automatically invited to the Luncheon with the same seats and names. You can also invite bride&#8217;s-side guests to the Luncheon alone.</p>
+        <p style="margin-bottom:.6rem;"><strong>6 Events:</strong> Lg (Lagnotri), MS (Mehendi &amp; Sangeet), Ma (Mandvo), MG (Meet &amp; Greet), We (Wedding), BT (Black Tie).</p>
         <p style="margin-bottom:.6rem;"><strong>Invitation codes</strong> are unique 6-character codes generated automatically for each guest (never reuse or guess them).</p>
         <p style="margin-bottom:.6rem;"><strong>Seats per event</strong> are set on each guest &mdash; a guest can only RSVP up to their allocation.</p>
         <p>Full step-by-step workflows are on the <a href="#" onclick="switchTab('help', document.querySelector('.admin-tab[data-tab=help]')); return false;" style="color:var(--wine);font-weight:600;">&#128214; Help</a> tab &mdash; or tap <strong>Teach me</strong> at the top.</p>
@@ -1177,7 +1176,9 @@ var allEvents = [];
 // setAllEvents() is called.
 var eventsById = {};
 function setAllEvents(list) {
-  allEvents = Array.isArray(list) ? list : [];
+  // Only the events the site supports — a saved copy or an old Events row
+  // (e.g. the dropped Luncheon) must not reappear.
+  allEvents = (Array.isArray(list) ? list : []).filter(function(e) { return ALL_EVENT_IDS.indexOf(String(e && e.id).trim()) > -1; });
   eventsById = {};
   allEvents.forEach(function(e) { eventsById[e.id] = e; });
 }
@@ -1234,7 +1235,7 @@ function _canonGuests(list) {
 // `{id}_guests`, and `events` is derived from the cells — mirroring the
 // server's _eventAllocation. Older rows with a separate names column are
 // read the same way.
-var ALL_EVENT_IDS = ['Lg', 'MS', 'Ma', 'Lu', 'MG', 'We', 'BT'];
+var ALL_EVENT_IDS = ['Lg', 'MS', 'Ma', 'MG', 'We', 'BT'];
 function _canonAllocations(g) {
   var invited = [];
   ALL_EVENT_IDS.forEach(function(id) {
@@ -3017,8 +3018,7 @@ function saveGuest() {
               allGuests[i][k] = payload[k];
             }
             // The server derives fields on save (events from the seat
-            // cells; the Luncheon follows the Mandvo for bride's-side
-            // guests) — take its word, then fold names back into our shape.
+            // cells) — take its word, then fold names back into our shape.
             ['events'].concat(ALL_EVENT_IDS.map(function(id) { return id + '_guests'; })).forEach(function(f) {
               if (res && res[f] !== undefined) allGuests[i][f] = res[f];
             });
@@ -3533,7 +3533,6 @@ function downloadCSVTemplate() {
     { id: 'Lg', name: 'Lagnotri' },
     { id: 'MS', name: 'Mehendi & Sangeet' },
     { id: 'Ma', name: 'Mandvo' },
-    { id: 'Lu', name: 'Luncheon' },
     { id: 'MG', name: 'Meet & Greet' },
     { id: 'We', name: 'Wedding' },
     { id: 'BT', name: 'Black Tie' }
@@ -3662,7 +3661,6 @@ var _EVENT_HEADER_ALIASES = {
   Lg: ['lagnotri', 'lagan', 'lagna'],
   MS: ['mehendi', 'mendhi', 'mehndi', 'mehendisangeet', 'mendhisangeet', 'mehndisangeet', 'sangeet'],
   Ma: ['mandvo', 'mandva', 'mandap'],
-  Lu: ['luncheon', 'lunch'],
   MG: ['meetgreet', 'meetandgreet', 'meetngreet'],
   We: ['wedding', 'weddingday', 'weddingceremony'],
   BT: ['blacktie', 'blacktieevent', 'blacktieparty'],

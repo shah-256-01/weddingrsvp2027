@@ -93,7 +93,7 @@ function sanitiseValue(val) {
   return s;
 }
 
-const EVENT_IDS = ['Lg','MS','Ma','Lu','MG','We','BT'];
+const EVENT_IDS = ['Lg','MS','Ma','MG','We','BT'];
 
 function codeForIds(ids) {
   if (!ids || !ids.length) return '';

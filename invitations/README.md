@@ -15,7 +15,6 @@ you can add these one at a time — nothing breaks in the meantime.
 | **Lg**   | Lagnotri           | `lagnotri-brides.jpg` **and** `lagnotri-grooms.jpg` (one per side)       |
 | **MS**   | Mehendi & Sangeet  | `mehndi-sangeet.jpg`                                                     |
 | **Ma**   | Mandvo             | `mandvo-brides.jpg` **and** `mandvo-grooms.jpg` (one per side)           |
-| **Lu**   | Luncheon           | `luncheon.jpg` (bride's side only)                                       |
 | **MG**   | Meet & Greet       | `meet-greet.jpg`                                                         |
 | **We**   | Wedding            | `wedding-day.jpg` ✅ uploaded                                            |
 | **BT**   | Black Tie          | `black-tie.jpg` ✅ uploaded                                              |
