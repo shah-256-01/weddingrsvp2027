@@ -643,17 +643,21 @@ function setupSideEventDetails() {
     const lastRow = sheet.getLastRow();
     let filled = 0;
     if (idI > -1 && lastRow >= 2) {
-      const rng = sheet.getRange(2, 1, lastRow - 1, headers.length);
-      const data = rng.getValues();
-      data.forEach(function(row) {
-        const defs = SIDE_EVENT_DEFAULTS[String(row[idI]).trim()];
-        if (!defs) return;
-        SIDE_EVENT_COLUMNS.forEach(function(h) {
-          const c = headers.indexOf(h);
-          if (String(row[c] == null ? '' : row[c]).trim() === '' && defs[h]) { row[c] = defs[h]; filled++; }
+      // Read the whole table, but write back ONLY the four new columns, one
+      // column at a time — rewriting other columns trips any data-validation
+      // rules on them (e.g. a TRUE/FALSE dropdown on `seating`).
+      const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+      SIDE_EVENT_COLUMNS.forEach(function(h) {
+        const c = headers.indexOf(h);
+        let changed = false;
+        const col = data.map(function(row) {
+          const defs = SIDE_EVENT_DEFAULTS[String(row[idI]).trim()];
+          const cur = row[c];
+          if (defs && defs[h] && String(cur == null ? '' : cur).trim() === '') { changed = true; filled++; return [defs[h]]; }
+          return [cur];
         });
+        if (changed) sheet.getRange(2, c + 1, col.length, 1).setValues(col);
       });
-      if (filled) rng.setValues(data);
     }
     bumpAdminCacheVersion();
     const msg = 'setupSideEventDetails: added ' + added.length + ' column(s)' +
