@@ -976,7 +976,14 @@ function getEvents() {
     _eventsCache = [];
     return _eventsCache;
   }
-  const list = sheetToObjects(sheet)
+  // Display values, not raw values: Sheets turns typed "10:00 AM" or
+  // "26 December 2026" into date/time cells, which would reach the guest
+  // page as "1899-12-30T07:00:00.000Z". Guests should see exactly what the
+  // sheet shows.
+  const shown = sheet.getDataRange().getDisplayValues();
+  const hdr = shown[0];
+  const list = shown.slice(1)
+    .map(row => Object.fromEntries(hdr.map((h, i) => [h, row[i]])))
     .filter(r => String(r.active).toUpperCase() === 'TRUE')
     .sort((a, b) => EVENT_IDS.indexOf(String(a.id)) - EVENT_IDS.indexOf(String(b.id)));
   _eventsCache = list;
