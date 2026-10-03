@@ -2504,6 +2504,52 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
   }
 }
 
+// ── resetForLaunch ────────────────────────────────────────
+// Wipes test data so you start the real send from a blank slate.
+//   1. Saves a full copy of the spreadsheet to your Google Drive first
+//      ("… — backup before reset <date>"), so nothing is lost for good.
+//   2. Empties every data row in Guests, RSVPs_by_family and RSVPs_by_event
+//      (headers, formatting and dropdowns stay).
+//   3. Clears the pending RSVP-alert email queue.
+// Leaves alone: the Events tab, message templates, the admin PIN and all
+// other Script Properties.
+// Safety switch: it refuses to run unless the Script Property
+// CONFIRM_RESET is set to YES, and removes that property as it starts — so
+// picking it from the function dropdown by mistake does nothing.
+function resetForLaunch() {
+  const props = PropertiesService.getScriptProperties();
+  if (String(props.getProperty('CONFIRM_RESET') || '').trim().toUpperCase() !== 'YES') {
+    throw new Error('Safety check: nothing was changed. To reset, add a Script Property ' +
+      'CONFIRM_RESET with the value YES (Project Settings → Script Properties), then run resetForLaunch again.');
+  }
+  props.deleteProperty('CONFIRM_RESET');
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  const backup = ss.copy(ss.getName() + ' — backup before reset ' + stamp);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const counts = [];
+  try {
+    [TABS.guests, TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(function(name) {
+      const sh = ss.getSheetByName(name);
+      if (!sh) return;
+      const last = sh.getLastRow();
+      counts.push(name + ': ' + Math.max(0, last - 1) + ' row(s)');
+      if (last >= 2) sh.getRange(2, 1, last - 1, sh.getMaxColumns()).clearContent();
+    });
+    [NOTIFICATION_QUEUE_KEY, NOTIFICATION_INFLIGHT_KEY, NOTIFICATION_DEAD_KEY].forEach(function(k) {
+      props.deleteProperty(k);
+    });
+    bumpAdminCacheVersion();
+  } finally {
+    lock.releaseLock();
+  }
+  const msg = 'resetForLaunch: cleared ' + counts.join(', ') + ' and the email queue. ' +
+    'Backup saved to your Google Drive as "' + backup.getName() + '": ' + backup.getUrl();
+  Logger.log(msg);
+  return msg;
+}
+
 // ── cleanUpOldRSVPs ───────────────────────────────────────
 // Run once from the Apps Script editor. Marks as DELETED every reply in
 // RSVPs_by_family and RSVPs_by_event whose invitation code no longer
