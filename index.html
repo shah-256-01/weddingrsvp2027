@@ -820,7 +820,13 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2K9wdBFRYbkyELWEVu
 const WEDDING_DATETIME = '2026-12-28T19:30:00+03:00';
 const RSVP_DEADLINE_DATE = '2026-11-30';  // Display deadline (inclusive)
 const RSVP_DEADLINE_BLOCK = '2026-12-01T00:00:00+03:00'; // Block submissions from this date
-const CONTACT_INFO = 'couple@example.com'; // ← update with your contact email or phone
+// Shown when a guest needs to reach the couple (e.g. to change a sent
+// reply). Set to an email address or phone number; blank = "Jaini or
+// Shanay directly".
+const CONTACT_INFO = '';
+function contactHtml() {
+  return CONTACT_INFO ? '<strong style="color:var(--wine);">' + escapeHtml(CONTACT_INFO) + '</strong>' : 'Jaini or Shanay directly';
+}
 const WEDDING_VENUE = 'Aurora Bustani, Albizzia · Thika';
 
 // Map event IDs to their custom invitation image (optional). When present,
@@ -1757,7 +1763,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
       : '') +
     '<p style="font-size:var(--ui);color:var(--ink-soft);line-height:1.9;max-width:420px;margin:0 auto;">' +
       'Need to make changes? Please write to us at<br>' +
-      '<strong style="color:var(--wine);">' + escapeHtml(CONTACT_INFO) + '</strong>' +
+      contactHtml() +
     '</p>';
 
   // Graceful image fallback: if the custom invitation image can't load,
@@ -2531,7 +2537,7 @@ async function submitRSVP() {
   }
 
   var btn = document.getElementById('submit-btn');
-  btn.textContent = 'Submitting\u2026';
+  btn.textContent = 'Sending\u2026';
   btn.disabled    = true;
 
   var submitterName = [currentGuest.firstName, currentGuest.lastName].filter(Boolean).join(' ').trim()
@@ -2578,22 +2584,52 @@ async function submitRSVP() {
     // Not critical — submission still goes through, but no local backup exists
   }
 
-  // Submit to Apps Script. Success means the server confirmed the RSVP
-  // was written to the sheet, so we can skip the extra verify round-trips.
-  var verified = false;
-  try {
-    await postRSVP(payload);
-    verified = true;
-  } catch (err) {
-    // If the first attempt timed out client-side but the server still
-    // committed the row, the retry hits the dedup check and comes back as
-    // "already been received". That IS success — the RSVP is on record.
-    if (/already been received/i.test(err && err.message || '')) {
-      verified = true;
-    } else {
-      console.warn('RSVP post failed:', err);
+  // Send, and make sure we know whether it arrived. A slow server or a
+  // dropped connection used to show "could not confirm" for replies that
+  // WERE saved (the quick retry then hit the server's busy lock). Now: one
+  // patient attempt; if no confirmation comes back, ask the server whether
+  // the reply is on record (the same check sign-in uses) before trying
+  // again. The server rejects duplicates, so a resend can't double-count.
+  var verified = false, rejected = '';
+  var slowTimer = setTimeout(function() { btn.textContent = 'Still sending — please keep this page open…'; }, 8000);
+  var retryable = function(err) {
+    var m = String(err && err.message || '');
+    return !err || !err.serverError || /updating the guest list|busy|try again in a moment|could not verify/i.test(m);
+  };
+  var tryOnce = async function() {
+    try {
+      await postActionOnce('submitRSVP', payload, 35000);
+      return true;
+    } catch (err) {
+      if (/already been received/i.test(err && err.message || '')) return true;
+      if (!retryable(err)) { rejected = err.message || ''; return false; }
+      console.warn('RSVP send attempt failed:', err);
+      return false;
+    }
+  };
+  var isOnRecord = async function(waitMs) {
+    await new Promise(function(r) { setTimeout(r, waitMs); });
+    try {
+      var g = await postActionOnce('validate', {
+        code: currentCode, firstName: currentGuest.firstName || '', lastName: currentGuest.lastName || '',
+      }, 20000);
+      return !!(g && g.existingRSVP);
+    } catch (e) { return false; }
+  };
+  verified = await tryOnce();
+  if (!verified && !rejected) {
+    btn.textContent = 'Checking it arrived…';
+    verified = await isOnRecord(2500);
+    if (!verified) {
+      btn.textContent = 'Sending again…';
+      verified = await tryOnce();
+      if (!verified && !rejected) {
+        btn.textContent = 'Checking it arrived…';
+        verified = (await isOnRecord(3000)) || (await isOnRecord(8000));
+      }
     }
   }
+  clearTimeout(slowTimer);
 
   if (verified) {
     try {
@@ -2620,9 +2656,11 @@ async function submitRSVP() {
     btn.textContent = 'Send my reply';
     btn.disabled = false;
     var errEl = document.getElementById('submit-error');
-    errEl.innerHTML = '<strong style="color:var(--red);">We could not confirm your RSVP was received.</strong><br>' +
-      'Your response has been saved locally as a backup. Please try submitting again, or contact us at ' +
-      '<strong>' + escapeHtml(CONTACT_INFO) + '</strong>.';
+    errEl.innerHTML = rejected
+      ? '<strong style="color:var(--red);">' + escapeHtml(rejected) + '</strong>'
+      : '<strong style="color:var(--red);">We couldn’t reach the server just now.</strong><br>' +
+        'Your answers are still here — please check your connection and tap “Send my reply” again. ' +
+        'If it keeps happening, please message ' + contactHtml() + '.';
     errEl.classList.remove('hidden');
   }
 }

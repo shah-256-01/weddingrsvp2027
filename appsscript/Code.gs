@@ -2059,11 +2059,20 @@ const NOTIFICATION_INFLIGHT_KEY = 'RSVP_EMAIL_INFLIGHT';
 const NOTIFICATION_DEAD_KEY     = 'RSVP_EMAIL_DEAD';
 const NOTIFICATION_TRIGGER_HANDLER = 'processNotificationQueue';
 
+// Called on every RSVP submit; getProjectTriggers() is a slow round-trip,
+// so remember the answer (10 min if installed, 1 min if not, so installing
+// it takes effect quickly).
 function _notificationTriggerInstalled() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('notif_trigger_installed');
+  if (hit === '1') return true;
+  if (hit === '0') return false;
+  let installed = false;
   try {
-    const triggers = ScriptApp.getProjectTriggers();
-    return triggers.some(t => t.getHandlerFunction() === NOTIFICATION_TRIGGER_HANDLER);
-  } catch (e) { return false; }
+    installed = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === NOTIFICATION_TRIGGER_HANDLER);
+  } catch (e) { installed = false; }
+  try { cache.put('notif_trigger_installed', installed ? '1' : '0', installed ? 600 : 60); } catch (e) {}
+  return installed;
 }
 
 function _readJsonProp(props, key) {
