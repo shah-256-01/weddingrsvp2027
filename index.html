@@ -1363,9 +1363,9 @@ async function submitEntry() {
   var clearSlowHints = function() { clearTimeout(slowHint1); clearTimeout(slowHint2); };
   try {
     currentGuest    = await validateGuest(firstName, lastName, code);
-    if (_eventsRefresh) {
-      await Promise.race([_eventsRefresh, new Promise(function(r) { setTimeout(r, 4000); })]);
-    }
+    // No waiting on the event-details refresh: the saved/built-in copy is
+    // shown straight away and any late changes are patched in place
+    // (refreshEventDetailsOnPage).
     currentCode     = currentGuest.invitationCode;
     currentEventIds = [...(currentGuest.events || [])].sort((a, b) => {
       const ia = EVENTS.findIndex(e => e.id === a);

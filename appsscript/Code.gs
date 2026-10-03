@@ -1058,10 +1058,22 @@ function getExistingRSVP(code, familyName, strict) {
     const normCode = String(code || '').toUpperCase().trim();
     const normName = normaliseName(familyName);
 
-    const rows = sheetToObjects(sheet).filter(function(r) {
-      return String(r.status || '').toUpperCase() !== 'DELETED' &&
-             String(r.invitation_code || '').toUpperCase().trim() === normCode &&
-             normaliseName(r.submission_name) === normName;
+    // Runs on every guest sign-in, so don't read the whole wide tab: read
+    // just the code column, then only the (usually 0–1) matching rows.
+    const lastRow = sheet.getLastRow();
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const codeIdx = headers.indexOf('invitation_code');
+    if (codeIdx < 0) return null;
+    const codes = sheet.getRange(2, codeIdx + 1, lastRow - 1, 1).getValues();
+    const rows = [];
+    codes.forEach(function(c, i) {
+      if (String(c[0] || '').toUpperCase().trim() !== normCode) return;
+      const vals = sheet.getRange(i + 2, 1, 1, headers.length).getValues()[0];
+      const r = {};
+      headers.forEach(function(h, k) { r[h] = vals[k]; });
+      if (String(r.status || '').toUpperCase() === 'DELETED') return;
+      if (normaliseName(r.submission_name) !== normName) return;
+      rows.push(r);
     });
 
     if (!rows.length) return null;
@@ -1125,7 +1137,8 @@ function getGuestsCached() {
     // _rev is stamped before caching so it rides along in the chunked
     // payload and every consumer (bootstrap, validate, stats) sees it.
     return (sheet.getLastRow() < 1) ? [] : _withDerivedEvents(_withRevs(sheetToObjects(sheet)));
-  }, 30);
+  }, 300);   // 5 min: every admin/guest write bumps the version anyway; only
+             // hand edits in the sheet wait for this to expire
   return _guestsCache;
 }
 
