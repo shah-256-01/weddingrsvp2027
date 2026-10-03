@@ -836,6 +836,26 @@ function getGuestSide(relationship) {
   return null;
 }
 
+// Lagnotri and Mandvo run separately for each side. Optional Events-tab
+// columns date_brides / time_brides / venue_brides (and the _grooms
+// versions) override the shared date/time/venue for that side's guests.
+// Blank or missing columns fall back to the shared values.
+function eventFor(id) {
+  var evt = EVENTS.find(function(e) { return e.id === id; });
+  if (!evt) return evt;
+  var side = getGuestSide(currentGuest && currentGuest.relationship);
+  if (!side) return evt;
+  var out = null;
+  ['date', 'time', 'venue'].forEach(function(k) {
+    var v = evt[k + '_' + side];
+    if (v != null && String(v).trim() !== '') {
+      out = out || Object.assign({}, evt);
+      out[k] = String(v).trim();
+    }
+  });
+  return out || evt;
+}
+
 // Resolve an INVITE_IMAGES entry to a concrete image path for the current
 // guest. Accepts string entries (same for everyone) or {brides, grooms}.
 // If we can't determine a side, falls back to the brides variant so guests
@@ -1450,7 +1470,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
   var attendingCards = summary
     .filter(function(ev) { return ev.attending; })
     .map(function(ev) {
-      var evt = EVENTS.find(function(e) { return e.id === ev.id; }) || {};
+      var evt = eventFor(ev.id) || {};
       var guests = Number(ev.guests) || 0;
       var names = (ev.names || []).filter(Boolean).map(function(n) { return escapeHtml(n); }).join(', ');
       var numeral = ROMAN[attendingIndex] || String(attendingIndex + 1);
@@ -1586,7 +1606,7 @@ function renderEventCards() {
   const list = document.getElementById('events-list');
   list.innerHTML = '';
   currentEventIds.forEach((id, idx) => {
-    const evt = EVENTS.find(e => e.id === id);
+    const evt = eventFor(id);
     if (!evt) return;
     const safeId = escapeAttr(id);
     const numeral = ROMAN[idx] || String(idx + 1);
@@ -1907,7 +1927,7 @@ function makeICSBlob(evt) {
 }
 
 function downloadICS(evtId) {
-  var evt = EVENTS.find(function(e) { return e.id === evtId; });
+  var evt = eventFor(evtId);
   if (!evt) return;
   var blob = makeICSBlob(evt);
   if (!blob) { alert('Could not generate calendar file for this event.'); return; }
@@ -1928,14 +1948,14 @@ function showCalendarButtons() {
 
   var attendingEvents = currentEventIds
     .filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === true; })
-    .map(function(id)    { return EVENTS.find(function(e) { return e.id === id; }); })
+    .map(function(id)    { return eventFor(id); })
     .filter(function(evt) { return evt && evt.date && evt.date !== 'TBC'; });
 
   if (!attendingEvents.length) {
     // Check if there are TBC events the guest is attending
     var tbcEvents = currentEventIds
       .filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === true; })
-      .map(function(id) { return EVENTS.find(function(e) { return e.id === id; }); })
+      .map(function(id) { return eventFor(id); })
       .filter(function(evt) { return evt && evt.date === 'TBC'; });
     if (tbcEvents.length > 0) {
       container.innerHTML = '<p style="font-size:var(--ui);color:var(--muted);text-align:center;">Event dates are to be confirmed. Calendar links will be available once dates are finalised.</p>';
@@ -1971,7 +1991,7 @@ function renderSummary() {
   if (!rows) return;
   rows.innerHTML = '';
   currentEventIds.forEach(id => {
-    const evt = EVENTS.find(e => e.id === id);
+    const evt = eventFor(id);
     if (!evt) return;
     const r = eventRSVPs[id];
     const row = document.createElement('div'); row.className = 'summary-row';
@@ -2029,7 +2049,7 @@ async function submitRSVP() {
   });
   if (emptyReserved) {
     var errEl2 = document.getElementById('submit-error');
-    var evtR = EVENTS.find(function(e) { return e.id === emptyReserved; }) || {};
+    var evtR = eventFor(emptyReserved) || {};
     if (errEl2) {
       errEl2.textContent = 'Please tick who is attending ' + (evtR.name || 'this event') + ', or choose "Send regrets".';
       errEl2.classList.remove('hidden');
@@ -2055,7 +2075,7 @@ async function submitRSVP() {
     guestEmail:     currentGuest.email || '',
     events: currentEventIds.map(function(id) {
       var r   = eventRSVPs[id];
-      var evt = EVENTS.find(function(e) { return e.id === id; }) || {};
+      var evt = eventFor(id) || {};
       return {
         id: id, name: evt.name || id, attending: r.attending,
         guests:     r.attending ? r.guests : 0,

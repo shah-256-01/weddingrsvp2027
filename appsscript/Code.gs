@@ -611,6 +611,60 @@ function _ensureLuncheonEvent() {
   return true;
 }
 
+// ── Per-side event details ───────────────────────────────
+// Lagnotri and Mandvo are held separately by each side, at different times
+// and venues. The Events tab can carry optional columns time_brides,
+// venue_brides, time_grooms, venue_grooms (date_brides / date_grooms work
+// too); the guest page shows each guest their side's values, falling back
+// to the shared time/venue when blank.
+// Run once from the Apps Script editor: adds the columns and fills Lagnotri
+// and Mandvo from the printed invitations — only into EMPTY cells, so it
+// never overwrites anything you've typed. Safe to re-run.
+const SIDE_EVENT_COLUMNS = ['time_brides', 'venue_brides', 'time_grooms', 'venue_grooms'];
+const SIDE_EVENT_DEFAULTS = {
+  Lg: { time_brides: '10:00 AM', venue_brides: 'Our residence, 22 Nile Road, Riverside Estate, Thika',
+        time_grooms: '11:30 AM', venue_grooms: 'Glam Hotel, Nairobi' },
+  Ma: { time_brides: '10:30 AM', venue_brides: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika',
+        time_grooms: '10:00 AM', venue_grooms: 'Oshwal Centre, Nairobi' },
+};
+function setupSideEventDetails() {
+  const sheet = getSheet(TABS.events);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const added = [];
+    SIDE_EVENT_COLUMNS.forEach(function(h) {
+      const r = _ensureGuestColumn(sheet, headers, h);
+      if (r.headers.length !== headers.length) added.push(h);
+      headers = r.headers;
+    });
+    const idI = headers.indexOf('id');
+    const lastRow = sheet.getLastRow();
+    let filled = 0;
+    if (idI > -1 && lastRow >= 2) {
+      const rng = sheet.getRange(2, 1, lastRow - 1, headers.length);
+      const data = rng.getValues();
+      data.forEach(function(row) {
+        const defs = SIDE_EVENT_DEFAULTS[String(row[idI]).trim()];
+        if (!defs) return;
+        SIDE_EVENT_COLUMNS.forEach(function(h) {
+          const c = headers.indexOf(h);
+          if (String(row[c] == null ? '' : row[c]).trim() === '' && defs[h]) { row[c] = defs[h]; filled++; }
+        });
+      });
+      if (filled) rng.setValues(data);
+    }
+    bumpAdminCacheVersion();
+    const msg = 'setupSideEventDetails: added ' + added.length + ' column(s)' +
+      (added.length ? ' [' + added.join(', ') + ']' : '') + '; filled ' + filled + ' empty cell(s) for Lagnotri/Mandvo.';
+    Logger.log(msg);
+    return msg;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // Canonicalise the whole Guests sheet (or just `onlyIds`). Writes back only
 // the columns that can change (events, *_guests, legacy *_names), one
 // setValues each. Caller holds the script lock. Returns guests changed.
