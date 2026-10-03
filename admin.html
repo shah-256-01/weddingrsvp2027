@@ -814,8 +814,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
               <li><code>email</code> &mdash; optional but lets us send a confirmation.</li>
               <li><code>relationship</code> &mdash; one of: Bride's Family, Groom's Family, Bride's Friend, Groom's Friend. (Or leave it and use the dropdown in step 4.)</li>
               <li><code>is_overseas</code> &mdash; <code>TRUE</code> or <code>FALSE</code>.</li>
-              <li>One <code>&hellip; Guests</code> column per event &mdash; how many <em>seats</em> that invitation gets for that event. <code>0</code> or blank = not invited to that event.</li>
-              <li>Optional <code>&hellip; Names</code> column per event &mdash; for events where only <em>specific people</em> are invited (e.g. Black Tie: <code>Mike, Tinu, Krisha, Kashi, Krish</code>). The guest ticks who's coming from that list and can't add anyone else. The seat count becomes the number of names.</li>
+              <li>One <code>&hellip; Guests</code> column per event. Put either a <em>number</em> &mdash; how many seats; the family decides who comes, and the guest page says <em>&ldquo;Name and Family&rdquo;</em> when it&rsquo;s more than the people on the invite &mdash; or the <em>exact names</em>, comma-separated (e.g. Black Tie: <code>Mike, Tinu, Krisha</code>), when only those people are invited. The guest ticks who&rsquo;s coming from that list and can&rsquo;t add anyone else. <code>0</code> or blank = not invited to that event.</li>
+              <li><code>Black Tie Table</code> &mdash; optional table number. Only the Black Tie has a table plan.</li>
               <li><code>invitation_code</code> &mdash; <strong>leave blank.</strong> A unique code is created for each row automatically.</li>
             </ul>
           </li>
@@ -1164,25 +1164,31 @@ function _canonGuests(list) {
   });
   return list || [];
 }
-// Mirror of the server's _eventAllocation, for hand-edited sheet rows:
-// names typed into `{id}_guests` ("Rita") become reserved names, and an
-// event set to an explicit 0 is dropped from `events` (not invited). Saving
-// the guest from the admin then writes the cleaned values back.
+// Each event has one sheet cell per guest, `{id}_guests`: a seat count, or
+// the exact names invited ("Paul, Mehreen"). 0/blank = not invited. Inside
+// the admin we keep names in `{id}_names` (pipe-joined) and the count in
+// `{id}_guests`, and `events` is derived from the cells — mirroring the
+// server's _eventAllocation. Older rows with a separate names column are
+// read the same way.
+var ALL_EVENT_IDS = ['Lg', 'MS', 'Ma', 'Lu', 'MG', 'We', 'BT'];
 function _canonAllocations(g) {
-  var ids = String(g.events || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-  if (!ids.length) return;
-  var kept = ids.filter(function(id) {
+  var invited = [];
+  ALL_EVENT_IDS.forEach(function(id) {
     var raw = String(g[id + '_guests'] == null ? '' : g[id + '_guests']).trim();
-    var hasNames = String(g[id + '_names'] || '').trim() !== '';
-    if (!hasNames && raw !== '' && isNaN(Number(raw))) {
-      var names = _splitNames(raw);
+    var isNum = raw === '' || !isNaN(Number(raw));
+    var names = isNum ? [] : _splitNames(raw);
+    if (!names.length) names = _splitNames(g[id + '_names']);
+    if (names.length) {
       g[id + '_names'] = names.join('|');
       g[id + '_guests'] = String(names.length);
-      return names.length > 0;
+      invited.push(id);
+      return;
     }
-    return hasNames || raw === '' || Number(raw) > 0;
+    if (g[id + '_names']) g[id + '_names'] = '';
+    if (!isNum) g[id + '_guests'] = '0';
+    if (Number(raw) > 0) invited.push(id);
   });
-  if (kept.length !== ids.length) g.events = kept.join(',');
+  g.events = invited.join(',');
 }
 function _canonRelDefaults(cfg) {
   if (!cfg || !cfg.relationshipDefaults) return;
@@ -2280,7 +2286,8 @@ function selectEventFilter(eventId, keepPage) {
 
   var evtConfig = eventsById[eventId] || {};
   var evtStats = (_eventViewStats.perEvent || []).find(function(e) { return e.id === eventId; }) || {};
-  var seatingEnabled = String(evtConfig.seating || '').toUpperCase() === 'TRUE';
+  // Only the Black Tie has a table plan (single BT_table column in the sheet).
+  var seatingEnabled = eventId === 'BT';
 
   var invitedGuests = _eventViewGuests.filter(function(g) {
     return String(g.events || '').split(',').map(function(s) { return s.trim(); }).indexOf(eventId) > -1;
@@ -2901,11 +2908,13 @@ function saveGuest() {
               if (k === '_rev') continue;
               allGuests[i][k] = payload[k];
             }
-            // The server may have derived fields on save (the Luncheon
-            // follows the Mandvo for bride's-side guests) — take its word.
-            ['events', 'Lu_guests', 'Lu_names'].forEach(function(f) {
+            // The server derives fields on save (events from the seat
+            // cells; the Luncheon follows the Mandvo for bride's-side
+            // guests) — take its word, then fold names back into our shape.
+            ['events'].concat(ALL_EVENT_IDS.map(function(id) { return id + '_guests'; })).forEach(function(f) {
               if (res && res[f] !== undefined) allGuests[i][f] = res[f];
             });
+            _canonAllocations(allGuests[i]);
             if (newRev) allGuests[i]._rev = newRev;
             delete allGuests[i]._search;   // any patched field could affect the searchable string
             break;
@@ -2944,6 +2953,7 @@ function saveGuest() {
         // a full loadGuests round-trip. Refresh in the background so
         // derived data (duplicates, stats) catches up.
         if (newGuest && newGuest.id) {
+          _canonAllocations(newGuest);   // names come back in the seat cell
           allGuests.push(newGuest);
           _invalidateGuestIdx();
           try { renderGuestView(); refreshStats(); } catch (e) {}
@@ -3311,14 +3321,20 @@ function exportGuestListCSV() {
         'first_name','last_name','phone','email','relationship',
         'notes','is_overseas','events','invitation_code','status'
       ];
-      // Each event gets two CSV columns labelled by its full name, e.g.
-      // "Mandvo Guests" and "Mandvo Table". Internally the sheet still uses
-      // "{id}_guests" / "{id}_table" — we translate when writing the row.
+      // One "{Event} Guests" column per event (a seat count, or the reserved
+      // names), plus the Black Tie table. Re-uploadable as-is.
+      guests = _canonGuests(guests).map(function(g) {
+        var o = Object.assign({}, g);
+        ALL_EVENT_IDS.forEach(function(id) {
+          if (o[id + '_names']) o[id + '_guests'] = String(o[id + '_names']).split('|').join(', ');
+        });
+        return o;
+      });
       var eventColumns = [];
       allEvents.forEach(function(ev) {
         eventColumns.push({ header: ev.name + ' Guests', key: ev.id + '_guests' });
-        eventColumns.push({ header: ev.name + ' Table',  key: ev.id + '_table'  });
       });
+      eventColumns.push({ header: 'Black Tie Table', key: 'BT_table' });
       var headers = fixedHeaders.concat(eventColumns.map(function(c) { return c.header; }));
       var allKeys = fixedHeaders.concat(eventColumns.map(function(c) { return c.key; }));
       var rows = guests.map(function(g) {
@@ -3420,17 +3436,16 @@ function downloadCSVTemplate() {
     'first_name', 'last_name', 'phone', 'email', 'relationship',
     'is_overseas', 'notes', 'events', 'invitation_code',
   ];
+  // Each "{Event} Guests" cell is a seat count (the family decides who
+  // comes) or the exact names invited, comma-separated ("Priya, Raj").
+  // 0/blank = not invited. Only the Black Tie has a table column.
   var guestCols = events.map(function(ev) { return ev.name + ' Guests'; });
-  var tableCols = events.map(function(ev) { return ev.name + ' Table'; });
-  // Optional reserved names per event ("Mike, Tinu, Krisha"). When filled,
-  // they replace the Guests number for that event — only those people.
-  var namesCols = events.map(function(ev) { return ev.name + ' Names'; });
-  var headers = fixed.concat(guestCols).concat(namesCols).concat(tableCols);
+  var headers = fixed.concat(guestCols).concat(['Black Tie Table']);
 
-  // Example row: guest invited to Mehendi & Sangeet, Wedding, Black Tie.
-  // The events column is ignored on import (auto-derived from per-event
-  // Guests columns > 0) — we still include it for human readability.
-  var attending = { MS: 2, We: 2, BT: 2 };
+  // Example row: 2 seats at Mehendi & Sangeet and the Wedding, and the
+  // Black Tie reserved for two named people. The events column is ignored
+  // on import (derived from the Guests columns) — kept for readability.
+  var attending = { MS: 2, We: 2, BT: '"Priya, Raj"' };
   var fixedRow = [
     'Priya', 'Sharma', '+254700000000', 'priya@email.com',
     "Bride's Family", 'FALSE', 'Vegetarian',
@@ -3438,9 +3453,7 @@ function downloadCSVTemplate() {
     '',
   ];
   var guestRow = events.map(function(ev) { return String(attending[ev.id] || 0); });
-  var tableRow = events.map(function() { return ''; });
-  var namesRow = events.map(function() { return ''; });
-  var row = fixedRow.concat(guestRow).concat(namesRow).concat(tableRow);
+  var row = fixedRow.concat(guestRow).concat(['']);
 
   var csv  = [headers.join(','), row.join(',')].join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
@@ -3512,6 +3525,9 @@ function parseCSV(text) {
         obj[ev.id + '_table'] = obj[tableHeader];
         delete obj[tableHeader];
       }
+      // Names typed into the Guests cell = reserved names.
+      var gRaw = String(obj[ev.id + '_guests'] == null ? '' : obj[ev.id + '_guests']).trim();
+      if (gRaw && isNaN(Number(gRaw)) && !obj[ev.id + '_names']) obj[ev.id + '_names'] = gRaw;
       // Reserved names win: seat count = number of names.
       var reserved = _splitNames(obj[ev.id + '_names']);
       if (reserved.length) {

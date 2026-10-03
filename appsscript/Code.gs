@@ -356,13 +356,16 @@ function _isGuestWritable(header) {
   return !!m && EVENT_IDS.indexOf(m[1]) > -1;
 }
 
-// ── Reserved names per event ─────────────────────────────
-// An event cell is either a seat COUNT ("7" — the family decides who comes)
-// or a list of RESERVED names ("Mike, Tinu, Krisha, Kashi, Krish" — exactly
-// these people, no substitutions). Reserved names live in `{id}_names`,
-// stored pipe-separated. When present they are authoritative: the seat count
-// for that event is forced to the number of names, and submitRSVP only
-// accepts names from the list.
+// ── Seats and reserved names per event ───────────────────
+// Each event has ONE cell per guest, `{id}_guests`, holding either:
+//   - a seat COUNT ("7" — the family decides who comes; shown on the guest
+//     page as "Name and Family" when it's bigger than the invite), or
+//   - RESERVED names ("Paul, Mehreen, Bob, Don" — exactly these people, no
+//     substitutions; the seat count is the number of names).
+// 0 or blank = not invited to that event. The `events` column is derived
+// from these cells by the app — never typed by hand.
+// Older sheets kept names in a separate `{id}_names` column; that's still
+// read as a fallback until repairGuestSheet folds it into `{id}_guests`.
 function _parseReservedNames(v) {
   if (Array.isArray(v)) v = v.join('|');
   const seen = new Set();
@@ -378,21 +381,30 @@ function _parseReservedNames(v) {
   return out.slice(0, 30);
 }
 
-// One event's allocation for a guest row, forgiving of hand-edited sheets:
-//   - names typed into `{id}_guests` ("Rita") count as reserved names
-//   - an explicit 0 (and no names) means NOT invited, even if the id is
-//     still in the `events` list
-//   - blank stays "invited, allocation not set" (guest page shows a warning)
+// One event's allocation for a guest row (object keyed by header).
 // Returns { invited, guests, names }.
 function _eventAllocation(row, id) {
-  let names = _parseReservedNames(row[id + '_names']);
-  const raw = row[id + '_guests'];
-  const rawStr = String(raw == null ? '' : raw).trim();
+  const rawStr = String(row[id + '_guests'] == null ? '' : row[id + '_guests']).trim();
   const isNum = rawStr === '' || !isNaN(Number(rawStr));
-  if (!names.length && !isNum) names = _parseReservedNames(rawStr);
+  let names = isNum ? [] : _parseReservedNames(rawStr);
+  if (!names.length) names = _parseReservedNames(row[id + '_names']);   // legacy column
   if (names.length) return { invited: true, guests: names.length, names: names };
-  const n = isNum ? Number(rawStr) || 0 : 0;
-  return { invited: !(rawStr !== '' && n <= 0), guests: Math.max(0, n), names: [] };
+  const n = isNum ? Math.max(0, Number(rawStr) || 0) : 0;
+  return { invited: n > 0, guests: n, names: [] };
+}
+
+// Event ids a guest is invited to, in EVENT_IDS order, from the seat cells.
+function _derivedEventIds(row) {
+  return EVENT_IDS.filter(function(id) { return _eventAllocation(row, id).invited; });
+}
+
+// Stamp the derived `events` on guest objects handed out by the server, so
+// every consumer (validate, stats, admin) agrees with the seat cells even
+// before repairGuestSheet has tidied a hand-edited sheet. Runs AFTER
+// _withRevs so the rev still reflects the raw row updateGuest compares to.
+function _withDerivedEvents(list) {
+  for (let i = 0; i < list.length; i++) list[i].events = _derivedEventIds(list[i]).join(',');
+  return list;
 }
 
 // ── Canonical relationship values ────────────────────────
@@ -416,21 +428,20 @@ function _canonRel(v) {
 
 // Canonicalise a guest payload IN PLACE before any write:
 //   - relationship → canonical curly-apostrophe form
-//   - `{id}_names` → cleaned, pipe-joined, and `{id}_guests` forced to its length
-// Returns true if any event carries reserved names (so callers know to make
-// sure the sheet has the columns). Called by addGuest, updateGuest and
-// bulkAddGuests.
+//   - `{id}_names` (what the admin form sends) → folded into `{id}_guests`
+//     as "Name, Name"; the legacy `{id}_names` cell is blanked
+//   - `events` dropped — it's derived from the seat cells on write
+// Called by addGuest, updateGuest and bulkAddGuests.
 function _normaliseReservedPayload(obj) {
   if (obj.relationship !== undefined) obj.relationship = _canonRel(obj.relationship);
-  let any = false;
+  delete obj.events;
   EVENT_IDS.forEach(function(id) {
     const key = id + '_names';
     if (obj[key] === undefined) return;
     const names = _parseReservedNames(obj[key]);
-    obj[key] = names.join('|');
-    if (names.length) { obj[id + '_guests'] = names.length; any = true; }
+    if (names.length) obj[id + '_guests'] = names.join(', ');
+    obj[key] = '';
   });
-  return any;
 }
 
 // Append one header column if it's missing. Returns { headers, idx }.
@@ -444,11 +455,12 @@ function _ensureGuestColumn(sheet, headers, name) {
 
 // One-click repair for a sheet that's been built or edited by hand.
 // Run from the Apps Script editor (function dropdown → repairGuestSheet → Run).
-//   1. Adds every template column that's missing (invite_sent_at, *_table,
-//      *_names, status, …) as empty headers at the end. Never removes or
-//      reorders anything, never touches existing values.
-//   2. Rewrites the relationship column to the canonical curly-apostrophe
-//      form so filters and "Sending as" match every row.
+//   1. Adds any missing column from guestHeaders() as an empty header at the
+//      end. Never removes or reorders anything.
+//   2. Rewrites the relationship column to the canonical curly-apostrophe form.
+//   3. Moves names from old `{id}_names` columns into `{id}_guests`, applies
+//      the Luncheon rule and rebuilds `events` from the seat cells.
+//   4. Lists leftover columns the app no longer uses, which you can delete.
 // Safe to re-run.
 function repairGuestSheet() {
   const sheet = getSheet(TABS.guests);
@@ -473,19 +485,21 @@ function repairGuestSheet() {
       });
       if (fixed) rng.setValues(vals);
     }
-    // Backfill the Luncheon for every bride's-side Mandvo guest (and clear it
-    // from any groom's-side guest). Runs after the relationship fix above so
-    // hand-typed apostrophes are already canonical.
-    const lunch = _applyLuncheonRuleToSheet(sheet, null);
+    // After the relationship fix so hand-typed apostrophes are canonical
+    // before the Luncheon rule reads them.
+    const tidied = _canonGuestSheet(sheet, null);
     // Make sure the Luncheon exists as an event. Same day and venue as the
     // Mandvo; time left TBC for the couple to fill in on the Events tab.
     const addedEvent = _ensureLuncheonEvent();
     bumpAdminCacheVersion();
+    const known = new Set(guestHeaders());
+    const unused = headers.filter(function(h) { return h && !known.has(h); });
     const msg = 'repairGuestSheet: added ' + missing.length + ' column(s)' +
       (missing.length ? ' [' + missing.join(', ') + ']' : '') +
       '; normalised ' + fixed + ' relationship value(s)' +
-      '; Luncheon updated for ' + lunch + ' guest(s)' +
-      (addedEvent ? '; added Luncheon to the Events tab (set its time there).' : '.');
+      '; tidied seats/names/events for ' + tidied + ' guest(s)' +
+      (addedEvent ? '; added Luncheon to the Events tab (set its time there)' : '') +
+      (unused.length ? '. No longer used — safe to delete: ' + unused.join(', ') : '') + '.';
     Logger.log(msg);
     return msg;
   } finally {
@@ -496,58 +510,76 @@ function repairGuestSheet() {
 // ── Luncheon rule ────────────────────────────────────────
 // The Luncheon (Lu) follows the Mandvo (Ma) on the same day and is for the
 // BRIDE'S SIDE only:
-//   - Bride's-side guest invited to the Mandvo → invited to the Luncheon
-//     with exactly the same seats and the same reserved names. Enforced on
-//     every write so the two can't drift apart.
+//   - Bride's-side guest invited to the Mandvo → Luncheon gets exactly the
+//     same seat cell (count or reserved names). Enforced on every write so
+//     the two can't drift apart.
 //   - Bride's-side guest NOT at the Mandvo → Luncheon left as the admin set
 //     it (lunch-only invitations are allowed).
-//   - Groom's-side guest → never invited to the Luncheon; any Lu allocation
-//     is cleared.
+//   - Groom's-side guest → never invited to the Luncheon; cell cleared.
 //   - Relationship blank/unknown → left untouched (don't guess a side).
-// Operates on a raw sheet row (array aligned with `headers`) so it sees the
-// full merged state regardless of what a partial payload contained. Returns
-// true if the row changed. Needs Lu_guests in headers — callers use
-// _ensureLuncheonColumns first.
 const LUNCHEON_ID = 'Lu';
 const MANDVO_ID   = 'Ma';
 function _ensureLuncheonColumns(sheet, headers) {
-  headers = _ensureGuestColumn(sheet, headers, LUNCHEON_ID + '_guests').headers;
-  headers = _ensureGuestColumn(sheet, headers, LUNCHEON_ID + '_names').headers;
-  return headers;
+  return _ensureGuestColumn(sheet, headers, LUNCHEON_ID + '_guests').headers;
 }
 function _applyLuncheonRuleToRow(row, headers) {
-  const col = function(h) { return headers.indexOf(h); };
-  const relI = col('relationship'), evI = col('events');
-  const luG = col(LUNCHEON_ID + '_guests'), luN = col(LUNCHEON_ID + '_names');
-  const maG = col(MANDVO_ID + '_guests'),   maN = col(MANDVO_ID + '_names');
-  if (relI < 0 || evI < 0 || luG < 0) return false;
-
+  const relI = headers.indexOf('relationship');
+  const luG = headers.indexOf(LUNCHEON_ID + '_guests');
+  const maG = headers.indexOf(MANDVO_ID + '_guests');
+  if (relI < 0 || luG < 0) return;
   const rel = _relKey(row[relI]);
   const side = rel.indexOf('bride') === 0 ? 'bride' : rel.indexOf('groom') === 0 ? 'groom' : '';
-  if (!side) return false;
-
-  const events = String(row[evI] || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-  const hasLu = events.indexOf(LUNCHEON_ID) > -1;
-  const before = [String(row[evI] || ''), String(row[luG]), luN > -1 ? String(row[luN] || '') : ''].join('\u0001');
-
   if (side === 'groom') {
-    if (hasLu) events.splice(events.indexOf(LUNCHEON_ID), 1);
     row[luG] = '';
-    if (luN > -1) row[luN] = '';
-  } else {
-    const maSeats = maG > -1 ? (Number(row[maG]) || 0) : 0;
-    const atMandvo = maSeats > 0 || events.indexOf(MANDVO_ID) > -1;
-    if (atMandvo) {
-      row[luG] = maSeats;
-      if (luN > -1) row[luN] = maN > -1 ? String(row[maN] || '') : '';
-      if (!hasLu) events.push(LUNCHEON_ID);
-    }
+  } else if (side === 'bride' && maG > -1) {
+    const ma = {}; ma[MANDVO_ID + '_guests'] = row[maG];
+    if (_eventAllocation(ma, MANDVO_ID).invited) row[luG] = row[maG];
   }
-  events.sort(function(a, b) { return EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b); });
-  row[evI] = events.join(',');
-  const after = [String(row[evI] || ''), String(row[luG]), luN > -1 ? String(row[luN] || '') : ''].join('\u0001');
-  return before !== after;
 }
+
+// Bring one raw sheet row (array aligned with `headers`) into canonical
+// shape, in place:
+//   1. legacy `{id}_names` → folded into `{id}_guests` ("Name, Name"), then
+//      blanked so it can't disagree with the seat cell later
+//   2. Luncheon rule
+//   3. `events` rebuilt from the seat cells
+// Returns true if anything changed. Used by every guest write path and by
+// repairGuestSheet.
+function _canonGuestRow(row, headers) {
+  const before = JSON.stringify(row);
+  EVENT_IDS.forEach(function(id) {
+    const g = headers.indexOf(id + '_guests'), n = headers.indexOf(id + '_names');
+    if (n < 0) return;
+    if (g > -1) {
+      const obj = {}; obj[id + '_guests'] = row[g]; obj[id + '_names'] = row[n];
+      const a = _eventAllocation(obj, id);
+      if (a.names.length) row[g] = a.names.join(', ');
+    }
+    row[n] = '';
+  });
+  _applyLuncheonRuleToRow(row, headers);
+  const evI = headers.indexOf('events');
+  if (evI > -1) {
+    const obj = {};
+    EVENT_IDS.forEach(function(id) {
+      const g = headers.indexOf(id + '_guests');
+      if (g > -1) obj[id + '_guests'] = row[g];
+    });
+    row[evI] = _derivedEventIds(obj).join(',');
+  }
+  return JSON.stringify(row) !== before;
+}
+
+// The fields of a canonical row the admin needs back after a write.
+function _derivedFields(row, headers) {
+  const out = {};
+  ['events'].concat(EVENT_IDS.map(function(id) { return id + '_guests'; })).forEach(function(h) {
+    const i = headers.indexOf(h);
+    if (i > -1) out[h] = row[i];
+  });
+  return out;
+}
+
 // Add the Luncheon row to the Events tab if it's missing, copying the
 // Mandvo's date and venue (same day). Returns true if a row was added.
 function _ensureLuncheonEvent() {
@@ -579,10 +611,10 @@ function _ensureLuncheonEvent() {
   return true;
 }
 
-// Apply the rule across the whole Guests sheet (or just `onlyIds`), writing
-// back only the three affected columns in one setValues each. Caller holds
-// the script lock. Returns the number of guests changed.
-function _applyLuncheonRuleToSheet(sheet, onlyIds) {
+// Canonicalise the whole Guests sheet (or just `onlyIds`). Writes back only
+// the columns that can change (events, *_guests, legacy *_names), one
+// setValues each. Caller holds the script lock. Returns guests changed.
+function _canonGuestSheet(sheet, onlyIds) {
   let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   headers = _ensureLuncheonColumns(sheet, headers);
   const lastRow = sheet.getLastRow();
@@ -592,28 +624,15 @@ function _applyLuncheonRuleToSheet(sheet, onlyIds) {
   let changed = 0;
   data.forEach(function(row) {
     if (onlyIds && !onlyIds.has(String(row[idI]))) return;
-    if (_applyLuncheonRuleToRow(row, headers)) changed++;
+    if (_canonGuestRow(row, headers)) changed++;
   });
   if (changed) {
-    ['events', LUNCHEON_ID + '_guests', LUNCHEON_ID + '_names'].forEach(function(h) {
-      const c = headers.indexOf(h);
-      if (c < 0) return;
+    headers.forEach(function(h, c) {
+      if (h !== 'events' && !/^(.+)_(guests|names)$/.test(h)) return;
       sheet.getRange(2, c + 1, data.length, 1).setValues(data.map(function(r) { return [r[c]]; }));
     });
   }
   return changed;
-}
-
-// Append any missing `{id}_names` header columns. Returns the (possibly
-// extended) header array. Only called when a write actually carries names,
-// so sheets that never use reserved names are never touched. Caller holds
-// the script lock.
-function _ensureGuestNameColumns(sheet, headers) {
-  const missing = EVENT_IDS.map(function(id) { return id + '_names'; })
-    .filter(function(h) { return headers.indexOf(h) === -1; });
-  if (!missing.length) return headers;
-  sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
-  return headers.concat(missing);
 }
 
 // ── User-facing error tagging (security finding #7) ─────────
@@ -744,9 +763,9 @@ function sanitiseSheetValue(val) {
 }
 
 function guestHeaders() {
-  const fixed = ['id','first_name','last_name','phone','email','relationship','notes','events','invitation_code','is_overseas','status','invite_sent_at'];
-  const alloc = EVENT_IDS.flatMap(id => [id + '_guests', id + '_names', id + '_table']);
-  return [...fixed, ...alloc];
+  // Reserved names go in the {id}_guests cell; only Black Tie has table plans.
+  const fixed = ['id','first_name','last_name','phone','email','relationship','is_overseas','notes','invitation_code','events','status','invite_sent_at'];
+  return [...fixed, ...EVENT_IDS.map(id => id + '_guests'), 'BT_table'];
 }
 
 // ── Invitation code generator ────────────────────────────
@@ -1069,7 +1088,7 @@ function getExistingRSVP(code, familyName, strict) {
 function getGuests(includeDeleted) {
   const sheet = getSheet(TABS.guests);
   if (sheet.getLastRow() < 1) return [];
-  const all = _withRevs(sheetToObjects(sheet));
+  const all = _withDerivedEvents(_withRevs(sheetToObjects(sheet)));
   if (includeDeleted) return all;
   return all.filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
 }
@@ -1083,7 +1102,7 @@ function getGuestsCached() {
     const sheet = getSheet(TABS.guests);
     // _rev is stamped before caching so it rides along in the chunked
     // payload and every consumer (bootstrap, validate, stats) sees it.
-    return (sheet.getLastRow() < 1) ? [] : _withRevs(sheetToObjects(sheet));
+    return (sheet.getLastRow() < 1) ? [] : _withDerivedEvents(_withRevs(sheetToObjects(sheet)));
   }, 30);
   return _guestsCache;
 }
@@ -1092,7 +1111,7 @@ function getGuestsCached() {
 function getDeletedGuests() {
   const sheet = getSheet(TABS.guests);
   if (sheet.getLastRow() < 1) return [];
-  return sheetToObjects(sheet).filter(g => String(g.status || '').toUpperCase() === 'DELETED');
+  return _withDerivedEvents(sheetToObjects(sheet)).filter(g => String(g.status || '').toUpperCase() === 'DELETED');
 }
 
 // ── addGuest ──────────────────────────────────────────────
@@ -1103,10 +1122,6 @@ function addGuest(payload) {
   if (sheet.getLastRow() < 1) {
     sheet.appendRow(guestHeaders());
   }
-
-  const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
-    .map(s => s.trim()).filter(Boolean)
-    .sort((a, b) => a.localeCompare(b));
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -1128,19 +1143,17 @@ function addGuest(payload) {
 
     const id = 'g-' + Utilities.getUuid();
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    if (_normaliseReservedPayload(payload)) headers = _ensureGuestNameColumns(sheet, headers);
+    _normaliseReservedPayload(payload);
     headers = _ensureLuncheonColumns(sheet, headers);
     const row = headers.map(h => {
       if (h === 'id') return id;
-      if (h === 'events') return sortedIds.join(',');
       if (!_isGuestWritable(h)) return '';   // status, invite_sent_at, *_table, _rev
       return sanitizeForSheet(payload[h] !== undefined ? payload[h] : '');
     });
-    // Luncheon follows the Mandvo for bride's-side guests. Reflect the
-    // outcome in the returned payload so the admin's optimistic copy is right.
-    if (_applyLuncheonRuleToRow(row, headers)) {
-      ['events', 'Lu_guests', 'Lu_names'].forEach(h => { payload[h] = row[headers.indexOf(h)]; });
-    }
+    // Luncheon rule + derived events. Reflect the outcome in the returned
+    // payload so the admin's optimistic copy is right.
+    _canonGuestRow(row, headers);
+    Object.assign(payload, _derivedFields(row, headers));
     sheet.appendRow(row);
     // Stamp a _rev on the new guest so an immediate edit from the admin's
     // optimistic local copy passes the concurrency check without a reload.
@@ -1159,15 +1172,8 @@ function addGuest(payload) {
 function updateGuest(payload) {
   const sheet = getSheet(TABS.guests);
 
-  // Normalise events to sorted, comma-separated — same shape as before,
-  // just without regenerating the code. Doing this outside the lock is
-  // cheap and pure.
-  if (payload.events !== undefined) {
-    const sortedIds = (Array.isArray(payload.events) ? payload.events : String(payload.events || '').split(','))
-      .map(s => s.trim()).filter(Boolean)
-      .sort((a, b) => a.localeCompare(b));
-    payload.events = sortedIds.join(',');
-  }
+  // `events` is derived from the seat cells after the merge below.
+  _normaliseReservedPayload(payload);
 
   // Serialise the read+validate+write cycle so two concurrent admin edits
   // (or an admin edit racing a bulk import / code rotation) can't clobber
@@ -1180,9 +1186,6 @@ function updateGuest(payload) {
     if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
 
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    // Canonicalise reserved names (forces {id}_guests = count). Only extend
-    // the sheet with {id}_names columns when this edit actually uses them.
-    if (_normaliseReservedPayload(payload)) headers = _ensureGuestNameColumns(sheet, headers);
     // Before the row read below, so the row array covers the Lu columns.
     // New blank columns don't change the rev (empty values are skipped).
     headers = _ensureLuncheonColumns(sheet, headers);
@@ -1241,12 +1244,10 @@ function updateGuest(payload) {
         changed = true;
       }
     });
-    // Luncheon follows the Mandvo — applied to the MERGED row so a partial
+    // Luncheon rule + derived events, applied to the MERGED row so a partial
     // payload (e.g. only relationship changed) still gets the right result.
-    if (_applyLuncheonRuleToRow(row, headers)) {
-      changed = true;
-      ['events', 'Lu_guests', 'Lu_names'].forEach(h => { payload[h] = row[headers.indexOf(h)]; });
-    }
+    if (_canonGuestRow(row, headers)) changed = true;
+    Object.assign(payload, _derivedFields(row, headers));
     if (changed) rangeForRev.setValues([row]);
     // Hand back the post-write rev so the client can update its copy without
     // a full reload — the next save from that form will then pass the check.
@@ -1415,11 +1416,7 @@ function bulkAddGuests(payload) {
       sheet.appendRow(guestHeaders());
     }
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    // Canonicalise reserved names on every row first; if any row uses them,
-    // add the {id}_names columns once before building rows against headers.
-    let anyReserved = false;
-    (payload.guests || []).forEach(g => { if (g && _normaliseReservedPayload(g)) anyReserved = true; });
-    if (anyReserved) headers = _ensureGuestNameColumns(sheet, headers);
+    (payload.guests || []).forEach(g => { if (g) _normaliseReservedPayload(g); });
     headers = _ensureLuncheonColumns(sheet, headers);
     // Snapshot existing codes once; mutate the map as we build so CSV-internal
     // duplicates (and newly-generated ones) are detected within this batch.
@@ -1439,12 +1436,6 @@ function bulkAddGuests(payload) {
         }
         if (!g.last_name) g.last_name = '';
         const id  = 'g-' + Utilities.getUuid();
-        const evSet = (Array.isArray(g.events) ? g.events : String(g.events || '').split(','))
-          .map(s => s.trim()).filter(Boolean);
-        // An event with reserved names is by definition one they're invited to.
-        EVENT_IDS.forEach(eid => { if (g[eid + '_names'] && evSet.indexOf(eid) === -1) evSet.push(eid); });
-        const sortedEvIds = evSet.sort((a, b) => EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b));
-
         const requested = String(g.invitation_code || '').toUpperCase().trim();
         if (requested) {
           if (!validateCodeFormat(requested)) {
@@ -1465,11 +1456,10 @@ function bulkAddGuests(payload) {
 
         const row = headers.map(h => {
           if (h === 'id') return id;
-          if (h === 'events') return sortedEvIds.join(',');
           if (!_isGuestWritable(h)) return '';   // a CSV `status` column can't soft-delete on import
           return sanitizeForSheet(g[h] !== undefined ? g[h] : '');
         });
-        _applyLuncheonRuleToRow(row, headers);   // bride's-side Mandvo → Luncheon
+        _canonGuestRow(row, headers);   // Luncheon rule + derived events
         rowsToWrite.push(row);
         results.added++;
       } catch (err) {
@@ -1632,7 +1622,7 @@ function bulkUpdate(payload) {
     // Changing relationship can move a guest onto or off the bride's side,
     // which changes their Luncheon invitation.
     if (fieldKeys.indexOf('relationship') > -1) {
-      _applyLuncheonRuleToSheet(sheet, new Set(Object.keys(resolved.rows)));
+      _canonGuestSheet(sheet, new Set(Object.keys(resolved.rows)));
     }
     return { updated: Object.keys(resolved.rows).length, fieldCount: fieldKeys.length, missing: resolved.missing };
   } finally { lock.releaseLock(); }
@@ -2502,7 +2492,7 @@ function _getStats() {
   guests.forEach(g => {
     let maxGuests = 0;
     EVENT_IDS.forEach(id => {
-      const n = Number(g[id + '_guests']) || 0;
+      const n = _eventAllocation(g, id).guests;
       if (n > maxGuests) maxGuests = n;
     });
     totalInvitedGuests += maxGuests;
@@ -2527,7 +2517,7 @@ function _getStats() {
     eventIds.forEach(id => {
       if (!perEvent[id]) return;
       perEvent[id].invitedGuests++;
-      perEvent[id].invitedHeadcount += Number(g[id + '_guests']) || 0;
+      perEvent[id].invitedHeadcount += _eventAllocation(g, id).guests;
     });
   });
 
@@ -2904,14 +2894,7 @@ function _templateRebuildGuestsTab(ss, log) {
   let sheet = ss.getSheetByName(TABS.guests);
   if (!sheet) sheet = ss.insertSheet(TABS.guests);
 
-  // Fixed columns (reordered for readability), then all *_guests, then all *_table
-  const fixed = [
-    'id', 'first_name', 'last_name', 'phone', 'email', 'relationship',
-    'is_overseas', 'notes', 'invitation_code', 'events', 'status',
-  ];
-  const guestCols = EVENT_IDS.map(function(id) { return id + '_guests'; });
-  const tableCols = EVENT_IDS.map(function(id) { return id + '_table'; });
-  const headers = fixed.concat(guestCols).concat(tableCols);
+  const headers = guestHeaders();
 
   const notes = {
     id:              'Stable, auto-generated guest ID. Do not edit — the app uses this to track a guest across renames, restores, etc.',
@@ -2923,21 +2906,22 @@ function _templateRebuildGuestsTab(ss, log) {
     is_overseas:     'TRUE if the guest is travelling internationally. Shown as an "Overseas" badge in the admin and guest UI.',
     notes:           'Free-text notes visible only to the admin.',
     invitation_code: 'The code the guest enters to RSVP (shared by their whole family). Auto-generated from the events they are invited to.',
-    events:          'Comma-separated event IDs the guest is invited to (e.g. Lg,MS,Ma,MG,We,BT). Drives which event cards they see on the site.',
+    events:          'Filled in by the app from the seat columns — do not edit.',
     status:          'ACTIVE or DELETED. DELETED rows are kept for audit but hidden from the site and admin list by default.',
     invite_sent_at:  'ISO timestamp set when the admin opens the WhatsApp invite for this guest. Blank = not yet sent. Clear this cell to resend from scratch.',
   };
   EVENT_IDS.forEach(function(id) {
-    notes[id + '_guests'] = 'Number of seats reserved for this guest\u2019s family at event "' + id + '". This is the maximum they can RSVP for.';
-    notes[id + '_table']  = 'Optional table number at event "' + id + '" (only used for seated events).';
+    notes[id + '_guests'] = 'Event "' + id + '": a number of seats (the family decides who comes), OR the exact names invited, comma-separated (e.g. Paul, Mehreen). 0 or blank = not invited.';
   });
+  notes.BT_table = 'Black Tie table number (optional).';
 
   const widths = {
     id: 110, first_name: 110, last_name: 110, phone: 140, email: 190,
     relationship: 140, is_overseas: 90, notes: 200, invitation_code: 120,
     events: 120, status: 90, invite_sent_at: 160,
   };
-  EVENT_IDS.forEach(function(id) { widths[id + '_guests'] = 75; widths[id + '_table'] = 75; });
+  EVENT_IDS.forEach(function(id) { widths[id + '_guests'] = 90; });
+  widths.BT_table = 75;
 
   _templateWriteHeader(sheet, headers, notes, widths);
   log.push('Guests: rebuilt with ' + headers.length + ' columns. Data wiped.');
