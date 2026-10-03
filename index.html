@@ -902,9 +902,24 @@ function eventFor(id) {
 // still see artwork rather than a broken placeholder.
 function resolveInviteImage(entry, side) {
   if (!entry) return '';
-  if (typeof entry === 'string') return entry;
-  if (side && entry[side]) return entry[side];
-  return entry.brides || entry.grooms || '';
+  var path = typeof entry === 'string' ? entry
+    : (side && entry[side]) || entry.brides || entry.grooms || '';
+  return path ? _imgUrl(path) : '';
+}
+
+// Bump INVITE_IMAGE_VERSION after re-uploading artwork so every phone
+// fetches the new file instead of a saved copy.
+var INVITE_IMAGE_VERSION = '2';
+function _imgUrl(path) { return path + (path.indexOf('?') > -1 ? '&' : '?') + 'v=' + INVITE_IMAGE_VERSION; }
+// A phone that asked for an image before it was uploaded can keep
+// remembering the "not found" answer. On the first failure, try once more
+// skipping any saved copy; only then fall back to the text card.
+function _retryImageOnce(img) {
+  if (!img || img.getAttribute('data-retried')) return false;
+  img.setAttribute('data-retried', '1');
+  var src = String(img.getAttribute('src') || '');
+  img.src = src + (src.indexOf('?') > -1 ? '&' : '?') + 'r=' + Date.now();
+  return true;
 }
 
 let EVENTS = [];
@@ -974,7 +989,10 @@ async function fetchEvents() {
   return postAction('getEvents', {});
 }
 
-var EVENTS_CACHE_KEY = 'jainishanay_events_v1';
+// Bumped when event details change shape or old saved copies must go
+// (v2: dates/times/venues filled in, per-side columns added).
+var EVENTS_CACHE_KEY = 'jainishanay_events_v2';
+try { localStorage.removeItem('jainishanay_events_v1'); } catch (e) {}
 function loadCachedEvents() {
   try {
     var raw = localStorage.getItem(EVENTS_CACHE_KEY);
@@ -1045,6 +1063,27 @@ let currentCode = '', currentEventIds = [], eventRSVPs = {};
 /* ══════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════ */
+// The background refresh of event details started at page load (when saved
+// details were used to open fast). Sign-in waits briefly for it so a guest
+// doesn't see stale dates/times.
+var _eventsRefresh = null;
+
+// Fresh event details arrived after the cards were drawn: update dates,
+// times and venues in place without touching the guest's answers.
+function refreshEventDetailsOnPage() {
+  if (!currentGuest || !currentEventIds.length) return;
+  currentEventIds.forEach(function(id) {
+    var evt = eventFor(id);
+    var card = document.getElementById('ecard-' + id);
+    if (!evt || !card) return;
+    var dt = card.querySelector('.event-datetime');
+    if (dt) dt.innerHTML = escapeHtml(evt.date) + ' &nbsp;&middot;&nbsp; ' + escapeHtml(evt.time);
+    var venue = card.querySelector('.event-venue-tag');
+    if (venue) venue.textContent = evt.venue || '';
+  });
+  if (typeof renderGlance === 'function') renderGlance();
+}
+
 async function init() {
   // Surface any unsent RSVPs that were saved to localStorage on a
   // previous submit attempt but never confirmed.
@@ -1057,11 +1096,12 @@ async function init() {
   if (cached) {
     EVENTS = cached;
     hideLoadingSpinner();
-    fetchEvents()
+    _eventsRefresh = fetchEvents()
       .then(function(fresh) {
         if (Array.isArray(fresh) && fresh.length) {
           EVENTS = fresh;
           saveCachedEvents(fresh);
+          refreshEventDetailsOnPage();   // in case the guest is already in
         }
       })
       .catch(function(err) { console.warn('Background events refresh failed:', err); });
@@ -1272,6 +1312,9 @@ async function submitEntry() {
   var clearSlowHints = function() { clearTimeout(slowHint1); clearTimeout(slowHint2); };
   try {
     currentGuest    = await validateGuest(firstName, lastName, code);
+    if (_eventsRefresh) {
+      await Promise.race([_eventsRefresh, new Promise(function(r) { setTimeout(r, 4000); })]);
+    }
     currentCode     = currentGuest.invitationCode;
     currentEventIds = [...(currentGuest.events || [])].sort((a, b) => {
       const ia = EVENTS.findIndex(e => e.id === a);
@@ -1579,12 +1622,12 @@ function showAlreadySubmittedScreen(existingRSVP) {
   }).join('');
 
   // Side-specific welcome image — same art shown on the pre-RSVP screen.
-  var welcomeSrc = side ? WELCOME_IMAGES[side] : '';
+  var welcomeSrc = side ? _imgUrl(WELCOME_IMAGES[side]) : '';
   var welcomeBlock = welcomeSrc
     ? '<figure class="welcome-image welcome-image--submitted">' +
         '<img src="' + escapeAttr(welcomeSrc) + '" alt="' +
         escapeAttr('Welcome from the ' + (side === 'brides' ? "Bride" : "Groom") + "'s side") +
-        '" loading="lazy" onerror="this.closest(\'figure\').classList.add(\'hidden\')"/>' +
+        '" loading="lazy" onerror="if(!_retryImageOnce(this))this.closest(\'figure\').classList.add(\'hidden\')"/>' +
       '</figure>'
     : '';
 
@@ -1621,6 +1664,7 @@ function showAlreadySubmittedScreen(existingRSVP) {
   // replace the image-backed card with its text-based equivalent.
   screen.querySelectorAll('.invite-card--image .invite-thumb img').forEach(function(img) {
     img.addEventListener('error', function() {
+      if (_retryImageOnce(img)) return;
       var card = img.closest('.invite-card');
       if (!card) return;
       var fallback = card.getAttribute('data-fallback') || '';
@@ -1647,8 +1691,9 @@ function renderWelcomeImage() {
     return;
   }
   img.alt = 'Welcome from the ' + (side === 'brides' ? "Bride" : "Groom") + "'s side";
-  img.onerror = function() { wrap.classList.add('hidden'); };
-  img.src = src;
+  img.removeAttribute('data-retried');
+  img.onerror = function() { if (!_retryImageOnce(img)) wrap.classList.add('hidden'); };
+  img.src = _imgUrl(src);
   wrap.classList.remove('hidden');
 }
 
@@ -1757,6 +1802,7 @@ function renderEventCards() {
       const img = el.querySelector('.invite-thumb img');
       if (img) {
         img.addEventListener('error', () => {
+          if (_retryImageOnce(img)) return;
           img.closest('.invite-thumb').remove();
           el.classList.remove('event-card--with-image');
           // Prepend a Roman-numeral index to the now-bare footer so it reads like the text card.
