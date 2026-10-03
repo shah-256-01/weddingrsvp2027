@@ -266,6 +266,39 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .rsvp-bar__btn{flex-shrink:0;min-height:46px;padding:0 1.1rem;border:0;background:var(--wine);color:#fff;font-family:var(--sans);font-size:var(--ui-sm);cursor:pointer;white-space:nowrap;}
 .rsvp-bar__btn.done{background:var(--green);}
 #section-rsvp{padding-bottom:84px;}
+/* ── One page per event ──
+   Step 0: "Your invitation" overview · steps 1..N: one event each, with
+   its full artwork · step N+1: review & send. goToStep() sets the classes. */
+.step-hide{display:none!important;}
+#progress-wrap{display:none!important;}
+#events-list .event-card.step-off{display:none;}
+#events-section:not(.step-on-events) #events-list{display:none;}
+#events-section.step-on-events #rsvp-glance,
+#events-section.step-on-events .events-section-header{display:none;}
+#page-guest.step-mode .guest-hero,
+#page-guest.step-mode .welcome-banner,
+#page-guest.step-mode .countdown-strip{display:none!important;}
+.step-head{display:none;align-items:center;justify-content:space-between;gap:.8rem;margin:0 0 .9rem;}
+#events-section.step-on-events .step-head{display:flex;}
+.step-head__label{font-family:var(--label);font-variant-caps:all-small-caps;font-size:var(--ui-sm);letter-spacing:.18em;color:var(--gold);text-transform:uppercase;}
+.step-dots{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+.step-dot{width:9px;height:9px;border-radius:50%;background:var(--rule);border:0;padding:0;cursor:pointer;}
+.step-dot.done{background:var(--gold);}
+.step-dot.on{background:var(--wine);transform:scale(1.25);}
+/* The whole invitation, not a strip, on its own page */
+#events-list .invite-thumb img{height:auto;object-fit:contain;}
+#events-list .invite-thumb-hint{display:none;}
+#events-list .event-card-body{max-height:none;overflow:visible;}
+#events-list .card-chevron{display:none;}
+#events-list .event-card-header{cursor:default;}
+.summary-row.clickable{cursor:pointer;}
+.summary-row.clickable:hover .summary-name{color:var(--wine);}
+.summary-hint{font-size:var(--ui-xs);color:var(--muted);margin:-.4rem 0 .8rem;}
+.rsvp-bar__back{flex-shrink:0;min-height:46px;padding:0 .9rem;border:1px solid var(--rule);background:#fff;color:var(--ink);font-family:var(--sans);font-size:var(--ui-sm);cursor:pointer;}
+.rsvp-bar__btn.waiting{opacity:.55;}
+.rsvp-bar__text.nudge{color:var(--red);}
+@keyframes stepShake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.attend-toggle.shake{animation:stepShake .3s ease 2;}
 .event-invitee__label{font-family:var(--label);font-variant-caps:all-small-caps;font-size:var(--ui-xs);letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
 .event-invitee__name{font-family:var(--serif,'Cormorant Garamond',serif);font-size:1.2rem;color:var(--wine);line-height:1.3;}
 .reserved-list{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1rem;}
@@ -626,21 +659,24 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         <div class="progress-fill" id="progress-fill" style="width:0%"></div>
       </div>
     </div>
+    <div class="step-head" id="step-head"></div>
     <div id="events-list"></div>
   </div>
   <div class="rsvp-summary" id="rsvp-summary">
     <div class="summary-card">
-      <div class="summary-title">Your responses so far</div>
+      <div class="summary-title">Your reply</div>
+      <div class="summary-hint">Tap any event to change your answer, then send.</div>
       <div id="summary-rows"></div>
     </div>
   </div>
   <div class="rsvp-bar" id="rsvp-bar" aria-live="polite">
+    <button type="button" class="rsvp-bar__back" id="rsvp-bar-back" onclick="stepBack()">&#8592; Back</button>
     <div class="rsvp-bar__text" id="rsvp-bar-text"></div>
     <button type="button" class="rsvp-bar__btn" id="rsvp-bar-btn" onclick="rsvpBarAction()"></button>
   </div>
   <div class="submit-section" id="submit-section">
     <p class="submit-note">Please confirm by 30th November 2026</p>
-    <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">Send my response</button>
+    <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">Send my reply</button>
     <span class="family-name-error hidden" id="submit-error" style="margin-top:.6rem;text-align:center;"></span>
   </div>
   <div class="success-screen hidden" id="success-screen">
@@ -1530,6 +1566,7 @@ function showRSVPFlow() {
   renderEventCards();
   renderSummary();
   updateProgress();
+  goToStep(0);
 }
 
 function hideRSVPFlow() {
@@ -1590,9 +1627,20 @@ async function submitContactDetails() {
   showFrontPage();
 }
 
-function showAlreadySubmittedScreen(existingRSVP) {
+function _leaveSteps() {
+  _step = 0;
+  var page = document.getElementById('page-guest');
+  if (page) page.classList.remove('step-mode');
+  ['events-section', 'rsvp-summary', 'submit-section'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.remove('step-hide');
+  });
   var bar = document.getElementById('rsvp-bar');
   if (bar) bar.classList.remove('show');
+}
+
+function showAlreadySubmittedScreen(existingRSVP) {
+  _leaveSteps();
   // Hide all RSVP form sections
   ['events-section', 'rsvp-summary', 'submit-section', 'success-screen'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -1893,6 +1941,7 @@ function setAttending(id, val) {
   if (val && !eventRSVPs[id].reserved) adjCount(id, 'guests', 0);
   renderSummary();
   updateProgress();
+  renderStepHead();
 }
 
 function adjCount(id, field, delta) {
@@ -1981,6 +2030,7 @@ function toggleReservedName(id, idx, on) {
   r.guestNames = r.reserved.filter(function(_, i) { return r.ticked[i]; });
   r.guests = r.guestNames.length;
   renderSummary();
+  updateRsvpBar();
 }
 
 function renderNameInputs(id) {
@@ -2053,15 +2103,21 @@ function renderGlance() {
   if (anyFamily) sub += ' “and Family” means your household, up to the number shown.';
   var answered = currentEventIds.filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending !== null; }).length;
   var allYes = currentEventIds.every(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === true; });
+  var total = currentEventIds.length;
+  var primary = answered === total
+    ? '<button type="button" class="btn btn-primary" onclick="goToStep(\'review\')">Review &amp; send my reply →</button>'
+    : answered
+      ? '<button type="button" class="btn btn-primary" onclick="goToFirstUnanswered()">Continue my reply →</button>'
+      : '<button type="button" class="btn btn-primary" onclick="goToStep(1)">' + (total > 1 ? 'Start — one event at a time →' : 'Reply to this invitation →') + '</button>';
   host.innerHTML =
     '<div class="glance__title">Your invitation at a glance</div>' +
     '<div class="glance__sub">' + escapeHtml(sub) + '</div>' +
     rows +
     '<div class="glance__actions">' +
-      (allYes
-        ? '<div class="glance__hint">Wonderful — you’re down for everything. Check the numbers below, then send your reply.</div>'
-        : '<button type="button" class="btn btn-primary" onclick="yesToAll()">' + (currentEventIds.length > 1 ? 'Yes to everything' : 'Yes, we’ll be there') + '</button>' +
-          '<div class="glance__hint">' + (answered ? 'Or carry on answering each event below.' : 'Or answer each event below.') + '</div>') +
+      primary +
+      (allYes || total < 2 ? '' :
+        '<button type="button" class="btn btn-secondary" onclick="yesToAll()">Yes to everything</button>' +
+        '<div class="glance__hint">Coming to it all? Tap “Yes to everything”, check the numbers, then send.</div>') +
     '</div>';
 }
 
@@ -2069,13 +2125,99 @@ function yesToAll() {
   currentEventIds.forEach(function(id) {
     if (eventRSVPs[id] && eventRSVPs[id].attending !== true) setAttending(id, true);
   });
-  var first = currentEventIds[0];
-  if (first) setTimeout(function() { scrollToEvent(first); }, 150);
+  goToStep('review');
 }
 
+// Glance rows and the step dots jump straight to an event's page.
 function scrollToEvent(id) {
-  var el = document.getElementById('ecard-' + id);
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  var i = currentEventIds.indexOf(id);
+  if (i > -1) goToStep(i + 1);
+}
+
+// ── One page per event ────────────────────────────────
+// _step 0 = "Your invitation" overview, 1..N = one event each (full
+// artwork + its RSVP), N+1 = review & send. Nothing is sent until "Send my
+// reply"; Back, the dots and the review rows let guests change any answer.
+var _step = 0;
+var _returnToReview = false;   // editing one event from the review page
+function goToStep(n) {
+  var N = currentEventIds.length;
+  if (n === 'review') n = N + 1;
+  n = Math.max(0, Math.min(N + 1, Number(n) || 0));
+  _step = n;
+  if (n === 0 || n === N + 1) _returnToReview = false;
+  var isEvent = n >= 1 && n <= N, isReview = n === N + 1;
+  var evSec = document.getElementById('events-section');
+  if (evSec) {
+    evSec.classList.toggle('step-on-events', isEvent);
+    evSec.classList.toggle('step-hide', isReview);
+  }
+  ['rsvp-summary', 'submit-section'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.toggle('step-hide', !isReview);
+  });
+  currentEventIds.forEach(function(id, i) {
+    var card = document.getElementById('ecard-' + id);
+    if (card) card.classList.toggle('step-off', !(isEvent && i === n - 1));
+  });
+  var page = document.getElementById('page-guest');
+  if (page) page.classList.toggle('step-mode', n >= 1);
+  renderStepHead();
+  renderSummary();
+  updateRsvpBar();
+  var target = isReview ? document.getElementById('rsvp-summary') : evSec;
+  if (target) target.scrollIntoView({ block: 'start' });
+}
+function goToFirstUnanswered() {
+  var i = currentEventIds.findIndex(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === null; });
+  goToStep(i > -1 ? i + 1 : 'review');
+}
+function editFromReview(id) {
+  var i = currentEventIds.indexOf(id);
+  if (i < 0) return;
+  goToStep(i + 1);
+  _returnToReview = true;
+  updateRsvpBar();
+}
+function renderStepHead() {
+  var host = document.getElementById('step-head');
+  if (!host) return;
+  var N = currentEventIds.length;
+  if (_step < 1 || _step > N) { host.innerHTML = ''; return; }
+  host.innerHTML = '<span class="step-head__label">Event ' + _step + ' of ' + N + '</span>' +
+    '<span class="step-dots">' + currentEventIds.map(function(id, i) {
+      var r = eventRSVPs[id] || {};
+      var cls = (i === _step - 1 ? ' on' : '') + (r.attending !== null && r.attending !== undefined ? ' done' : '');
+      var evt = eventFor(id) || {};
+      return '<button type="button" class="step-dot' + cls + '" aria-label="' + escapeAttr(evt.name || id) + '" onclick="goToStep(' + (i + 1) + ')"></button>';
+    }).join('') + '</span>';
+}
+// What still needs doing on this event before moving on ('' = good to go).
+function _stepBlocker(id) {
+  var r = eventRSVPs[id];
+  if (!r || r.attending === null) return 'Choose “Joyfully attend” or “Send regrets” to continue';
+  if (r.attending && r.reserved && r.guests === 0) return 'Tick who’s coming, or choose “Send regrets”';
+  return '';
+}
+function stepNext() {
+  var N = currentEventIds.length;
+  if (_step >= 1 && _step <= N) {
+    var id = currentEventIds[_step - 1];
+    var why = _stepBlocker(id);
+    if (why) {
+      var t = document.getElementById('rsvp-bar-text');
+      if (t) { t.innerHTML = '<strong>' + escapeHtml(why) + '</strong>'; t.classList.add('nudge'); }
+      var tog = document.querySelector('#ecard-' + id + ' .attend-toggle');
+      if (tog) { tog.classList.remove('shake'); void tog.offsetWidth; tog.classList.add('shake'); }
+      return;
+    }
+  }
+  if (_returnToReview) { goToStep('review'); return; }
+  goToStep(_step + 1);
+}
+function stepBack() {
+  if (_returnToReview) { goToStep('review'); return; }
+  goToStep(_step - 1);
 }
 
 function toggleNotes(id) {
@@ -2105,33 +2247,32 @@ function _rsvpFlowActive() {
 function updateRsvpBar() {
   var bar = document.getElementById('rsvp-bar');
   if (!bar) return;
-  if (!_rsvpFlowActive() || _submitInView) { bar.classList.remove('show'); return; }
-  var total = currentEventIds.length;
-  var next = currentEventIds.find(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === null; });
-  var answered = currentEventIds.filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending !== null; }).length;
+  var N = currentEventIds.length;
+  // Only on the event pages and the review page; the overview has its own
+  // buttons.
+  if (!_rsvpFlowActive() || _step === 0) { bar.classList.remove('show'); return; }
   var text = document.getElementById('rsvp-bar-text');
   var btn = document.getElementById('rsvp-bar-btn');
-  if (next) {
-    var evt = eventFor(next) || {};
-    text.innerHTML = '<strong>' + answered + ' of ' + total + '</strong> answered<small>Reply to every event, then send</small>';
-    btn.textContent = 'Next: ' + (evt.name || 'event') + ' ↓';
-    btn.classList.remove('done');
-    btn.setAttribute('data-target', next);
+  var back = document.getElementById('rsvp-bar-back');
+  text.classList.remove('nudge');
+  if (_step === N + 1) {
+    text.innerHTML = '<strong>Your reply</strong><small>Check it, then tap “Send my reply”</small>';
+    btn.classList.add('step-hide');
+    back.textContent = '← Back';
   } else {
-    text.innerHTML = '<strong>All ' + total + ' answered ✓</strong><small>Check your reply, then send it</small>';
-    btn.textContent = 'Review & send ↓';
-    btn.classList.add('done');
-    btn.setAttribute('data-target', '');
+    var id = currentEventIds[_step - 1];
+    var evt = eventFor(id) || {};
+    var ready = !_stepBlocker(id);
+    text.innerHTML = '<strong>' + _step + ' of ' + N + '</strong><small>' + escapeHtml(evt.name || '') + '</small>';
+    btn.classList.remove('step-hide');
+    btn.textContent = _returnToReview ? 'Back to review ✓' : (_step === N ? 'Review my reply →' : 'Next →');
+    btn.classList.toggle('done', ready);
+    btn.classList.toggle('waiting', !ready);
+    back.textContent = _returnToReview ? '← Review' : '← Back';
   }
   bar.classList.add('show');
 }
-function rsvpBarAction() {
-  var btn = document.getElementById('rsvp-bar-btn');
-  var target = btn && btn.getAttribute('data-target');
-  if (target) { scrollToEvent(target); return; }
-  var sum = document.getElementById('rsvp-summary');
-  if (sum) sum.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+function rsvpBarAction() { stepNext(); }
 (function() {
   if (typeof IntersectionObserver !== 'function') return;
   var start = function() {
@@ -2340,6 +2481,11 @@ function renderSummary() {
     }
     else badge = '<span class="summary-status status-declined">Regrets</span>';
     row.innerHTML = '<span class="summary-name">' + escapeHtml(evt.name) + '<span style="color:var(--muted);font-size:var(--ui-xs);font-family:var(--sans);">' + detail + '</span></span>' + badge;
+    row.classList.add('clickable');
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.onclick = function() { editFromReview(id); };
+    row.onkeydown = function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); editFromReview(id); } };
     rows.appendChild(row);
   });
   renderGlance();
@@ -2473,6 +2619,7 @@ async function submitRSVP() {
       if (el) el.classList.add('hidden');
     });
     document.getElementById('success-screen').classList.remove('hidden');
+    _leaveSteps();
     updateRsvpBar();
     showCalendarButtons();
     if (currentGuest && currentGuest.isOverseas) {
@@ -2480,7 +2627,7 @@ async function submitRSVP() {
     }
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
   } else {
-    btn.textContent = 'Send my response';
+    btn.textContent = 'Send my reply';
     btn.disabled = false;
     var errEl = document.getElementById('submit-error');
     errEl.innerHTML = '<strong style="color:var(--red);">We could not confirm your RSVP was received.</strong><br>' +
