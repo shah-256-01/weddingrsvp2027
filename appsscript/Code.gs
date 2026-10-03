@@ -378,6 +378,23 @@ function _parseReservedNames(v) {
   return out.slice(0, 30);
 }
 
+// One event's allocation for a guest row, forgiving of hand-edited sheets:
+//   - names typed into `{id}_guests` ("Rita") count as reserved names
+//   - an explicit 0 (and no names) means NOT invited, even if the id is
+//     still in the `events` list
+//   - blank stays "invited, allocation not set" (guest page shows a warning)
+// Returns { invited, guests, names }.
+function _eventAllocation(row, id) {
+  let names = _parseReservedNames(row[id + '_names']);
+  const raw = row[id + '_guests'];
+  const rawStr = String(raw == null ? '' : raw).trim();
+  const isNum = rawStr === '' || !isNaN(Number(rawStr));
+  if (!names.length && !isNum) names = _parseReservedNames(rawStr);
+  if (names.length) return { invited: true, guests: names.length, names: names };
+  const n = isNum ? Number(rawStr) || 0 : 0;
+  return { invited: !(rawStr !== '' && n <= 0), guests: Math.max(0, n), names: [] };
+}
+
 // ── Canonical relationship values ────────────────────────
 // Hand-typed sheet cells mix straight (') and curly (’) apostrophes, and
 // "Groom's Family" ≠ "Groom’s Family" to every === in the app — a guest
@@ -943,20 +960,20 @@ function validateGuest(code, firstName, lastName) {
     );
   }
 
-  // Build allocations object per event
+  // Build allocations object per event. An event set to 0 seats is dropped
+  // even if it's still listed in `events`.
+  const allocations = {};
   const eventIds = String(match.events || '').split(',')
     .map(function(s) { return s.trim(); })
-    .filter(function(id) { return id && EVENT_IDS.includes(id); })
+    .filter(function(id) {
+      if (!id || !EVENT_IDS.includes(id) || allocations[id]) return false;
+      const a = _eventAllocation(match, id);
+      if (!a.invited) return false;
+      // names non-empty = reserved seats; guest ticks from this list
+      allocations[id] = { guests: a.guests, names: a.names };
+      return true;
+    })
     .sort(function(a, b) { return EVENT_IDS.indexOf(a) - EVENT_IDS.indexOf(b); });
-
-  const allocations = {};
-  eventIds.forEach(function(id) {
-    const reserved = _parseReservedNames(match[id + '_names']);
-    allocations[id] = {
-      guests: reserved.length || Number(match[id + '_guests']) || 0,
-      names:  reserved,   // non-empty = reserved seats; guest ticks from this list
-    };
-  });
 
   const familyName  = match.first_name + ' ' + match.last_name;
   const existingRSVP = getExistingRSVP(match.invitation_code, familyName);
@@ -1814,6 +1831,12 @@ function submitRSVP(payload) {
       String(g.invitation_code || '').toUpperCase().trim() === invitationCode
     );
     if (guestRecord) {
+      // Events set to 0 seats aren't on this invitation — drop them so no
+      // Yes/No row is recorded for them.
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (!_eventAllocation(guestRecord, events[i].id).invited) events.splice(i, 1);
+      }
+      if (events.length === 0) throw userError('No valid events in submission.');
       events.forEach(ev => {
         if (!ev.attending) {
           ev.names = [];
@@ -1822,7 +1845,8 @@ function submitRSVP(payload) {
         // Reserved seats: only names on the invitation list are accepted
         // (no swaps). Store the canonical spelling from the list, and the
         // seat count is simply how many were ticked.
-        const reserved = _parseReservedNames(guestRecord[ev.id + '_names']);
+        const alloc = _eventAllocation(guestRecord, ev.id);
+        const reserved = alloc.names;
         if (reserved.length) {
           const byKey = {};
           reserved.forEach(n => { byKey[normaliseName(n)] = n; });
@@ -1838,7 +1862,7 @@ function submitRSVP(payload) {
           ev.guests = picked.length;
           return;
         }
-        const maxGuests = Number(guestRecord[ev.id + '_guests']) || 0;
+        const maxGuests = alloc.guests;
         const effectiveMax = maxGuests === 0 ? 1 : maxGuests;
         ev.guests = Math.min(Math.max(0, Number(ev.guests) || 0), effectiveMax);
         ev.names = (Array.isArray(ev.names) ? ev.names : [])

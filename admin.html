@@ -1157,8 +1157,32 @@ function canonRel(v) {
   return _REL_CANON[_relKey(s)] || s;
 }
 function _canonGuests(list) {
-  (list || []).forEach(function(g) { if (g && g.relationship) g.relationship = canonRel(g.relationship); });
+  (list || []).forEach(function(g) {
+    if (!g) return;
+    if (g.relationship) g.relationship = canonRel(g.relationship);
+    _canonAllocations(g);
+  });
   return list || [];
+}
+// Mirror of the server's _eventAllocation, for hand-edited sheet rows:
+// names typed into `{id}_guests` ("Rita") become reserved names, and an
+// event set to an explicit 0 is dropped from `events` (not invited). Saving
+// the guest from the admin then writes the cleaned values back.
+function _canonAllocations(g) {
+  var ids = String(g.events || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  if (!ids.length) return;
+  var kept = ids.filter(function(id) {
+    var raw = String(g[id + '_guests'] == null ? '' : g[id + '_guests']).trim();
+    var hasNames = String(g[id + '_names'] || '').trim() !== '';
+    if (!hasNames && raw !== '' && isNaN(Number(raw))) {
+      var names = _splitNames(raw);
+      g[id + '_names'] = names.join('|');
+      g[id + '_guests'] = String(names.length);
+      return names.length > 0;
+    }
+    return hasNames || raw === '' || Number(raw) > 0;
+  });
+  if (kept.length !== ids.length) g.events = kept.join(',');
 }
 function _canonRelDefaults(cfg) {
   if (!cfg || !cfg.relationshipDefaults) return;
