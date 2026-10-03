@@ -3,10 +3,23 @@
 # "is there a newer version?" check (see checkForNewVersion) can tell old
 # copies saved on phones from the latest one. Enable once per clone with:
 #   git config core.hooksPath .githooks
+# Only the build line itself (it starts the line) is touched, and the
+# commit is refused if any page's code no longer parses.
 BUILD=$(date -u +%Y%m%d%H%M%S)
 for f in index.html admin.html; do
   if git diff --cached --name-only | grep -qx "$f"; then
-    sed -i "s/<meta name=\"app-build\" content=\"[^\"]*\"/<meta name=\"app-build\" content=\"$BUILD\"/" "$f"
+    sed -i "s/^<meta name=\"app-build\" content=\"[^\"]*\"/<meta name=\"app-build\" content=\"$BUILD\"/" "$f"
     git add "$f"
   fi
 done
+if command -v node >/dev/null 2>&1; then
+  node -e '
+    const fs = require("fs"); let bad = 0;
+    for (const f of ["index.html", "admin.html"]) {
+      const h = fs.readFileSync(f, "utf8"); const re = /<script>([\s\S]*?)<\/script>/g; let m;
+      while ((m = re.exec(h))) { try { new Function(m[1]); } catch (e) { console.error(f + ": " + e.message); bad = 1; } }
+    }
+    if (fs.existsSync("appsscript/Code.gs")) { try { new Function(fs.readFileSync("appsscript/Code.gs", "utf8")); } catch (e) { console.error("Code.gs: " + e.message); bad = 1; } }
+    process.exit(bad);
+  ' || { echo "pre-commit: a page no longer parses — commit refused." >&2; exit 1; }
+fi

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261003154533"/>
+<meta name="app-build" content="20261003160016"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1287,7 +1287,7 @@ function _fetchLiveBuild() {
   return fetch(location.pathname + '?build-check=' + Date.now(), { cache: 'no-store', credentials: 'omit' })
     .then(function(r) { return r.ok ? r.text() : ''; })
     .then(function(html) {
-      var m = /<meta name="app-build" content="20261003154533"]+)"/.exec(html || '');
+      var m = /name="app-build" content="([^"]+)"/.exec(html || '');
       return m ? m[1] : '';
     })
     .catch(function() { return ''; });
