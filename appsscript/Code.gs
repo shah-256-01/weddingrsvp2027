@@ -1417,9 +1417,11 @@ function markRSVPRowsDeleted(invitationCode) {
         const lastRow = sheet.getLastRow();
         if (lastRow < 2) return;
         const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-        const statusIdx = headers.indexOf('status');
         const codeIdx   = headers.indexOf('invitation_code');
-        if (statusIdx === -1 || codeIdx === -1) return;
+        if (codeIdx === -1) return;
+        // A hand-built tab without a status column used to make Reset /
+        // Delete silently do nothing. Add the column instead.
+        const statusIdx = _ensureGuestColumn(sheet, headers, 'status').idx;
         const codes = sheet.getRange(2, codeIdx + 1, lastRow - 1, 1).getValues();
         const statusRng = sheet.getRange(2, statusIdx + 1, lastRow - 1, 1);
         const status = statusRng.getValues();
@@ -2502,6 +2504,51 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
   }
 }
 
+// ── cleanUpOldRSVPs ───────────────────────────────────────
+// Run once from the Apps Script editor. Marks as DELETED every reply in
+// RSVPs_by_family and RSVPs_by_event whose invitation code no longer
+// belongs to a guest on the list — e.g. test guests whose rows were removed
+// straight from the Guests sheet. Only the status column is written; the
+// replies stay in the sheet for the record. Safe to re-run.
+function cleanUpOldRSVPs() {
+  const active = new Set((getGuestsCached() || [])
+    .filter(g => String(g.status || '').toUpperCase() !== 'DELETED')
+    .map(g => String(g.invitation_code || '').toUpperCase().trim()));
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const counts = {};
+  try {
+    [TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(function(tabName) {
+      counts[tabName] = 0;
+      const sheet = getSheet(tabName);
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const codeIdx = headers.indexOf('invitation_code');
+      if (codeIdx === -1) return;
+      const statusIdx = _ensureGuestColumn(sheet, headers, 'status').idx;
+      const codes = sheet.getRange(2, codeIdx + 1, lastRow - 1, 1).getValues();
+      const rng = sheet.getRange(2, statusIdx + 1, lastRow - 1, 1);
+      const status = rng.getValues();
+      codes.forEach(function(c, i) {
+        const code = String(c[0] || '').toUpperCase().trim();
+        if (!code || active.has(code)) return;
+        if (String(status[i][0] || '').toUpperCase() === 'DELETED') return;
+        status[i][0] = 'DELETED';
+        counts[tabName]++;
+      });
+      if (counts[tabName]) rng.setValues(status);
+    });
+    bumpAdminCacheVersion();
+  } finally {
+    lock.releaseLock();
+  }
+  const msg = 'cleanUpOldRSVPs: marked ' + counts[TABS.rsvpByFamily] + ' submission(s) and ' +
+    counts[TABS.rsvpByEvent] + ' event row(s) as DELETED (their guests are no longer on the list).';
+  Logger.log(msg);
+  return msg;
+}
+
 // ── getRSVPsByFamily ──────────────────────────────────────
 function getRSVPsByFamily() {
   return sheetToObjects(getSheet(TABS.rsvpByFamily));
@@ -2559,9 +2606,12 @@ function _getStats() {
   const byEventAll  = sheetToObjects(getSheet(TABS.rsvpByEvent));
   const byFamilyAll = sheetToObjects(getSheet(TABS.rsvpByFamily));
 
-  // Filter out DELETED RSVP rows
-  const byEvent  = byEventAll.filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
-  const byFamily = byFamilyAll.filter(r => String(r.status || '').toUpperCase() !== 'DELETED');
+  // Filter out DELETED RSVP rows, and replies from guests no longer on the
+  // list (e.g. rows removed straight from the Guests sheet).
+  const live = r => String(r.status || '').toUpperCase() !== 'DELETED' &&
+    activeGuestCodes.has(String(r.invitation_code || '').toUpperCase().trim());
+  const byEvent  = byEventAll.filter(live);
+  const byFamily = byFamilyAll.filter(live);
 
   // ── Deduplicate submissions ──────────────────────────
   const latestByCode = {};

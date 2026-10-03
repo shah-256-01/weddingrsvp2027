@@ -1183,6 +1183,22 @@ function setAllEvents(list) {
 }
 var allGuests = [];
 var allRSVPs = [];
+// Replies that still count: not marked DELETED, and from a guest who is
+// still on the list. Guests removed straight from the Google Sheet (rather
+// than with Delete here) leave their replies behind — those are hidden too.
+var _activeRSVPsCache = null, _activeRSVPsKey = '';
+function activeRSVPs() {
+  var key = (allRSVPs ? allRSVPs.length : 0) + '|' + allGuests.length;
+  if (_activeRSVPsCache && _activeRSVPsKey === key && _activeRSVPsCache._src === allRSVPs && _activeRSVPsCache._guests === allGuests) return _activeRSVPsCache;
+  var codes = new Set(allGuests.map(function(g) { return String(g.invitation_code || '').toUpperCase().trim(); }));
+  var list = (allRSVPs || []).filter(function(r) {
+    if (String(r.status || '').toUpperCase() === 'DELETED') return false;
+    return codes.has(String(r.invitation_code || '').toUpperCase().trim());
+  });
+  list._src = allRSVPs; list._guests = allGuests;
+  _activeRSVPsCache = list; _activeRSVPsKey = key;
+  return list;
+}
 var allDuplicates = [];
 // Companion Set of invitation codes with duplicate submissions, kept in
 // sync via setDuplicates(). O(1) lookup for the getRSVPStatus render hot
@@ -1743,8 +1759,7 @@ function computeClientStats() {
     if (allSubmittedCodes && allSubmittedCodes.has(String(g.invitation_code || ''))) rsvpd++;
   });
   var confirmed = 0;
-  (allRSVPs || []).forEach(function(r) {
-    if (String(r.status || '').toUpperCase() === 'DELETED') return;
+  activeRSVPs().forEach(function(r) {
     (allEvents || []).forEach(function(ev) {
       if (String(r[ev.id + ' Attending'] || '').toLowerCase() === 'yes') {
         confirmed += Number(r[ev.id + ' Guests']) || 0;
@@ -1790,18 +1805,19 @@ function renderRecentActivity() {
   var card = document.getElementById('recent-activity-card');
   var host = document.getElementById('recent-activity-list');
   if (!card || !host) return;
-  if (!Array.isArray(allRSVPs) || allRSVPs.length === 0) { card.classList.add('hidden'); return; }
+  var _act = activeRSVPs();
+  if (!_act.length) { card.classList.add('hidden'); return; }
   var sorted;
-  if (_recentTopCache && _recentTopCacheKey === allRSVPs) {
+  if (_recentTopCache && _recentTopCacheKey === _act) {
     sorted = _recentTopCache;
   } else {
-    sorted = allRSVPs.slice().sort(function(a, b) {
+    sorted = _act.slice().sort(function(a, b) {
       var ta = new Date(a.timestamp || 0).getTime();
       var tb = new Date(b.timestamp || 0).getTime();
       return tb - ta;
     }).slice(0, 5);
     _recentTopCache = sorted;
-    _recentTopCacheKey = allRSVPs;
+    _recentTopCacheKey = _act;
   }
   var timeAgo = function(iso) {
     var t = new Date(iso).getTime();
@@ -3199,8 +3215,7 @@ function openViewGuest(id) {
   var isSubmitted = allSubmittedCodes.has(g.invitation_code) || allSubmittedCodes.has(codeKey);
   var statusHtml;
   if (isSubmitted) {
-    var matches = (allRSVPs || []).filter(function(r) {
-      if (String(r.status || '').toUpperCase() === 'DELETED') return false;
+    var matches = activeRSVPs().filter(function(r) {
       return String(r.invitation_code || '').toUpperCase().trim() === codeKey;
     });
     matches.sort(function(a, b) { return new Date(b.timestamp || 0) - new Date(a.timestamp || 0); });
@@ -3279,7 +3294,7 @@ function resetGuestRSVP(guestId, btn) {
 var _rsvpEditing = null;
 
 function openViewRSVP(code) {
-  var rsvps = allRSVPs.filter(function(r) { return r.invitation_code === code; });
+  var rsvps = activeRSVPs().filter(function(r) { return r.invitation_code === code; });
   if (!rsvps.length) { showToast('No RSVP found for this code.', 'info'); return; }
   // If multiple submissions share this code (e.g. edits pre-dedupe), edit
   // the newest one. submitRSVP appends, so the last row is freshest.
@@ -3907,8 +3922,7 @@ function _invalidateGuestIdx() {
 function getFilteredRSVPs() {
   var byCode = _rsvpGuestsByCode();
 
-  var filtered = (allRSVPs || []).filter(function(r) {
-    if (String(r.status || '').toUpperCase() === 'DELETED') return false;
+  var filtered = activeRSVPs().filter(function(r) {
 
     // Search: submission name or invitation code
     if (rsvpFilters.search) {
@@ -3982,7 +3996,7 @@ function renderRSVPsTab() {
   var titleEl = document.getElementById('rsvp-view-title');
 
   if (!filtered.length) {
-    var empty = (allRSVPs || []).length
+    var empty = activeRSVPs().length
       ? 'No RSVPs match the current filters.'
       : 'No RSVPs submitted yet.';
     container.innerHTML = '<div class="empty-state">' + empty + '</div>';
