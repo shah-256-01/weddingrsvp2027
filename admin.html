@@ -884,8 +884,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <ul>
           <li><strong>Edit a guest</strong> &mdash; Guests tab, tap <kbd>&#9998; Edit</kbd> on their row. Change anything, tap <kbd>Save Guest</kbd>.</li>
           <li><strong>"Updated by someone else" message when saving?</strong> Another admin edited the same guest while you had it open. Tap <kbd>Reload</kbd>, then make your change again. Nothing was lost.</li>
-          <li><strong>Delete a guest</strong> &mdash; tap <kbd>&#10005; Delete</kbd>. There's no confirm box because you get <kbd>Undo</kbd> for 8 seconds, and they can always be restored from the <em>Deleted</em> section at the bottom of the list.</li>
-          <li><strong>Change lots of guests at once</strong> &mdash; tick the boxes on the left of the rows (or the top box for the whole page). A gold bar appears with: mark invite sent, set relationship, tag overseas, delete selected.</li>
+          <li><strong>Disable a guest</strong> &mdash; tap <kbd>&#8856; Disable</kbd>. Guests are never deleted: the row stays in the sheet, they just can't open their invitation. There's no confirm box because you get <kbd>Undo</kbd> for 8 seconds, and they can always be re-enabled from the <em>Disabled</em> section at the bottom of the list.</li>
+          <li><strong>Change lots of guests at once</strong> &mdash; tick the boxes on the left of the rows (or the top box for the whole page). A gold bar appears with: mark invite sent, set relationship, tag overseas, disable selected.</li>
           <li><strong>A guest RSVP'd wrong and asked you to fix it</strong> &mdash; RSVPs tab, find their submission, open it and edit. Guests can't change their own answer once sent; they contact you.</li>
           <li><strong>A guest wants to start their RSVP again</strong> (or you're clearing a test) &mdash; Guests tab, tap <kbd>&#128065; View</kbd> on their row, then <kbd>&#8634; Reset RSVP</kbd>. Their answers are cleared and they go back to <em>Awaiting RSVP</em>, so they can sign in and respond again. Their invite and code stay the same.</li>
           <li><strong>A guest says their code doesn't work</strong> &mdash; check the name on their row matches what they're typing. They must type the name exactly as it appears on the invite (spaces and capitals don't matter, but "Paul &amp; Mehreen" won't match "Paul").</li>
@@ -1253,7 +1253,7 @@ function _renderBulkBar() {
     '<button class="btn btn-secondary btn-sm" onclick="bulkTagOverseas(true)">Tag overseas</button>' +
     '<button class="btn btn-secondary btn-sm" onclick="bulkTagOverseas(false)">Not overseas</button>' +
     '<span style="flex:1;"></span>' +
-    '<button class="btn btn-danger-ghost btn-sm" onclick="bulkDeleteSelected()">&#10005; Delete selected</button>' +
+    '<button class="btn btn-danger-ghost btn-sm" onclick="bulkDeleteSelected()">&#8856; Disable selected</button>' +
   '</div>';
 }
 
@@ -1270,9 +1270,9 @@ function _bulkOnError(err) {
 function bulkDeleteSelected() {
   var n = _bulkCount();
   if (n === 0) return;
-  if (!confirm('Delete ' + n + ' guest(s)? They can be restored later from the Deleted section.')) return;
+  if (!confirm('Disable ' + n + ' guest(s)? Nothing is deleted — they can be re-enabled later from the Disabled section.')) return;
   google.script.run
-    .withSuccessHandler(function(r) { _bulkAfterServer((r && r.deleted) + ' guest(s) deleted.'); })
+    .withSuccessHandler(function(r) { _bulkAfterServer((r && r.deleted) + ' guest(s) disabled.'); })
     .withFailureHandler(_bulkOnError)
     .bulkDelete({ ids: _bulkIds() });
 }
@@ -2005,7 +2005,7 @@ function renderTableView(guests, container) {
         '<div class="guest-actions-col">' +
           '<button class="btn btn-secondary btn-sm" onclick="openViewGuest(\'' + escapeAttr(g.id) + '\')">&#128065; View</button>' +
           '<button class="btn btn-secondary btn-sm" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">&#9998; Edit</button>' +
-          '<button class="btn btn-danger-ghost btn-sm" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')">&#10005; Delete</button>' +
+          '<button class="btn btn-danger-ghost btn-sm" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')" title="Disable this guest (can be re-enabled later)">&#8856; Disable</button>' +
         '</div>' +
       '</td></tr>';
   }).join('');
@@ -2114,7 +2114,7 @@ function renderGroupedView(guests, container) {
         '</div><div style="display:flex;gap:.5rem;align-items:center;">' +
         '<span class="' + rsvpCls + '">' + rsvpLabel + '</span>' +
         '<button class="btn btn-icon btn-ghost" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">&#9998;</button>' +
-        '<button class="btn btn-icon btn-ghost" style="color:var(--red)" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')">&#10005;</button>' +
+        '<button class="btn btn-icon btn-ghost" style="color:var(--red)" title="Disable this guest (can be re-enabled later)" aria-label="Disable guest" onclick="removeGuest(\'' + escapeAttr(g.id) + '\')">&#8856;</button>' +
         '</div></div>';
     }).join('');
 
@@ -2947,28 +2947,28 @@ function removeGuest(id) {
       _bulkSelection.delete(id);
       _refreshBulkBar();
       loadGuests();
-      showActionToast('Deleted ' + name + '.', 'Undo', function(dismiss) {
+      showActionToast('Disabled ' + name + '.', 'Undo', function(dismiss) {
         google.script.run
-          .withSuccessHandler(function() { loadGuests(); showToast('Restored ' + name + '.', 'success'); dismiss(); })
+          .withSuccessHandler(function() { loadGuests(); showToast('Re-enabled ' + name + '.', 'success'); dismiss(); })
           .withFailureHandler(function(err) { showToast('Undo failed: ' + (err.message || 'Unknown'), 'error'); dismiss(); })
           .restoreGuest({ id: id });
       }, 8000);
     })
     .withFailureHandler(function(err) {
-      showToast('Delete failed: ' + (err.message || 'Unknown error'), 'error');
+      showToast('Disable failed: ' + (err.message || 'Unknown error'), 'error');
     })
     .deleteGuest({ id: id });
 }
 
 function doRestoreGuest(id) {
-  if (!confirm('Restore this guest?')) return;
+  if (!confirm('Re-enable this guest? They will be able to open their invitation again.')) return;
   google.script.run
     .withSuccessHandler(function() {
       loadGuests();
-      showToast('Guest restored', 'success');
+      showToast('Guest re-enabled', 'success');
     })
     .withFailureHandler(function(err) {
-      showToast('Restore failed: ' + (err.message || 'Unknown error'), 'error');
+      showToast('Re-enable failed: ' + (err.message || 'Unknown error'), 'error');
     })
     .restoreGuest({ id: id });
 }
@@ -2987,7 +2987,7 @@ function renderDeletedSection() {
     return '<div class="deleted-guest-row">' +
       '<div><span style="font-family:\'Cormorant Garamond\',serif;font-size:.92rem;color:var(--muted);">' + fullName + '</span>' +
       '<span style="font-size:.68rem;color:var(--muted);margin-left:.5rem;">' + code + '</span></div>' +
-      '<button class="btn btn-ghost btn-sm" onclick="doRestoreGuest(\'' + escapeAttr(g.id) + '\')" style="color:var(--green);">&#8634; Restore</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="doRestoreGuest(\'' + escapeAttr(g.id) + '\')" style="color:var(--green);">&#8634; Re-enable</button>' +
       '</div>';
   }).join('');
   var moreBtn = end < allDeletedGuests.length
@@ -2995,7 +2995,7 @@ function renderDeletedSection() {
     : '';
   return '<div class="deleted-section">' +
     '<button class="deleted-toggle" onclick="toggleDeletedSection(this)">' +
-    '<span class="arrow">&#9654;</span> Deleted Guests (' + allDeletedGuests.length + ')</button>' +
+    '<span class="arrow">&#9654;</span> Disabled Guests (' + allDeletedGuests.length + ')</button>' +
     '<div class="deleted-list" id="deleted-list">' +
     '<div class="admin-card" style="opacity:.7;">' + rows + moreBtn + '</div>' +
     '</div></div>';

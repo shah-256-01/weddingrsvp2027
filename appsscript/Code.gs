@@ -2718,9 +2718,11 @@ function setupSheet() {
 // What it DOES NOT do:
 //   - It does not touch your Events tab *data* — events are curated and
 //     this function preserves them. Only reformats Events headers.
-//   - It WILL clear all rows in Guests, RSVPs_by_family, RSVPs_by_event.
-//     Run only when you're comfortable wiping those rows (e.g. going
-//     live with a fresh data set after testing).
+//   - It never deletes guests. Guests are only ever disabled (status =
+//     DELETED, restorable from the admin). If Guests, RSVPs_by_family or
+//     RSVPs_by_event holds any data rows, it refuses to run and changes
+//     nothing. To use it, archive those rows yourself first (e.g. File →
+//     Make a copy), then empty the tabs by hand.
 //
 // Header *keys* in row 1 are kept identical to what the rest of the
 // code expects (first_name, invitation_code, Lg_guests, etc.). The
@@ -2728,6 +2730,17 @@ function setupSheet() {
 function rebuildSheetToTemplate() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const log = [];
+
+  // Guests must never be hard-deleted. Refuse before touching anything if
+  // any tab this would wipe still has data rows below the header.
+  const nonEmpty = [TABS.guests, TABS.rsvpByFamily, TABS.rsvpByEvent].filter(function(name) {
+    const sh = ss.getSheetByName(name);
+    return sh && sh.getLastRow() > 1;
+  });
+  if (nonEmpty.length) {
+    throw new Error('rebuildSheetToTemplate refused: ' + nonEmpty.join(', ') +
+      ' still contain data. Guests are never deleted, only disabled. Nothing was changed.');
+  }
 
   _templateRebuildEventsTab(ss, log);
   _templateRebuildGuestsTab(ss, log);
