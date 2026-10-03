@@ -220,6 +220,41 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .name-inputs-container{margin-top:.8rem;}
 .name-inputs-group{margin-bottom:.6rem;}
 .event-invitee{display:flex;flex-direction:column;gap:.15rem;margin-bottom:1.2rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+/* "This invitation is for" — the clearest thing on each event card. The
+   left border colour signals the kind: named-only / family / couple. */
+.invite-for{background:var(--cream);border:1px solid var(--rule);border-left:3px solid var(--gold);padding:.9rem 1rem;margin-bottom:1.3rem;}
+.invite-for--named{border-left-color:var(--wine);}
+.invite-for--family{border-left-color:var(--green);}
+.invite-for__label{font-family:var(--label);font-variant-caps:all-small-caps;font-size:var(--ui-xs);letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
+.invite-for__who{font-family:var(--serif);font-size:1.35rem;color:var(--wine);line-height:1.25;margin:.15rem 0 .5rem;}
+.invite-for__pill{display:inline-block;font-family:var(--sans);font-size:var(--ui-sm);padding:.28rem .7rem;border-radius:999px;background:#fff;border:1px solid var(--rule);color:var(--ink);}
+.invite-for--named .invite-for__pill{border-color:var(--wine);color:var(--wine);}
+.invite-for--family .invite-for__pill{border-color:var(--green);color:var(--green);}
+.invite-for__note{font-size:var(--ui-xs);color:var(--muted);margin-top:.5rem;line-height:1.55;}
+/* At-a-glance overview of the whole invitation */
+.glance{background:#fff;border:1px solid var(--rule);padding:1.2rem 1.1rem 1.1rem;margin:0 0 1.4rem;}
+.glance__title{font-family:var(--serif);font-style:italic;font-size:1.4rem;color:var(--wine);line-height:1.2;}
+.glance__sub{font-size:var(--ui-sm);color:var(--muted);margin:.25rem 0 .8rem;line-height:1.55;}
+.glance__row{display:flex;justify-content:space-between;align-items:flex-start;gap:.8rem;width:100%;padding:.7rem 0;border:0;border-top:1px solid var(--rule);background:none;text-align:left;cursor:pointer;font:inherit;color:inherit;}
+.glance__event{font-family:var(--serif);font-size:1.08rem;color:var(--ink);line-height:1.25;}
+.glance__date{display:block;font-family:var(--sans);font-size:var(--ui-xs);color:var(--muted);margin-top:.15rem;}
+.glance__who{text-align:right;font-size:var(--ui-sm);color:var(--wine);max-width:58%;line-height:1.4;}
+.glance__who small{display:block;font-size:var(--ui-xs);color:var(--muted);}
+.glance__status{display:block;font-size:var(--ui-xs);margin-top:.2rem;}
+.glance__status--yes{color:var(--green);} .glance__status--no{color:var(--red);}
+.glance__actions{margin-top:1rem;display:flex;flex-direction:column;gap:.45rem;align-items:stretch;}
+.glance__hint{font-size:var(--ui-xs);color:var(--muted);text-align:center;line-height:1.5;}
+.notes-toggle{border:0;background:none;color:var(--wine);text-decoration:underline;font-family:var(--sans);font-size:var(--ui-sm);cursor:pointer;padding:.4rem 0;min-height:40px;}
+.event-card{scroll-margin-top:140px;}
+#rsvp-summary{scroll-margin-top:140px;}
+/* Bottom bar: progress + "next event" / "review & send" */
+.rsvp-bar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:.8rem;padding:.65rem 16px calc(.65rem + env(safe-area-inset-bottom));background:rgba(253,246,239,.97);border-top:1px solid var(--rule);box-shadow:0 -6px 20px rgba(0,0,0,.06);transform:translateY(110%);transition:transform .25s ease;}
+.rsvp-bar.show{transform:none;}
+.rsvp-bar__text{flex:1;min-width:0;font-size:var(--ui-sm);color:var(--ink);line-height:1.35;}
+.rsvp-bar__text small{display:block;color:var(--muted);font-size:var(--ui-xs);}
+.rsvp-bar__btn{flex-shrink:0;min-height:46px;padding:0 1.1rem;border:0;background:var(--wine);color:#fff;font-family:var(--sans);font-size:var(--ui-sm);cursor:pointer;white-space:nowrap;}
+.rsvp-bar__btn.done{background:var(--green);}
+#section-rsvp{padding-bottom:84px;}
 .event-invitee__label{font-family:var(--label);font-variant-caps:all-small-caps;font-size:var(--ui-xs);letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
 .event-invitee__name{font-family:var(--serif,'Cormorant Garamond',serif);font-size:1.2rem;color:var(--wine);line-height:1.3;}
 .reserved-list{display:flex;flex-direction:column;gap:.35rem;margin-bottom:1rem;}
@@ -464,24 +499,24 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         <div class="welcome-step">
           <div class="welcome-step-num">I</div>
           <div class="welcome-step-text">
-            <strong>Open each event card</strong>
-            <span>Tap to expand</span>
+            <strong>Check who’s invited</strong>
+            <span>Each event says exactly who it’s for</span>
           </div>
         </div>
         <div class="welcome-step-divider">&bull;</div>
         <div class="welcome-step">
           <div class="welcome-step-num">II</div>
           <div class="welcome-step-text">
-            <strong>Confirm attendance</strong>
-            <span>Set your guest count</span>
+            <strong>Say yes or no</strong>
+            <span>For each event, or “Yes to everything”</span>
           </div>
         </div>
         <div class="welcome-step-divider">&bull;</div>
         <div class="welcome-step">
           <div class="welcome-step-num">III</div>
           <div class="welcome-step-text">
-            <strong>Submit your response</strong>
-            <span>One reply for all events</span>
+            <strong>Send your reply</strong>
+            <span>One tap at the end, for all events</span>
           </div>
         </div>
       </div>
@@ -566,6 +601,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <span class="section-tag">Your invitations</span>
       <h2 class="section-title">Our celebrations, one reply</h2>
     </div>
+    <div class="glance" id="rsvp-glance"></div>
     <div class="progress-wrap" id="progress-wrap">
       <div class="progress-header">
         <span class="progress-label" id="progress-label">Begin with the first event</span>
@@ -582,6 +618,10 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <div class="summary-title">Your responses so far</div>
       <div id="summary-rows"></div>
     </div>
+  </div>
+  <div class="rsvp-bar" id="rsvp-bar" aria-live="polite">
+    <div class="rsvp-bar__text" id="rsvp-bar-text"></div>
+    <button type="button" class="rsvp-bar__btn" id="rsvp-bar-btn" onclick="rsvpBarAction()"></button>
   </div>
   <div class="submit-section" id="submit-section">
     <p class="submit-note">Please confirm by 30th November 2026</p>
@@ -1363,11 +1403,16 @@ function showRSVPFlow() {
     if (isUnallocated) maxGuests = 1;
 
     var defaultNames = Array(maxGuests).fill('');
-    // Prefill the first guest slot with the signed-in name so they don't
-    // have to retype it for every event.
-    var signedInName = [currentGuest && currentGuest.firstName, currentGuest && currentGuest.lastName]
-      .filter(Boolean).join(' ').trim();
-    if (signedInName && maxGuests > 0) defaultNames[0] = signedInName;
+    // Prefill names so nobody retypes them for every event. A couple's
+    // invite ("Paul & Mehreen", 2 seats) gets one name per box — not
+    // "Paul & Mehreen" in box 1 and an empty "Guest 2".
+    var signedInName = coverName();
+    var parts = coverParts(signedInName);
+    if (parts.length > 1 && maxGuests >= parts.length) {
+      parts.forEach(function(n, i) { defaultNames[i] = n; });
+    } else if (signedInName && maxGuests > 0) {
+      defaultNames[0] = signedInName;
+    }
     eventRSVPs[id] = {
       attending:     null,
       guests:        maxGuests,
@@ -1396,6 +1441,7 @@ function hideRSVPFlow() {
     var el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
+  updateRsvpBar();
 }
 
 var _contactSaving = false;
@@ -1448,6 +1494,8 @@ async function submitContactDetails() {
 }
 
 function showAlreadySubmittedScreen(existingRSVP) {
+  var bar = document.getElementById('rsvp-bar');
+  if (bar) bar.classList.remove('show');
   // Hide all RSVP form sections
   ['events-section', 'rsvp-summary', 'submit-section', 'success-screen'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -1654,34 +1702,32 @@ function renderEventCards() {
 
     var rsv = eventRSVPs[id];
     var isReserved = !!(rsv.reserved && rsv.reserved.length);
-    var countBlock = isReserved
-      ? '<span class="field-label">Who’s coming?</span>' +
-        '<div style="font-size:var(--ui-sm);color:var(--muted);margin-top:-.4rem;margin-bottom:.8rem;line-height:1.6;">' +
-          'Seats for this event are reserved by name. Untick anyone who can’t make it.' +
-        '</div>'
-      : '<span class="field-label">Number of Guests Attending</span>' +
-        (!rsv.isUnallocated
-          ? '<div style="font-size:var(--ui-sm);color:var(--muted);margin-top:-.4rem;' +
-            'margin-bottom:1.2rem;line-height:1.6;">' +
-            'Your invitation includes up to <strong style="color:var(--wine);">' +
-            rsv.maxGuests + ' guest' + (rsv.maxGuests !== 1 ? 's' : '') +
-            '</strong> for this event.' +
-          '</div>'
-          : '') +
+    var info = inviteInfo(id);
+    var counter =
         '<div class="guest-count-row">' +
-          '<div class="guest-count-item"><label>Guests</label><div class="counter-row">' +
-            '<button class="counter-btn" id="dec-' + safeId + '" aria-label="Decrease guests" onclick="adjCount(\'' + safeId + '\',\'guests\',-1)">−</button>' +
+          '<div class="guest-count-item"><div class="counter-row">' +
+            '<button class="counter-btn" id="dec-' + safeId + '" aria-label="One fewer" onclick="adjCount(\'' + safeId + '\',\'guests\',-1)">−</button>' +
             '<span class="counter-val" id="guests-' + safeId + '" aria-live="polite">' + rsv.guests + '</span>' +
-            '<button class="counter-btn" id="inc-' + safeId + '" aria-label="Increase guests" onclick="adjCount(\'' + safeId + '\',\'guests\',1)">+</button>' +
+            '<button class="counter-btn" id="inc-' + safeId + '" aria-label="One more" onclick="adjCount(\'' + safeId + '\',\'guests\',1)">+</button>' +
           '</div></div>' +
         '</div>';
+    var hint = function(t) {
+      return '<div style="font-size:var(--ui-sm);color:var(--muted);margin-top:-.4rem;margin-bottom:1rem;line-height:1.6;">' + t + '</div>';
+    };
+    // What we ask once they tap "Joyfully attend" depends on the invitation:
+    // named → tick who's coming; just you → nothing more to ask; otherwise
+    // how many are coming (never more than the invitation allows).
+    var countBlock =
+      isReserved ? '<span class="field-label">Who’s coming?</span>' + hint('Untick anyone who can’t make it.')
+      : info.type === 'single' ? ''
+      : info.type === 'family' ? '<span class="field-label">How many people are coming?</span>' + hint('Up to <strong style="color:var(--wine);">' + rsv.maxGuests + '</strong> from your family.') + counter
+      : info.type === 'plusone' ? '<span class="field-label">How many of you are coming?</span>' + hint('You, plus one guest if you’re bringing someone.') + counter
+      : info.type === 'unset' ? '<span class="field-label">How many of you are coming?</span>' + counter
+      : '<span class="field-label">How many of you are coming?</span>' + counter;
 
     el.innerHTML = header +
       '<div class="event-card-body"><div class="event-card-inner">' +
-        '<div class="event-invitee">' +
-          '<span class="event-invitee__label">Invitation for</span>' +
-          '<span class="event-invitee__name">' + escapeHtml(inviteeLabelFor(id)) + '</span>' +
-        '</div>' +
+        inviteForHtml(id) +
         '<div class="attend-toggle">' +
           '<button class="attend-btn yes" id="yes-' + safeId + '" onclick="setAttending(\'' + safeId + '\',true)">Joyfully attend</button>' +
           '<button class="attend-btn no" id="no-' + safeId + '" onclick="setAttending(\'' + safeId + '\',false)">Send regrets</button>' +
@@ -1697,8 +1743,8 @@ function renderEventCards() {
               '</div>'
             : '') +
           '<div class="field-section">' +
-            '<span class="field-label">Notes for this event</span>' +
-            '<textarea class="notes-field" placeholder="Any additional notes\u2026" oninput="eventRSVPs[\'' + safeId + '\'].notes=this.value"></textarea>' +
+            '<button type="button" class="notes-toggle" id="notes-btn-' + safeId + '" onclick="toggleNotes(\'' + safeId + '\')">+ Add a note (dietary needs, anything we should know)</button>' +
+            '<textarea class="notes-field hidden" id="notes-' + safeId + '" aria-label="Note for this event" placeholder="Anything we should know for this event\u2026" oninput="eventRSVPs[\'' + safeId + '\'].notes=this.value"></textarea>' +
           '</div>' +
         '</div>' +
       '</div></div>';
@@ -1748,7 +1794,8 @@ function adjCount(id, field, delta) {
   var r   = eventRSVPs[id];
   var max = r.maxGuests || 1;
   r.guests = Math.min(max, Math.max(1, r.guests + delta));
-  document.getElementById('guests-' + id).textContent = r.guests;
+  var valEl = document.getElementById('guests-' + id);
+  if (valEl) valEl.textContent = r.guests;
   while (r.guestNames.length < r.guests) r.guestNames.push('');
   if (r.guestNames.length > r.guests) r.guestNames.length = r.guests;
   // Disable counter buttons at the limits so guests aren't clicking dead
@@ -1758,14 +1805,21 @@ function adjCount(id, field, delta) {
   if (decBtn) { decBtn.disabled = r.guests <= 1;   decBtn.style.opacity = decBtn.disabled ? .35 : 1; }
   if (incBtn) { incBtn.disabled = r.guests >= max; incBtn.style.opacity = incBtn.disabled ? .35 : 1; }
   renderNameInputs(id);
+  renderSummary();
 }
 
 // ── Invitee wording (guest page only) ─────────────────
 // How many people the cover name itself refers to: "First & Last" = 2,
 // "Mike & Tinu" = 2, "Nish" = 1, "Hussein & +1" = 2.
+function coverParts(cover) {
+  return String(cover || '').split(/\s*(?:&|,|\band\b)\s*/i).map(function(s) { return s.trim(); }).filter(Boolean);
+}
 function coverHeadcount(cover) {
-  var parts = String(cover || '').split(/\s*(?:&|,|\band\b)\s*/i).filter(function(s) { return s.trim(); });
-  return Math.max(1, parts.length);
+  return Math.max(1, coverParts(cover).length);
+}
+function coverName() {
+  return [currentGuest && currentGuest.firstName, currentGuest && currentGuest.lastName]
+    .filter(Boolean).join(' ').trim() || (currentGuest && currentGuest.familyName) || '';
 }
 function _joinNames(list) {
   if (list.length <= 1) return list.join('');
@@ -1778,13 +1832,39 @@ function _joinNames(list) {
 // "and Family" means MORE THAN A COUPLE. A named single guest with 2 seats
 // ("Shan Shah", 2) is them plus a partner, not a family — only 3+ seats (or
 // more seats than the names already cover) earns "and Family".
-function inviteeLabelFor(id) {
+function inviteeLabelFor(id) { return inviteInfo(id).who; }
+
+// Exactly what an event's invitation covers — the one source for every
+// "who's invited" line on the page (overview, cards, reply form).
+//   named    reserved names: only those people ("Paul, Mehreen, Bob & Don")
+//   family   seats > max(people on the invite, 2): "Shan Shah and Family"
+//   group    the people on the invite: "Paul & Mehreen" — the two of you
+//   plusone  one name, 2 seats: "Shan Shah + 1 guest"
+//   single   one name, 1 seat: just you
+//   unset    seats not set yet
+function inviteInfo(id) {
   var r = eventRSVPs[id] || {};
-  if (r.reserved && r.reserved.length) return _joinNames(r.reserved);
-  var cover = [currentGuest && currentGuest.firstName, currentGuest && currentGuest.lastName]
-    .filter(Boolean).join(' ').trim();
-  var seats = r.isUnallocated ? 0 : (Number(r.maxGuests) || 0);
-  return seats > Math.max(coverHeadcount(cover), 2) ? cover + ' and Family' : cover;
+  var cover = coverName();
+  if (r.reserved && r.reserved.length) {
+    var n = r.reserved.length;
+    return { type: 'named', who: _joinNames(r.reserved), seats: n,
+      pill: n === 1 ? 'Only the person named' : 'Only the ' + n + ' people named',
+      note: 'Seats for this event are reserved by name, so they can’t be passed on to anyone else.' };
+  }
+  if (r.isUnallocated) return { type: 'unset', who: cover, seats: 0, pill: 'Seats to be confirmed', note: '' };
+  var seats = Number(r.maxGuests) || 0;
+  var head = coverHeadcount(cover);
+  if (seats > Math.max(head, 2)) {
+    return { type: 'family', who: cover + ' and Family', seats: seats, pill: 'Your family · up to ' + seats + ' people',
+      note: 'Bring up to ' + seats + ' people from your household.' };
+  }
+  if (head === 1 && seats <= 1) return { type: 'single', who: cover, seats: 1, pill: 'Just you · 1 person', note: '' };
+  if (head === 1 && seats === 2) return { type: 'plusone', who: cover + ' + 1 guest', seats: 2, pill: 'You and one guest · 2 people', note: '' };
+  if (seats >= head) {
+    return { type: 'group', who: cover, seats: seats,
+      pill: seats === 2 ? 'The two of you · 2 people' : 'All ' + seats + ' of you · ' + seats + ' people', note: '' };
+  }
+  return { type: 'group', who: cover, seats: seats, pill: seats + (seats === 1 ? ' person' : ' people'), note: '' };
 }
 
 function toggleReservedName(id, idx, on) {
@@ -1812,11 +1892,14 @@ function renderNameInputs(id) {
     return;
   }
   var html = '';
+  var kind = inviteInfo(id).type;
+  if (kind === 'single') { container.innerHTML = ''; return; }
   if (r.guests > 0) {
-    html += '<div class="name-inputs-group"><span class="field-label" style="margin-bottom:.3rem;">Guest Names</span>';
+    html += '<div class="name-inputs-group"><span class="field-label" style="margin-bottom:.3rem;">Names <span style="text-transform:none;letter-spacing:0;color:var(--muted);">(optional)</span></span>';
     for (var i = 0; i < r.guests; i++) {
       var safeId = escapeAttr(id);
-      html += '<input type="text" class="name-input" maxlength="100" placeholder="Guest ' + (i + 1) + ' name" ' +
+      var ph = (kind === 'plusone' && i === 1) ? 'Your guest’s name' : 'Name';
+      html += '<input type="text" class="name-input" maxlength="100" placeholder="' + ph + '" ' +
         'value="' + escapeAttr(r.guestNames[i] || '') + '" ' +
         'oninput="eventRSVPs[\'' + safeId + '\'].guestNames[' + i + ']=this.value.replace(/\\|/g,\'\')" />';
     }
@@ -1824,6 +1907,136 @@ function renderNameInputs(id) {
   }
   container.innerHTML = html;
 }
+
+// The "This invitation is for" box on each event card.
+function inviteForHtml(id) {
+  var info = inviteInfo(id);
+  return '<div class="invite-for invite-for--' + info.type + '">' +
+    '<span class="invite-for__label">This invitation is for</span>' +
+    '<div class="invite-for__who">' + escapeHtml(info.who) + '</div>' +
+    '<span class="invite-for__pill">' + escapeHtml(info.pill) + '</span>' +
+    (info.note ? '<div class="invite-for__note">' + escapeHtml(info.note) + '</div>' : '') +
+  '</div>';
+}
+
+// "Your invitation at a glance": every event, who it's for, and the guest's
+// answer so far. Tapping a row jumps to that event.
+function renderGlance() {
+  var host = document.getElementById('rsvp-glance');
+  if (!host) return;
+  if (!currentEventIds.length) { host.innerHTML = ''; host.classList.add('hidden'); return; }
+  host.classList.remove('hidden');
+  var anyNamed = false, anyFamily = false;
+  var rows = currentEventIds.map(function(id) {
+    var evt = eventFor(id) || {};
+    var info = inviteInfo(id);
+    if (info.type === 'named') anyNamed = true;
+    if (info.type === 'family') anyFamily = true;
+    var r = eventRSVPs[id] || {};
+    var status = r.attending === true ? '<span class="glance__status glance__status--yes">✓ Attending · ' + r.guests + (r.guests === 1 ? ' person' : ' people') + '</span>'
+      : r.attending === false ? '<span class="glance__status glance__status--no">Sending regrets</span>' : '';
+    var date = String(evt.date || '').replace(/\s*\d{4}\s*$/, '');
+    return '<button type="button" class="glance__row" onclick="scrollToEvent(\'' + escapeAttr(id) + '\')">' +
+      '<span class="glance__event">' + escapeHtml(evt.name || id) + (date && date !== 'TBC' ? '<span class="glance__date">' + escapeHtml(date) + '</span>' : '') + '</span>' +
+      '<span class="glance__who">' + escapeHtml(info.who) + '<small>' + escapeHtml(info.pill) + '</small>' + status + '</span>' +
+    '</button>';
+  }).join('');
+  var sub = 'Here’s exactly who each invitation is for.';
+  if (anyNamed) sub += ' Where people are named, only they are invited.';
+  if (anyFamily) sub += ' “and Family” means your household, up to the number shown.';
+  var answered = currentEventIds.filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending !== null; }).length;
+  var allYes = currentEventIds.every(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === true; });
+  host.innerHTML =
+    '<div class="glance__title">Your invitation at a glance</div>' +
+    '<div class="glance__sub">' + escapeHtml(sub) + '</div>' +
+    rows +
+    '<div class="glance__actions">' +
+      (allYes
+        ? '<div class="glance__hint">Wonderful — you’re down for everything. Check the numbers below, then send your reply.</div>'
+        : '<button type="button" class="btn btn-primary" onclick="yesToAll()">' + (currentEventIds.length > 1 ? 'Yes to everything' : 'Yes, we’ll be there') + '</button>' +
+          '<div class="glance__hint">' + (answered ? 'Or carry on answering each event below.' : 'Or answer each event below.') + '</div>') +
+    '</div>';
+}
+
+function yesToAll() {
+  currentEventIds.forEach(function(id) {
+    if (eventRSVPs[id] && eventRSVPs[id].attending !== true) setAttending(id, true);
+  });
+  var first = currentEventIds[0];
+  if (first) setTimeout(function() { scrollToEvent(first); }, 150);
+}
+
+function scrollToEvent(id) {
+  var el = document.getElementById('ecard-' + id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function toggleNotes(id) {
+  var ta = document.getElementById('notes-' + id);
+  var btn = document.getElementById('notes-btn-' + id);
+  if (!ta) return;
+  ta.classList.remove('hidden');
+  if (btn) btn.classList.add('hidden');
+  ta.focus();
+}
+
+// Bottom bar: how far through they are, and one button that either jumps to
+// the next unanswered event or to the review-and-send section. Hidden while
+// the send button itself is on screen, and on every non-RSVP screen.
+var _submitInView = false;
+function _rsvpFlowActive() {
+  var ev = document.getElementById('events-section');
+  var ok = ev && !ev.classList.contains('hidden') && currentEventIds.length > 0;
+  ['success-screen', 'already-submitted-screen', 'contact-screen'].forEach(function(sid) {
+    var el = document.getElementById(sid);
+    if (el && !el.classList.contains('hidden')) ok = false;
+  });
+  var rsvpTab = document.getElementById('section-rsvp');
+  if (rsvpTab && !rsvpTab.classList.contains('active')) ok = false;
+  return ok;
+}
+function updateRsvpBar() {
+  var bar = document.getElementById('rsvp-bar');
+  if (!bar) return;
+  if (!_rsvpFlowActive() || _submitInView) { bar.classList.remove('show'); return; }
+  var total = currentEventIds.length;
+  var next = currentEventIds.find(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending === null; });
+  var answered = currentEventIds.filter(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending !== null; }).length;
+  var text = document.getElementById('rsvp-bar-text');
+  var btn = document.getElementById('rsvp-bar-btn');
+  if (next) {
+    var evt = eventFor(next) || {};
+    text.innerHTML = '<strong>' + answered + ' of ' + total + '</strong> answered<small>Reply to every event, then send</small>';
+    btn.textContent = 'Next: ' + (evt.name || 'event') + ' ↓';
+    btn.classList.remove('done');
+    btn.setAttribute('data-target', next);
+  } else {
+    text.innerHTML = '<strong>All ' + total + ' answered ✓</strong><small>Check your reply, then send it</small>';
+    btn.textContent = 'Review & send ↓';
+    btn.classList.add('done');
+    btn.setAttribute('data-target', '');
+  }
+  bar.classList.add('show');
+}
+function rsvpBarAction() {
+  var btn = document.getElementById('rsvp-bar-btn');
+  var target = btn && btn.getAttribute('data-target');
+  if (target) { scrollToEvent(target); return; }
+  var sum = document.getElementById('rsvp-summary');
+  if (sum) sum.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+(function() {
+  if (typeof IntersectionObserver !== 'function') return;
+  var start = function() {
+    var target = document.getElementById('submit-section');
+    if (!target) return;
+    new IntersectionObserver(function(entries) {
+      _submitInView = entries.some(function(e) { return e.isIntersecting; });
+      updateRsvpBar();
+    }).observe(target);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
 
 function updateProgress() {
   var total     = currentEventIds.length;
@@ -1855,6 +2068,7 @@ function updateProgress() {
     fillEl.style.width  = pct + '%';
     wrapEl.classList.remove('complete');
   }
+  updateRsvpBar();
 }
 
 /* ══════════════════════════════════════════════
@@ -2013,7 +2227,7 @@ function renderSummary() {
     if (r.attending === null) badge = '<span class="summary-status status-pending">Pending</span>';
     else if (r.attending) {
       badge = '<span class="summary-status status-attending">Attending</span>';
-      detail = ' · ' + r.guests + (r.guests === 1 ? ' guest' : ' guests');
+      detail = ' · ' + r.guests + (r.guests === 1 ? ' person' : ' people');
       var allNames = (r.guestNames || []).filter(Boolean);
       if (allNames.length) detail += ' (' + allNames.map(function(n) { return escapeHtml(n); }).join(', ') + ')';
     }
@@ -2021,6 +2235,7 @@ function renderSummary() {
     row.innerHTML = '<span class="summary-name">' + escapeHtml(evt.name) + '<span style="color:var(--muted);font-size:var(--ui-xs);font-family:var(--sans);">' + detail + '</span></span>' + badge;
     rows.appendChild(row);
   });
+  renderGlance();
 }
 
 /*
@@ -2151,6 +2366,7 @@ async function submitRSVP() {
       if (el) el.classList.add('hidden');
     });
     document.getElementById('success-screen').classList.remove('hidden');
+    updateRsvpBar();
     showCalendarButtons();
     if (currentGuest && currentGuest.isOverseas) {
       document.getElementById('overseas-success-link').classList.remove('hidden');
@@ -2186,6 +2402,7 @@ function showGuestSection(name, btn) {
   var section = document.getElementById('section-' + name);
   if (section) section.classList.add('active');
   if (btn) btn.classList.add('active');
+  updateRsvpBar();   // the bottom bar only belongs on the RSVP tab
 }
 
 function toggleFAQ(item) {
