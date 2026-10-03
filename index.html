@@ -1407,8 +1407,10 @@ function showRSVPFlow() {
     // invite ("Paul & Mehreen", 2 seats) gets one name per box — not
     // "Paul & Mehreen" in box 1 and an empty "Guest 2".
     var signedInName = coverName();
-    var parts = coverParts(signedInName);
-    if (parts.length > 1 && maxGuests >= parts.length) {
+    var rawParts = coverParts(signedInName);
+    // "Shan Shah & Guest": prefill "Shan Shah", leave the guest's box empty.
+    var parts = rawParts.filter(function(n) { return !/^(guest|\+\s*1|plus one)$/i.test(n); });
+    if (rawParts.length > 1 && maxGuests >= rawParts.length) {
       parts.forEach(function(n, i) { defaultNames[i] = n; });
     } else if (signedInName && maxGuests > 0) {
       defaultNames[0] = signedInName;
@@ -1721,7 +1723,6 @@ function renderEventCards() {
       isReserved ? '<span class="field-label">Who’s coming?</span>' + hint('Untick anyone who can’t make it.')
       : info.type === 'single' ? ''
       : info.type === 'family' ? '<span class="field-label">How many people are coming?</span>' + hint('Up to <strong style="color:var(--wine);">' + rsv.maxGuests + '</strong> from your family.') + counter
-      : info.type === 'plusone' ? '<span class="field-label">How many of you are coming?</span>' + hint('You, plus one guest if you’re bringing someone.') + counter
       : info.type === 'unset' ? '<span class="field-label">How many of you are coming?</span>' + counter
       : '<span class="field-label">How many of you are coming?</span>' + counter;
 
@@ -1839,7 +1840,9 @@ function inviteeLabelFor(id) { return inviteInfo(id).who; }
 //   named    reserved names: only those people ("Paul, Mehreen, Bob & Don")
 //   family   seats > max(people on the invite, 2): "Shan Shah and Family"
 //   group    the people on the invite: "Paul & Mehreen" — the two of you
-//   plusone  one name, 2 seats: "Shan Shah + 1 guest"
+//   plusone  one name, 2 seats: "Shan Shah · 2 people" (neutral — it usually
+//            means them and a partner, not an open plus-one; write
+//            "Shan Shah & Guest" in the sheet when it is one)
 //   single   one name, 1 seat: just you
 //   unset    seats not set yet
 function inviteInfo(id) {
@@ -1859,7 +1862,7 @@ function inviteInfo(id) {
       note: 'Bring up to ' + seats + ' people from your household.' };
   }
   if (head === 1 && seats <= 1) return { type: 'single', who: cover, seats: 1, pill: 'Just you · 1 person', note: '' };
-  if (head === 1 && seats === 2) return { type: 'plusone', who: cover + ' + 1 guest', seats: 2, pill: 'You and one guest · 2 people', note: '' };
+  if (head === 1 && seats === 2) return { type: 'plusone', who: cover, seats: 2, pill: '2 people', note: '' };
   if (seats >= head) {
     return { type: 'group', who: cover, seats: seats,
       pill: seats === 2 ? 'The two of you · 2 people' : 'All ' + seats + ' of you · ' + seats + ' people', note: '' };
@@ -1898,7 +1901,7 @@ function renderNameInputs(id) {
     html += '<div class="name-inputs-group"><span class="field-label" style="margin-bottom:.3rem;">Names <span style="text-transform:none;letter-spacing:0;color:var(--muted);">(optional)</span></span>';
     for (var i = 0; i < r.guests; i++) {
       var safeId = escapeAttr(id);
-      var ph = (kind === 'plusone' && i === 1) ? 'Your guest’s name' : 'Name';
+      var ph = 'Name';
       html += '<input type="text" class="name-input" maxlength="100" placeholder="' + ph + '" ' +
         'value="' + escapeAttr(r.guestNames[i] || '') + '" ' +
         'oninput="eventRSVPs[\'' + safeId + '\'].guestNames[' + i + ']=this.value.replace(/\\|/g,\'\')" />';
