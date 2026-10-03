@@ -649,6 +649,10 @@ function setupSideEventDetails() {
       const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
       SIDE_EVENT_COLUMNS.forEach(function(h) {
         const c = headers.indexOf(h);
+        // These are free-text columns. Older layouts of the Events tab left
+        // TRUE/FALSE dropdowns on the columns they now occupy (column I), so
+        // clear any validation on them first.
+        sheet.getRange(2, c + 1, Math.max(sheet.getMaxRows() - 1, 1), 1).clearDataValidations();
         let changed = false;
         const col = data.map(function(row) {
           const defs = SIDE_EVENT_DEFAULTS[String(row[idI]).trim()];
