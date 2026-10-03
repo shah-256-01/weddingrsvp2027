@@ -700,63 +700,112 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     </div>
   </div>
 
-  <!-- ── TAB: MESSAGES ── -->
+  <!-- ── TAB: MESSAGES ──
+       A guided flow, built for phones:
+         1. pick a group (Bride's Family, Groom's Friends, …)
+         2. see only that group's invites, tap Start sending
+         3. one guest per screen: check the message, Open WhatsApp, Next
+       A group can be handed to someone else with a #sender=… link. -->
   <div class="admin-panel" id="tab-messages">
+    <style>
+      .msgx{max-width:560px;margin:0 auto;}
+      .msgx .hidden{display:none!important;}
+      .msgx-mode{display:flex;background:#fff;border:1px solid var(--border);border-radius:999px;padding:4px;margin:0 0 1.2rem;}
+      .msgx-mode button{flex:1;min-height:42px;border:0;border-radius:999px;background:transparent;font-family:'Jost',sans-serif;font-size:.9rem;color:var(--muted);cursor:pointer;}
+      .msgx-mode button.active{background:var(--wine);color:#fff;font-weight:500;}
+      .msgx-h{font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:var(--wine);margin:0 0 .2rem;line-height:1.2;}
+      .msgx-sub{font-size:.85rem;color:var(--muted);margin:0 0 1rem;line-height:1.5;}
+      .msgx-group{display:flex;align-items:center;gap:.9rem;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:12px;padding:1rem 1.05rem;margin-bottom:.7rem;cursor:pointer;font-family:'Jost',sans-serif;color:var(--ink);transition:border-color .15s,box-shadow .15s;}
+      .msgx-group:hover,.msgx-group:focus-visible{border-color:var(--gold);box-shadow:0 4px 14px rgba(107,39,55,.08);outline:none;}
+      .msgx-group__body{flex:1;min-width:0;}
+      .msgx-group__name{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--wine);line-height:1.2;}
+      .msgx-group__line{font-size:.85rem;color:var(--ink);margin-top:.15rem;}
+      .msgx-group__line b{color:var(--wine);}
+      .msgx-group__meta{font-size:.75rem;color:var(--muted);margin-top:.1rem;}
+      .msgx-group__chev{font-size:1.4rem;color:var(--gold);}
+      .msgx-group--done .msgx-group__line{color:var(--green);}
+      .msgx-group--all{background:transparent;border-style:dashed;padding:.8rem 1.05rem;}
+      .msgx-group--all .msgx-group__name{font-size:1.1rem;}
+      .msgx-bar{height:6px;background:rgba(0,0,0,.07);border-radius:99px;overflow:hidden;margin-top:.5rem;}
+      .msgx-bar > i{display:block;height:100%;background:var(--green);border-radius:99px;transition:width .3s;}
+      .msgx-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin:0 0 .8rem;}
+      .msgx-back{border:0;background:transparent;color:var(--wine);font-family:'Jost',sans-serif;font-size:.95rem;padding:.5rem .2rem;min-height:44px;cursor:pointer;}
+      .msgx-link{border:0;background:transparent;color:var(--muted);font-family:'Jost',sans-serif;font-size:.85rem;padding:.5rem .2rem;min-height:44px;cursor:pointer;text-decoration:underline;}
+      .msgx-cta{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:56px;border:0;border-radius:12px;background:var(--wine);color:#fff;font-family:'Jost',sans-serif;font-size:1.05rem;font-weight:500;cursor:pointer;text-decoration:none;margin-top:1rem;box-shadow:0 4px 14px rgba(107,39,55,.18);}
+      .msgx-cta:disabled{background:rgba(0,0,0,.12);color:var(--muted);box-shadow:none;cursor:default;}
+      .msgx-cta--wa{background:#1f7a4d;box-shadow:0 4px 14px rgba(31,122,77,.25);}
+      .msgx-cta--ghost{background:#fff;color:var(--wine);border:1px solid var(--border);box-shadow:none;font-size:.95rem;min-height:48px;}
+      .msgx-seg{display:flex;gap:.4rem;overflow-x:auto;margin:1.2rem 0 .7rem;padding-bottom:2px;scrollbar-width:none;}
+      .msgx-seg::-webkit-scrollbar{display:none;}
+      .msgx-seg button{flex:0 0 auto;min-height:38px;padding:0 .9rem;border:1px solid var(--border);border-radius:999px;background:#fff;font-family:'Jost',sans-serif;font-size:.82rem;color:var(--ink);cursor:pointer;white-space:nowrap;}
+      .msgx-seg button.active{background:var(--ink);border-color:var(--ink);color:#fff;}
+      .msgx-search{width:100%;min-height:44px;padding:0 .9rem;border:1px solid var(--border);border-radius:10px;font-family:'Jost',sans-serif;font-size:16px;background:#fff;margin-bottom:.6rem;box-sizing:border-box;}
+      .msgx-row{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid rgba(0,0,0,.06);padding:.8rem .3rem;min-height:60px;cursor:pointer;font-family:'Jost',sans-serif;color:var(--ink);}
+      .msgx-row:first-child{border-top:1px solid rgba(0,0,0,.06);}
+      .msgx-row__body{flex:1;min-width:0;}
+      .msgx-row__name{font-size:.98rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .msgx-row__meta{font-size:.75rem;color:var(--muted);margin-top:.1rem;}
+      .msgx-row__aside{font-size:.75rem;color:var(--muted);text-align:right;white-space:nowrap;}
+      .msgx-row__aside .ok{color:var(--green);}
+      .msgx-row__btn{border:1px solid var(--border);background:#fff;border-radius:999px;padding:.4rem .8rem;font-family:'Jost',sans-serif;font-size:.8rem;color:var(--wine);cursor:pointer;white-space:nowrap;}
+      .msgx-empty{text-align:center;color:var(--muted);font-size:.88rem;padding:2rem 1rem;}
+      .msgx-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:1.2rem 1.1rem 0;}
+      .msgx-name{font-family:'Cormorant Garamond',serif;font-size:1.75rem;color:var(--wine);line-height:1.15;margin:0;}
+      .msgx-who{font-size:.85rem;color:var(--muted);margin-top:.3rem;line-height:1.5;}
+      .msgx-who .code-pill{margin-left:.2rem;}
+      .msgx-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin:.8rem 0 0;}
+      .msgx-chip{font-size:.72rem;padding:.25rem .6rem;border-radius:999px;background:var(--gold-pale);color:var(--ink);}
+      .msgx-chip b{font-weight:600;color:var(--wine);}
+      .msgx-label{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:1.1rem 0 .4rem;}
+      .msgx-label select{font-size:.8rem;text-transform:none;letter-spacing:0;padding:.3rem .4rem;border:1px solid var(--border);border-radius:6px;background:#fff;max-width:60%;}
+      .msgx-bubble{background:#e7f6dc;border-radius:10px 10px 10px 2px;padding:.8rem .9rem;font-size:.88rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:#1d2a1f;max-height:34vh;overflow:auto;}
+      .msgx-edit{width:100%;min-height:200px;box-sizing:border-box;border:1px solid var(--gold);border-radius:10px;padding:.8rem .9rem;font-family:'Jost',sans-serif;font-size:16px;line-height:1.5;background:#fffdf8;}
+      .msgx-editlink{border:0;background:transparent;color:var(--wine);font-family:'Jost',sans-serif;font-size:.8rem;text-transform:none;letter-spacing:0;cursor:pointer;padding:.2rem 0;text-decoration:underline;}
+      .msgx-actions{position:sticky;bottom:0;background:linear-gradient(to bottom,rgba(255,255,255,0),#fff 18%);margin:0 -1.1rem;padding:.6rem 1.1rem 1.1rem;}
+      .msgx-actions .msgx-cta{margin-top:.4rem;}
+      .msgx-sub-actions{display:flex;gap:.5rem;margin-top:.5rem;}
+      .msgx-sub-actions button{flex:1;min-height:46px;border:1px solid var(--border);border-radius:10px;background:#fff;font-family:'Jost',sans-serif;font-size:.9rem;color:var(--ink);cursor:pointer;}
+      .msgx-done{display:flex;align-items:center;gap:.5rem;background:rgba(31,122,77,.1);color:#1f7a4d;border-radius:10px;padding:.7rem .9rem;font-size:.92rem;font-weight:500;}
+      .msgx-undo{display:block;margin:.6rem auto 0;border:0;background:transparent;color:var(--muted);font-family:'Jost',sans-serif;font-size:.82rem;text-decoration:underline;cursor:pointer;padding:.4rem;}
+      .msgx-warn{background:#fff4f2;border-left:3px solid var(--red);border-radius:6px;padding:.7rem .8rem;font-size:.85rem;margin-top:1rem;line-height:1.5;}
+      .msgx-finish{text-align:center;padding:2rem 1rem 1.2rem;}
+      .msgx-finish__icon{font-size:2.6rem;}
+      .msgx-count{font-size:.85rem;color:var(--muted);}
+    </style>
 
-    <div class="admin-card">
-      <div class="admin-card-title">Messages</div>
+    <div class="msgx">
+      <!-- Step 1: pick a group -->
+      <section id="msgx-groups">
+        <div class="msgx-mode" role="tablist" aria-label="Message type">
+          <button type="button" role="tab" id="msgx-mode-invite" onclick="switchMsgMode('invite')">Invites</button>
+          <button type="button" role="tab" id="msgx-mode-chase" onclick="switchMsgMode('chase')">Reminders</button>
+        </div>
+        <h2 class="msgx-h" id="msgx-groups-title">Who are you sending to?</h2>
+        <p class="msgx-sub" id="msgx-groups-sub">Pick a group. You’ll only see their invites.</p>
+        <div id="msgx-group-list"></div>
+      </section>
 
-      <!-- Sender profile: who's sending this batch. Auto-restricts the queue
-           to their relationship so, e.g., the groom's mum can only see and
-           send to Groom's Family. Can be handed off between family members
-           via a URL hash (#sender=grooms-family). -->
-      <div id="sender-bar" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem;padding:.55rem .8rem;background:var(--gold-pale);border:1px solid var(--gold);border-radius:2px;">
-        <label for="sender-select" style="font-size:.75rem;font-weight:600;">Sending as:</label>
-        <select id="sender-select" onchange="onSenderChange()">
-          <option value="">Anyone (all guests)</option>
-          <option value="Bride&#8217;s Friend">Bride &mdash; sending to Bride&#8217;s Friends</option>
-          <option value="Groom&#8217;s Friend">Groom &mdash; sending to Groom&#8217;s Friends</option>
-          <option value="Bride&#8217;s Family">Bride&#8217;s Family &mdash; sending to Bride&#8217;s Family</option>
-          <option value="Groom&#8217;s Family">Groom&#8217;s Family &mdash; sending to Groom&#8217;s Family</option>
-        </select>
-        <button class="btn btn-secondary btn-sm" onclick="copySenderLink()" title="Copy a shareable link that pre-selects this sender">Share link</button>
-        <span id="sender-lock-note" style="font-size:.7rem;color:var(--muted);"></span>
-      </div>
+      <!-- Step 2: that group's list -->
+      <section id="msgx-list" class="hidden">
+        <div class="msgx-top">
+          <button type="button" class="msgx-back" onclick="msgxShowGroups()">&#8249; All groups</button>
+          <button type="button" class="msgx-link" id="msgx-share" onclick="msgxShare()">Share this list</button>
+        </div>
+        <div id="msgx-list-head"></div>
+        <div class="msgx-seg" id="msgx-seg" role="tablist"></div>
+        <input type="search" class="msgx-search" id="msgx-search" placeholder="Find a guest by name or code" oninput="msgxSearch(this.value)" autocomplete="off"/>
+        <div id="msgx-rows"></div>
+      </section>
 
-      <!-- Mode switcher: Invite vs Chase-Up share the same flow, this flips them -->
-      <div class="msg-mode-switcher" role="tablist">
-        <button class="msg-mode-btn active" id="msg-mode-invite" onclick="switchMsgMode('invite')" type="button">&#9993; Initial Invite</button>
-        <button class="msg-mode-btn" id="msg-mode-chase" onclick="switchMsgMode('chase')" type="button">&#128274; Chase-Up</button>
-      </div>
-
-      <div class="filter-bar" style="gap:.5rem;">
-        <select id="msg-filter-rel" onchange="renderMessagesList()">
-          <option value="">All Relationships</option>
-        </select>
-        <select id="msg-filter-sent" onchange="renderMessagesList()">
-          <option value="">All (sent + unsent)</option>
-          <option value="unsent" selected>Not sent yet</option>
-          <option value="sent">Already sent</option>
-        </select>
-      </div>
-
-      <div class="guest-status-legend" style="margin-top:.2rem;">
-        <span><span class="guest-status-dot guest-status-dot--red"></span>Invite not sent</span>
-        <span><span class="guest-status-dot guest-status-dot--orange"></span>Awaiting RSVP</span>
-        <span><span class="guest-status-dot guest-status-dot--green"></span>RSVP&rsquo;d</span>
-      </div>
-
-      <div id="msg-send-pill" class="hidden" style="position:sticky;top:96px;z-index:40;display:flex;gap:.5rem;align-items:center;background:var(--gold-pale);border:1px solid var(--gold);border-radius:999px;padding:.5rem .9rem;margin:.6rem 0 .3rem;box-shadow:0 2px 8px rgba(0,0,0,.08);flex-wrap:wrap;">
-        <span style="font-size:.75rem;color:var(--muted);">Sent today <strong id="msg-sent-today">0</strong> · <span id="msg-remaining">0</span> to go</span>
-        <span style="flex:1;"></span>
-        <button class="btn btn-primary btn-sm" id="msg-send-next-btn" onclick="msgSendNext()" title="Preview + send next unsent guest">&#9654; Send next</button>
-        <button class="btn btn-secondary btn-sm" id="msg-session-toggle" onclick="toggleSendSession()" title="Auto-open the next guest after each send">Auto-advance: off</button>
-      </div>
-      <div id="msg-progress"></div>
-      <div id="msg-list"></div>
-      <div id="msg-no-phone-section"></div>
+      <!-- Step 3: one guest at a time -->
+      <section id="msgx-send" class="hidden">
+        <div class="msgx-top">
+          <button type="button" class="msgx-back" onclick="msgxShowList()">&#8249; <span id="msgx-send-back">List</span></button>
+          <span class="msgx-count" id="msgx-send-count"></span>
+        </div>
+        <div id="msgx-send-body"></div>
+      </section>
     </div>
-
   </div>
 
   <!-- ── TAB: HELP ── -->
@@ -835,23 +884,22 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div class="help-body">
         <p>Go to the <kbd>&#9993; Messages</kbd> tab. Invites go out one at a time over WhatsApp from <em>your</em> phone, so guests see it come from you.</p>
         <ol>
-          <li><strong>Before your first send</strong>, go to <kbd>&#9881;&#65039; Settings</kbd> &rarr; <em>Message Templates</em> and tap <kbd>&#128172; Send test to my phone</kbd> on the template. Read it on WhatsApp. Fix any typo <em>once</em> here rather than in 700 messages.</li>
-          <li>Back on Messages, pick who you are under <kbd>Sending as:</kbd>. This locks the list to your group &mdash; the bride sees only Bride's Friends, the groom's mum only Groom's Family &mdash; so nobody messages someone else's guests by accident.</li>
-          <li>Make sure <kbd>&#9993; Initial Invite</kbd> is selected (not Chase-Up) and the filter says <em>Not sent yet</em>.</li>
-          <li>Tap the big <kbd>&#9654; Send next: &lt;name&gt;</kbd> button. A preview opens showing the exact message and number.
+          <li><strong>Before your first send</strong>, go to <kbd>&#9881;&#65039; Settings</kbd> &rarr; <em>Message Templates</em> and tap <kbd>&#128172; Send test to my phone</kbd>. Read it on WhatsApp and fix any typo <em>once</em> there rather than in 700 messages.</li>
+          <li>On Messages, make sure <kbd>Invites</kbd> is selected at the top, then <strong>tap your group</strong> &mdash; e.g. <em>Groom&rsquo;s Family</em>. Each card shows how many invites are left.</li>
+          <li>You now only see that group. Tap <kbd>&#9654; Start sending</kbd>.</li>
+          <li>Each guest gets their own screen with their events and the exact message.
             <ul>
-              <li>Happy with it? Tap <kbd>&#128172; Send via WhatsApp</kbd>. WhatsApp opens with the message ready &mdash; press send there, then come back.</li>
-              <li>Want to add a personal line? Just edit the text in the preview first. It only changes this one message.</li>
-              <li>Not now? <kbd>Skip</kbd> (or press <kbd>s</kbd>). They go to the bottom of your queue for today.</li>
+              <li>Tap <kbd>&#128172; Open WhatsApp</kbd>. WhatsApp opens with the message ready &mdash; press send there, then come back.</li>
+              <li>Tap <kbd>Next: &lt;name&gt; &rarr;</kbd>. The guest is <strong>marked as sent automatically</strong>.</li>
+              <li>Want a personal line? Tap <kbd>&#9998; Edit this message</kbd> first. It only changes this one message.</li>
+              <li>Not now? <kbd>Skip for now</kbd>. They wait under the <em>Skipped</em> tab.</li>
             </ul>
           </li>
-          <li>The guest is <strong>marked as sent automatically</strong>, the list scrolls to the next person, and the <em>Sent today</em> counter ticks up.</li>
-          <li>Turn on <kbd>Auto-advance: on</kbd> and the next preview opens by itself after each send &mdash; fastest way through a long list.</li>
         </ol>
-        <p><strong>Handing off to family:</strong> pick their group under <em>Sending as</em>, tap <kbd>Share link</kbd>, and send them that link. Opening it lands them straight on their queue.</p>
-        <p><strong>Guests without a phone number</strong> are listed under the main list. Tap <kbd>Add phone</kbd> to fill it in, or if they have an email you'll see an <kbd>&#9993; Email</kbd> button instead.</p>
-        <p><strong>Chasing people who haven't replied:</strong> switch to <kbd>&#128274; Chase-Up</kbd>. Same flow, different message, only shows guests who haven't responded yet.</p>
-        <div class="tip">Sent to the wrong person, or WhatsApp didn't actually go? Tap the small <kbd>&#10007;</kbd> next to their "Sent" tag to clear it. You get an <kbd>Undo</kbd> for a few seconds after most actions.</div>
+        <p><strong>Handing a group to family:</strong> open the group and tap <kbd>Share this list</kbd>. Opening that link lands them straight on that group.</p>
+        <p><strong>Guests without a phone number</strong> are under the <em>No phone</em> tab. Tap <kbd>Add phone</kbd>, or <kbd>&#9993; Email</kbd> if we have their email.</p>
+        <p><strong>Chasing people who haven&rsquo;t replied:</strong> switch to <kbd>Reminders</kbd> at the top. Same flow, a reminder message, and only guests who haven&rsquo;t responded.</p>
+        <div class="tip">WhatsApp didn&rsquo;t actually send? Tap <kbd>Mark as not sent</kbd> under the Next button and they go back in the queue. Already-sent guests are under the <em>Sent</em> tab &mdash; tap one to resend.</div>
       </div>
     </details>
 
@@ -921,34 +969,6 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
   </div>
 
 </div><!-- /admin-dashboard -->
-
-<!-- ████  MESSAGE PREVIEW MODAL  ████ -->
-<div class="modal-overlay hidden" id="msg-preview-overlay" onclick="if(event.target===this)closeMsgPreview()">
-  <div class="modal" style="max-width:560px;">
-    <div class="modal-header">
-      <div>
-        <div class="modal-title" id="msg-preview-title">Send message</div>
-        <div class="modal-sub" id="msg-preview-sub"></div>
-      </div>
-      <button class="modal-close" onclick="closeMsgPreview()" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <label style="font-size:.72rem;color:var(--muted);">Message preview</label>
-      <textarea id="msg-preview-body" rows="12" style="width:100%;font-family:'Jost',sans-serif;font-size:.85rem;resize:vertical;margin-top:.3rem;padding:.7rem;border:1px solid var(--border);border-radius:2px;background:#fdfaf5;"></textarea>
-      <div style="font-size:.68rem;color:var(--muted);margin-top:.3rem;">Edit before sending if you want to personalise. Changes here are one-off — the saved template is untouched.</div>
-    </div>
-    <div class="modal-footer" style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;flex-wrap:wrap;">
-      <div style="display:flex;gap:.4rem;">
-        <button class="btn btn-secondary btn-sm" onclick="msgPreviewSkip()" title="Skip this guest">Skip</button>
-        <button class="btn btn-secondary btn-sm" onclick="closeMsgPreview()">Cancel</button>
-      </div>
-      <div style="display:flex;gap:.4rem;">
-        <button class="btn btn-secondary btn-sm" onclick="msgPreviewCopy()">Copy</button>
-        <button class="btn btn-primary btn-sm" id="msg-preview-send-btn" onclick="msgPreviewSend()">&#128172; Send via WhatsApp</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ████  ADD / EDIT GUEST MODAL  ████ -->
 <div class="modal-overlay hidden" id="guest-modal-overlay" onclick="if(event.target===this)closeGuestModal()">
@@ -1869,6 +1889,13 @@ function gasAsync(fnName) {
   });
 }
 
+// The Messages tab can be open before the guest list arrives (e.g. the
+// admin reopened on that tab) — redraw it once the data is in.
+function _refreshMessagesIfOpen() {
+  var t = document.getElementById('tab-messages');
+  if (t && t.classList.contains('active')) loadMessagesTab();
+}
+
 function loadGuests() {
   document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
   // Single bootstrap round-trip: one doPost returns guests + rsvps + codes
@@ -1886,6 +1913,7 @@ function loadGuests() {
     allDeletedGuests   = _canonGuests(data.deletedGuests);
     refreshStats();
     renderGuestView();
+    _refreshMessagesIfOpen();
   }).catch(function() {
     // Fallback path for old deployments — parallel fan-out, render when all done.
     Promise.all([
@@ -1897,6 +1925,7 @@ function loadGuests() {
     ]).then(function() {
       refreshStats();
       renderGuestView();
+      _refreshMessagesIfOpen();
     }).catch(function(err) {
       showLoadError('guest-view-container', 'Load failed: ' + (err.message || 'Unknown error') + '. Tap Retry.', 'loadGuests');
     });
@@ -1930,7 +1959,6 @@ function rebuildFilteredGuests() {
   if (fp !== _lastGuestFilterFingerprint) {
     _lastGuestFilterFingerprint = fp;
     _rsvpStatusShown = { submitted: RSVP_STATUS_PAGE, pending: RSVP_STATUS_PAGE };
-    _msgListShown = MSG_LIST_PAGE;
     _groupedShown = GROUPED_PAGE;
   }
 
@@ -4366,25 +4394,26 @@ function openTemplateEditor(templateId) {
 // Email-fallback: for guests without a WhatsApp-eligible phone but with a
 // valid email, open a mailto: link with the message pre-filled. Also marks
 // the invite as sent (invite mode) so they leave the queue.
-function openEmail(guestId, section) {
+function openEmail(guestId, section, bodyOverride) {
   var g = allGuests.find(function(x) { return x.id === guestId; });
   if (!g || !g.email) return;
-  var template = getSelectedTemplateBody(guestId, section);
-  var deadline = (messageConfig && messageConfig.settings) ?
-    (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
-  var body = buildMessage(template, g, deadline);
+  var body = bodyOverride;
+  if (body == null) {
+    var t = (messageConfig && messageConfig.templates.find(function(x) { return x.id === getDefaultTemplateId(g); })) || {};
+    var deadline = (messageConfig && messageConfig.settings) ?
+      (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
+    body = buildMessage(t.body || '', g, deadline);
+  }
   var subject = section === 'chase' ? 'A quick reminder about our wedding RSVP' : 'You’re invited to Jaini & Shanay’s wedding';
   var url = 'mailto:' + encodeURIComponent(g.email) +
             '?subject=' + encodeURIComponent(subject) +
             '&body=' + encodeURIComponent(body);
   window.location.href = url;
   if (section === 'invite') {
+    g.invite_sent_at = new Date().toISOString();
+    _rememberLastSent(guestId);
     google.script.run
-      .withSuccessHandler(function(res) {
-        g.invite_sent_at = res.invite_sent_at;
-        patchMsgRow(guestId);
-        _rememberLastSent(guestId);
-      })
+      .withSuccessHandler(function(res) { if (res && res.invite_sent_at) g.invite_sent_at = res.invite_sent_at; })
       .withFailureHandler(function(err) { console.warn('markInviteSent failed:', err && err.message); })
       .markInviteSent({ guestId: guestId });
   }
@@ -4503,10 +4532,8 @@ function onRelDefaultChange(rel, templateId) {
 // ══════════════════════════════════════════════
 
 function loadMessagesTab() {
-  populateRelationshipFilters();
-  restoreSender();
-  applyMsgModeUI(msgMode);
-  renderMessagesList();
+  msgxRestore();
+  msgxRender();
 }
 
 function getUniqueRelationships() {
@@ -4518,35 +4545,12 @@ function getUniqueRelationships() {
   return Object.keys(rels).sort();
 }
 
-function populateRelationshipFilters() {
-  var rels = getUniqueRelationships();
-  var options = '<option value="">All Relationships</option>' +
-    rels.map(function(r) { return '<option value="' + escapeAttr(r) + '">' + escapeAttr(r) + '</option>'; }).join('');
-  document.getElementById('msg-filter-rel').innerHTML = options;
-}
-
 function getDefaultTemplateId(guest) {
   if (!messageConfig || !messageConfig.templates.length) return '';
   var rel = (guest.relationship || '').trim();
   var defaultId = messageConfig.relationshipDefaults[rel] || '';
   if (defaultId && messageConfig.templates.find(function(t) { return t.id === defaultId; })) return defaultId;
   return messageConfig.templates[0].id;
-}
-
-function buildTemplateDropdown(guestId, section, selectedId) {
-  if (!messageConfig || !messageConfig.templates.length) return '';
-  var options = messageConfig.templates.map(function(t) {
-    return '<option value="' + escapeAttr(t.id) + '"' + (t.id === selectedId ? ' selected' : '') + '>' + escapeAttr(t.name) + '</option>';
-  }).join('');
-  return '<select id="tpl-sel-' + escapeAttr(section) + '-' + escapeAttr(guestId) + '" style="font-size:.7rem;padding:.25rem .4rem;border:1px solid rgba(0,0,0,.1);border-radius:2px;max-width:130px;">' + options + '</select>';
-}
-
-function getSelectedTemplateBody(guestId, section) {
-  if (!messageConfig || !messageConfig.templates.length) return '';
-  var sel = document.getElementById('tpl-sel-' + section + '-' + guestId);
-  var tplId = sel ? sel.value : '';
-  var t = messageConfig.templates.find(function(x) { return x.id === tplId; });
-  return t ? t.body : (messageConfig.templates[0] || {}).body || '';
 }
 
 function buildMessage(template, guest, deadline) {
@@ -4560,156 +4564,14 @@ function buildMessage(template, guest, deadline) {
     .replace(/\{\{deadline\}\}/g, deadline || '');
 }
 
-// Preview state: which guest+section is currently in the modal.
-var _msgPreview = { guestId: null, section: null };
-
-// openWhatsApp now shows a Preview modal first. The admin sees the exact
-// message that will fire, can edit it inline, then Send / Skip / Cancel.
-// The old "fire straight into WhatsApp with no proofread" behaviour is
-// preserved as _openWhatsAppDirect for the Copy button and any future
-// callers that want to bypass the preview.
+// Kept for any old caller: opening a guest's message now means opening the
+// one-guest send screen.
 function openWhatsApp(guestId, section) {
-  var g = allGuests.find(function(x) { return x.id === guestId; });
-  if (!g || !g.phone) return;
-  var template = getSelectedTemplateBody(guestId, section);
-  var deadline = (messageConfig && messageConfig.settings) ?
-    (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
-  var body = buildMessage(template, g, deadline);
-  _msgPreview.guestId = guestId;
-  _msgPreview.section = section;
-  var name = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
-  document.getElementById('msg-preview-title').textContent = (section === 'chase' ? 'Chase-up · ' : 'Invite · ') + name;
-  document.getElementById('msg-preview-sub').textContent  = (g.phone || '') + (g.relationship ? ' · ' + g.relationship : '');
-  document.getElementById('msg-preview-body').value = body;
-  document.getElementById('msg-preview-overlay').classList.remove('hidden');
-  setTimeout(function() {
-    var btn = document.getElementById('msg-preview-send-btn');
-    if (btn) btn.focus();
-  }, 0);
-  _installMsgPreviewKeys();
+  if (section && section !== msgMode) switchMsgMode(section);
+  msgxOpen(guestId);
 }
 
-function closeMsgPreview() {
-  document.getElementById('msg-preview-overlay').classList.add('hidden');
-  _msgPreview.guestId = null;
-  _msgPreview.section = null;
-  _teardownMsgPreviewKeys();
-}
-
-function msgPreviewSend() {
-  var id = _msgPreview.guestId, section = _msgPreview.section;
-  if (!id) return;
-  var g = allGuests.find(function(x) { return x.id === id; });
-  if (!g) { closeMsgPreview(); return; }
-  var body = document.getElementById('msg-preview-body').value || '';
-  var url  = buildWhatsAppUrl(g.phone, body);
-  if (!url) { showToast('Could not build WhatsApp URL — check the phone number.', 'error'); return; }
-  window.open(url, '_blank');
-  if (section === 'invite') {
-    google.script.run
-      .withSuccessHandler(function(res) {
-        g.invite_sent_at = res.invite_sent_at;
-        patchMsgRow(id);
-        _rememberLastSent(id);
-        _afterSendAdvance();
-      })
-      .withFailureHandler(function(err) { console.warn('markInviteSent failed:', err && err.message); })
-      .markInviteSent({ guestId: id });
-  } else {
-    // chase mode: no mark-as-sent; still advance.
-    _afterSendAdvance();
-  }
-  closeMsgPreview();
-}
-
-function msgPreviewCopy() {
-  var body = document.getElementById('msg-preview-body').value || '';
-  if (!body) return;
-  var done = function() { showToast('Message copied to clipboard.', 'success', 1600); };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(body).then(done).catch(function() { showToast('Copy failed.', 'error'); });
-  } else {
-    try {
-      var ta = document.getElementById('msg-preview-body');
-      ta.select(); document.execCommand('copy'); done();
-    } catch (e) { showToast('Copy failed.', 'error'); }
-  }
-}
-
-function msgPreviewSkip() {
-  var id = _msgPreview.guestId;
-  closeMsgPreview();
-  if (id && typeof skipMessage === 'function') skipMessage(id);
-  _afterSendAdvance();
-}
-
-// Keyboard: Esc closes (handled globally), plain "s" skips.
-var _msgPreviewKeyHandler = null;
-function _installMsgPreviewKeys() {
-  _teardownMsgPreviewKeys();
-  _msgPreviewKeyHandler = function(e) {
-    if (e.key === 'Escape') { closeMsgPreview(); return; }
-    if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) return;
-    if (e.key === 's' || e.key === 'S') { e.preventDefault(); msgPreviewSkip(); }
-  };
-  document.addEventListener('keydown', _msgPreviewKeyHandler);
-}
-function _teardownMsgPreviewKeys() {
-  if (_msgPreviewKeyHandler) {
-    document.removeEventListener('keydown', _msgPreviewKeyHandler);
-    _msgPreviewKeyHandler = null;
-  }
-}
-
-// After Send/Skip: scroll the next "Up next" row into view + auto-open its
-// preview if the admin was in a continuous send session (see _sendSessionActive).
-function _afterSendAdvance() {
-  var next = findNextMessage(msgMode);
-  if (!next) return;
-  var row = document.getElementById('msg-row-' + next.id);
-  if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  if (_sendSessionActive) {
-    // Small delay so the modal close animation finishes before the next opens.
-    setTimeout(function() {
-      if (_sendSessionActive) openWhatsApp(next.id, msgMode);
-    }, 250);
-  }
-}
-
-// Continuous "Send next" session flag — set by the sticky Send-next pill.
-var _sendSessionActive = false;
-function startSendSession() {
-  var next = findNextMessage(msgMode);
-  if (!next) { showToast('Queue is empty.', 'success'); return; }
-  _sendSessionActive = true;
-  openWhatsApp(next.id, msgMode);
-}
-function stopSendSession() { _sendSessionActive = false; }
-function toggleSendSession() {
-  _sendSessionActive = !_sendSessionActive;
-  var btn = document.getElementById('msg-session-toggle');
-  if (btn) {
-    btn.textContent = _sendSessionActive ? 'Auto-advance: on' : 'Auto-advance: off';
-    btn.classList.toggle('btn-primary', _sendSessionActive);
-    btn.classList.toggle('btn-secondary', !_sendSessionActive);
-  }
-  showToast(_sendSessionActive ? 'Auto-advance on — next preview opens after each send.' : 'Auto-advance off.', 'info', 2000);
-}
-
-// ── Sender profile (multi-person sending) ─────────
-// A "sender" is the person currently working through the queue. Selecting a
-// sender locks the relationship filter to their assigned group so the bride
-// can't accidentally message groom's family and vice versa. Persists per
-// browser tab via sessionStorage, or via a `#sender=slug` URL hash so the
-// couple can hand a specific link to each family member.
-var _SENDER_KEY = 'wa:sender';
-var _SENDER_LABELS = {
-  "Bride’s Friend": "Bride",
-  "Groom’s Friend": "Groom",
-  "Bride’s Family": "Bride’s Family",
-  "Groom’s Family": "Groom’s Family",
-};
-// URL-safe slug map for shareable links.
+// Shareable links pre-select a group: #sender=brides-family etc.
 var _SENDER_SLUGS = {
   'brides-friends': "Bride’s Friend",
   'grooms-friends': "Groom’s Friend",
@@ -4725,64 +4587,6 @@ function _senderFromHash() {
   var m = /(?:^|&)sender=([^&]+)/.exec(h);
   if (!m) return null;
   return _SENDER_SLUGS[decodeURIComponent(m[1]).toLowerCase()] || null;
-}
-function getCurrentSender() {
-  var sel = document.getElementById('sender-select');
-  return sel ? (sel.value || '') : '';
-}
-function _applySender(rel) {
-  var sel = document.getElementById('sender-select');
-  if (sel && sel.value !== rel) sel.value = rel;
-  var relFilter = document.getElementById('msg-filter-rel');
-  var note = document.getElementById('sender-lock-note');
-  if (rel) {
-    if (relFilter) { relFilter.value = rel; relFilter.disabled = true; }
-    if (note) note.textContent = 'Queue locked to ' + rel + '.';
-  } else {
-    if (relFilter) { relFilter.disabled = false; }
-    if (note) note.textContent = '';
-  }
-}
-function onSenderChange() {
-  var rel = getCurrentSender();
-  _ssSet(_SENDER_KEY, rel);
-  _applySender(rel);
-  renderMessagesList();
-}
-function restoreSender() {
-  // Precedence: URL hash > sessionStorage > default (none).
-  var fromHash = _senderFromHash();
-  var stored   = _ssGet(_SENDER_KEY) || '';
-  var rel = fromHash || stored;
-  if (rel && _SENDER_LABELS[rel]) {
-    _applySender(rel);
-    _ssSet(_SENDER_KEY, rel);
-  }
-}
-function copySenderLink() {
-  var rel = getCurrentSender();
-  if (!rel) { showToast('Pick a sender first, then Share link.', 'error'); return; }
-  var slug = _slugForSender(rel);
-  if (!slug) { showToast('Unknown sender.', 'error'); return; }
-  var url = window.location.origin + window.location.pathname + '#sender=' + slug;
-  var done = function() { showToast('Sender link copied.', 'success', 2000); };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(done).catch(function() { showToast('Copy failed.', 'error'); });
-  } else {
-    try {
-      var ta = document.createElement('textarea');
-      ta.value = url; document.body.appendChild(ta); ta.select();
-      document.execCommand('copy'); document.body.removeChild(ta); done();
-    } catch (e) { showToast('Copy failed.', 'error'); }
-  }
-}
-
-// Master "Send next" button: preview the first unsent (or first pending in
-// chase mode) guest.
-function msgSendNext() {
-  var next = findNextMessage(msgMode);
-  if (!next) { showToast('Queue is empty. ✓', 'success'); return; }
-  openWhatsApp(next.id, msgMode);
 }
 
 // Sent-today counter — persists per calendar day so a page refresh mid-
@@ -4803,124 +4607,6 @@ function _rememberLastSent(id) {
   var v = _readSentToday();
   if (v.ids.indexOf(id) === -1) v.ids.push(id);
   _writeSentToday(v);
-  _refreshSendPill();
-}
-function _refreshSendPill(ctx) {
-  var pill = document.getElementById('msg-send-pill');
-  if (!pill) return;
-  var mode = (ctx && ctx.mode) || msgMode;
-  // Pill only makes sense in invite mode where "sent today" is meaningful;
-  // hide in chase mode.
-  if (mode !== 'invite') { pill.classList.add('hidden'); return; }
-  pill.classList.remove('hidden');
-  var sender = getCurrentSender();
-  // Count sent-today scoped to the sender's relationship so bride's stats
-  // don't inflate with groom's mum's sends.
-  var v = _readSentToday();
-  var idsInScope = v.ids;
-  if (sender) {
-    var inScopeSet = new Set(allGuests.filter(function(g) { return g.relationship === sender; }).map(function(g) { return g.id; }));
-    idsInScope = v.ids.filter(function(id) { return inScopeSet.has(id); });
-  }
-  var todayEl = document.getElementById('msg-sent-today');
-  if (todayEl) todayEl.textContent = String(idsInScope.length);
-  // Reuse caller-provided scope/skips/next when available — the whole point
-  // of the ctx parameter is to skip the 3× walks over allGuests.
-  var rel   = (ctx && 'rel'   in ctx) ? ctx.rel   : getCurrentMsgRel();
-  var scope = (ctx && ctx.scope)  || msgScopeGuests(mode, rel);
-  var skips = (ctx && ctx.skips)  || getMsgSkips(mode, rel);
-  var next  = (ctx && 'nextUp' in ctx) ? ctx.nextUp : findNextMessage(mode);
-  var remaining = scope.filter(function(g) { return !sanitiseValue(g.invite_sent_at) && !skips.has(g.id); }).length;
-  var remEl = document.getElementById('msg-remaining');
-  if (remEl) remEl.textContent = String(remaining);
-  var btn = document.getElementById('msg-send-next-btn');
-  if (btn) {
-    if (next) {
-      var name = ((next.first_name || '') + ' ' + (next.last_name || '')).trim();
-      btn.disabled = false;
-      btn.textContent = '▶ Send next: ' + name;
-    } else {
-      btn.disabled = true;
-      btn.textContent = '✓ Queue empty';
-    }
-  }
-}
-
-// Render a small "No phone number" section under the main list so guests
-// without a WhatsApp-eligible phone are visible and fixable instead of
-// silently dropped.
-function _renderNoPhoneSection(ctx) {
-  var host = document.getElementById('msg-no-phone-section');
-  if (!host) return;
-  var scope = (ctx && ctx.scope) || msgScopeGuests(msgMode, getCurrentMsgRel());
-  var noPhone = scope.filter(function(g) { return !normalizePhoneForWhatsApp(g.phone); });
-  if (noPhone.length === 0) { host.innerHTML = ''; return; }
-  var rows = noPhone.map(function(g) {
-    var name = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
-    var code = escapeAttr(g.invitation_code || '');
-    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.4rem .2rem;border-bottom:1px solid rgba(0,0,0,.06);">' +
-      '<div><strong>' + name + '</strong>' + (code ? ' <span class="code-pill">' + code + '</span>' : '') + '</div>' +
-      '<button class="btn btn-secondary btn-sm" onclick="openEditGuest(\'' + escapeAttr(g.id) + '\')">Add phone</button>' +
-    '</div>';
-  }).join('');
-  host.innerHTML =
-    '<div class="admin-card" style="margin-top:1.2rem;border:1px dashed var(--border);">' +
-      '<div class="admin-card-title" style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<span>&#128241; No phone number (' + noPhone.length + ')</span>' +
-        '<span style="font-size:.7rem;color:var(--muted);font-weight:400;">Can’t WhatsApp — add a number or contact another way.</span>' +
-      '</div>' +
-      rows +
-    '</div>';
-}
-
-// Rebuild a single message row and the top-of-list progress card so a
-// "mark sent" / "skip" click doesn't repaint every row on the page.
-function patchMsgRow(guestId) {
-  var g = allGuests.find(function(x) { return x.id === guestId; });
-  if (!g) { renderMessagesList(); return; }
-  var rowEl = document.getElementById('msg-row-' + guestId);
-  var mode  = msgMode;
-  var rel   = getCurrentMsgRel();
-  var skips = getMsgSkips(mode, rel);
-  var nextUp = findNextMessage(mode);
-  if (rowEl) {
-    var wrap = document.createElement('div');
-    wrap.innerHTML = buildMsgRow(g, mode, skips, nextUp);
-    if (wrap.firstElementChild) rowEl.parentNode.replaceChild(wrap.firstElementChild, rowEl);
-  }
-  // Also refresh the progress card since sent count changed.
-  _updateMsgProgressOnly(mode, rel, skips, nextUp);
-  _refreshSendPill();
-}
-
-function _updateMsgProgressOnly(mode, rel, skips, nextUp) {
-  var scope = msgScopeGuests(mode, rel);
-  var scopeLabel = rel || 'All Relationships';
-  var progressHTML;
-  if (mode === 'invite') {
-    var sentCount    = scope.filter(function(g) { return !!sanitiseValue(g.invite_sent_at); }).length;
-    var skippedCount = scope.filter(function(g) { return skips.has(g.id); }).length;
-    var remaining    = scope.length - sentCount - skippedCount;
-    var pct          = scope.length ? Math.round((sentCount / scope.length) * 100) : 0;
-    progressHTML = buildMsgProgress({
-      titleLeft:  'Initial Invite &middot; ' + scopeLabel,
-      subline:    sentCount + ' sent &middot; ' + skippedCount + ' skipped &middot; <strong>' + remaining + ' remaining</strong>',
-      pct: pct, nextUp: nextUp, skippedCount: skippedCount,
-    });
-  } else {
-    var allForRel = allGuests.filter(function(g) { return !rel || g.relationship === rel; });
-    var submitted     = allForRel.length - scope.length;
-    var skippedCountC = scope.filter(function(g) { return skips.has(g.id); }).length;
-    var remainingC    = scope.length - skippedCountC;
-    var pctC          = allForRel.length ? Math.round((submitted / allForRel.length) * 100) : 0;
-    progressHTML = buildMsgProgress({
-      titleLeft:  'Chase-Up &middot; ' + scopeLabel,
-      subline:    submitted + ' responded &middot; ' + skippedCountC + ' skipped &middot; <strong>' + remainingC + ' pending</strong>',
-      pct: pctC, nextUp: nextUp, skippedCount: skippedCountC,
-    });
-  }
-  var progEl = document.getElementById('msg-progress');
-  if (progEl) progEl.innerHTML = progressHTML;
 }
 
 function formatSentAt(iso) {
@@ -4931,16 +4617,37 @@ function formatSentAt(iso) {
 }
 
 /* ══════════════════════════════════════════════
-   MESSAGES — shared invite + chase flow
-   Skip lists persist in localStorage keyed per-mode
-   per-relationship, so two admins splitting the work
-   (e.g. Bride's Family invites + Groom's Friends chase)
-   each resume their own queue on reload.
+   MESSAGES — guided flow (groups → list → one guest)
+   Skip lists persist in localStorage keyed per mode per group, so two
+   admins splitting the work each resume their own queue on reload.
 ══════════════════════════════════════════════ */
 var msgMode = (function() {
   try { return localStorage.getItem('weddingAdmin:msgMode') || 'invite'; }
   catch (e) { return 'invite'; }
 })();
+
+var MSGX_GROUPS = [
+  { rel: 'Bride’s Family', label: 'Bride’s Family' },
+  { rel: 'Groom’s Family', label: 'Groom’s Family' },
+  { rel: 'Bride’s Friend', label: 'Bride’s Friends' },
+  { rel: 'Groom’s Friend', label: 'Groom’s Friends' },
+];
+var MSGX_NONE = '__none__';       // guests with no (or an unknown) relationship
+var _MSGX_SS = 'wa:msgxGroup';
+var MSGX_PAGE = 50;
+// group: null = on the group picker; '' = everyone; otherwise a relationship.
+var _msgx = { group: null, step: 'groups', tab: 'todo', q: '', shown: MSGX_PAGE, current: null, sent: false, editing: false };
+var _msgxDrafts = {};   // guestId → one-off edited message (this page load only)
+var _msgxTpl = {};      // guestId → template picked on the send screen
+
+function _msgxGroupLabel(rel) {
+  if (rel === '') return 'Everyone';
+  if (rel === MSGX_NONE) return 'No group set';
+  var g = MSGX_GROUPS.find(function(x) { return x.rel === rel; });
+  return g ? g.label : rel;
+}
+function _msgxName(g) { return ((g.first_name || '') + ' ' + (g.last_name || '')).trim(); }
+function _msgxFind(id) { return allGuests.find(function(x) { return x.id === id; }); }
 
 function msgSkipKey(mode, rel) {
   return 'weddingAdmin:msgSkip:' + mode + ':' + (rel || '__all__');
@@ -4955,141 +4662,538 @@ function saveMsgSkips(mode, rel, set) {
   try { localStorage.setItem(msgSkipKey(mode, rel), JSON.stringify(Array.from(set))); }
   catch (e) { /* quota / private mode — skip persists for this page load only */ }
 }
-function addMsgSkip(mode, rel, guestId) {
-  var s = getMsgSkips(mode, rel); s.add(guestId); saveMsgSkips(mode, rel, s);
-}
 function clearMsgSkipsFor(mode, rel) {
   try { localStorage.removeItem(msgSkipKey(mode, rel)); } catch (e) {}
 }
+function getCurrentMsgRel() { return _msgx.group || ''; }
 
-function getCurrentMsgRel() {
-  var el = document.getElementById('msg-filter-rel');
-  return el ? el.value : '';
+// Everyone in a group (mode-independent).
+function _msgxInGroup(rel) {
+  if (rel === '') return allGuests;
+  if (rel === MSGX_NONE) {
+    return allGuests.filter(function(g) {
+      var r = canonRel(g.relationship || '');
+      return !MSGX_GROUPS.some(function(x) { return x.rel === r; });
+    });
+  }
+  return allGuests.filter(function(g) { return g.relationship === rel; });
+}
+function _msgxReplied(g) { return allSubmittedCodes.has(g.invitation_code); }
+// Scope for the current mode:
+//  - invite: everyone in the group
+//  - chase:  invite already sent, but no RSVP yet
+function msgScopeGuests(mode, rel) {
+  var list = _msgxInGroup(rel);
+  if (mode !== 'chase') return list;
+  return list.filter(function(g) { return !_msgxReplied(g) && !!sanitiseValue(g.invite_sent_at); });
 }
 
-// Scope for the current mode:
-//  - invite: all guests matching the relationship filter
-//  - chase:  pending RSVPs (no submission yet) matching the relationship filter
-function msgScopeGuests(mode, rel) {
-  return allGuests.filter(function(g) {
-    if (rel && g.relationship !== rel) return false;
-    if (mode === 'chase' && allSubmittedCodes.has(g.invitation_code)) return false;
-    return true;
+// One walk over the group → every bucket the screens need.
+//   todo    still to message (has a WhatsApp number, not skipped) — the queue
+//   done    invite: already sent · chase: not used
+//   skipped skipped this session
+//   noPhone can't WhatsApp (add a number, or email if we have one)
+function _msgxBuckets(mode, rel) {
+  var skips = getMsgSkips(mode, rel);
+  var b = { all: _msgxInGroup(rel), scope: msgScopeGuests(mode, rel), todo: [], done: [], skipped: [], noPhone: [], skips: skips };
+  b.scope.forEach(function(g) {
+    if (mode === 'invite' && sanitiseValue(g.invite_sent_at)) { b.done.push(g); return; }
+    if (!normalizePhoneForWhatsApp(g.phone)) { b.noPhone.push(g); return; }
+    if (skips.has(g.id)) { b.skipped.push(g); return; }
+    b.todo.push(g);
   });
+  b.done.sort(function(a, c) { return String(c.invite_sent_at).localeCompare(String(a.invite_sent_at)); });
+  return b;
 }
 
 function findNextMessage(mode) {
-  var rel = getCurrentMsgRel();
-  var skips = getMsgSkips(mode, rel);
-  return msgScopeGuests(mode, rel).find(function(g) {
-    if (mode === 'invite' && sanitiseValue(g.invite_sent_at)) return false;
-    if (skips.has(g.id)) return false;
-    if (!normalizePhoneForWhatsApp(g.phone)) return false;
-    return true;
-  });
-}
-
-function applyMsgModeUI(mode) {
-  var inviteBtn = document.getElementById('msg-mode-invite');
-  var chaseBtn  = document.getElementById('msg-mode-chase');
-  if (inviteBtn) inviteBtn.classList.toggle('active', mode === 'invite');
-  if (chaseBtn)  chaseBtn.classList.toggle('active',  mode === 'chase');
-  // Sent/unsent filter only makes sense in invite mode.
-  var sentFilter = document.getElementById('msg-filter-sent');
-  if (sentFilter) sentFilter.style.display = mode === 'invite' ? '' : 'none';
+  return _msgxBuckets(mode, getCurrentMsgRel()).todo[0] || null;
 }
 
 function switchMsgMode(mode) {
   if (mode !== 'invite' && mode !== 'chase') return;
   msgMode = mode;
   try { localStorage.setItem('weddingAdmin:msgMode', mode); } catch (e) {}
-  applyMsgModeUI(mode);
-  renderMessagesList();
+  _msgx.tab = 'todo';
+  if (_msgx.step === 'send') _msgx.step = 'list';
+  msgxRender();
 }
 
-function sendNextMessage() {
-  var next = findNextMessage(msgMode);
-  if (!next) {
-    showToast('Nothing left to send in this list. Reset the session to include skipped guests.', 'info');
+function msgxRestore() {
+  var fromHash = _senderFromHash();
+  if (fromHash) {
+    _msgx.group = fromHash;
+    _msgx.step = 'list';
+    _ssSet(_MSGX_SS, fromHash);
     return;
   }
-  openWhatsApp(next.id, msgMode);
-  setTimeout(function() {
-    var row = document.getElementById('msg-row-' + next.id);
-    if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      row.classList.add('invite-row--flash');
-      setTimeout(function() { row.classList.remove('invite-row--flash'); }, 1400);
-    }
-  }, 0);
-}
-
-function skipMessage(guestId) {
-  addMsgSkip(msgMode, getCurrentMsgRel(), guestId);
-  renderMessagesList();
-}
-
-function unskipMessage(guestId) {
-  var rel = getCurrentMsgRel();
-  var s = getMsgSkips(msgMode, rel);
-  s.delete(guestId);
-  saveMsgSkips(msgMode, rel, s);
-  renderMessagesList();
-}
-
-function resetMessageSession() {
-  var rel = getCurrentMsgRel();
-  var label = rel || 'All Relationships';
-  var count = getMsgSkips(msgMode, rel).size;
-  if (!count) { showToast('No skipped guests to reset in "' + label + '".', 'info'); return; }
-  if (!confirm('Reset skip list for "' + label + '"? ' + count + ' guest(s) will reappear in the queue.' + (msgMode === 'invite' ? ' Already-sent guests stay as sent.' : ''))) return;
-  clearMsgSkipsFor(msgMode, rel);
-  renderMessagesList();
-}
-
-function clearInviteSent(guestId) {
-  var g = allGuests.find(function(x) { return x.id === guestId; });
-  var prevStamp = g ? (g.invite_sent_at || '') : '';
-  google.script.run
-    .withSuccessHandler(function() {
-      if (g) g.invite_sent_at = '';
-      renderMessagesList();
-      var name = g ? ((g.first_name || '') + ' ' + (g.last_name || '')).trim() : 'Guest';
-      showActionToast('Cleared invite-sent for ' + name + '.', 'Undo', function(dismiss) {
-        // Restore previous stamp — if there was none, this is effectively a
-        // fresh mark-as-sent; either way we hand markInviteSent the original.
-        google.script.run
-          .withSuccessHandler(function() {
-            if (g) g.invite_sent_at = prevStamp || new Date().toISOString();
-            renderMessagesList();
-            showToast('Restored invite-sent stamp.', 'success');
-            dismiss();
-          })
-          .withFailureHandler(function(err) { showToast('Undo failed: ' + (err && err.message), 'error'); dismiss(); })
-          .markInviteSent({ guestId: guestId, clear: false });
-      }, 8000);
-    })
-    .withFailureHandler(function(err) { showToast('Could not clear: ' + (err && err.message), 'error'); })
-    .markInviteSent({ guestId: guestId, clear: true });
-}
-
-function copyMessage(flashId, guestId, section) {
-  var g = allGuests.find(function(x) { return x.id === guestId; });
-  if (!g) return;
-  var template = getSelectedTemplateBody(guestId, section);
-  var deadline = (messageConfig && messageConfig.settings) ?
-    (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
-  var msg = buildMessage(template, g, deadline);
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(msg).then(function() {
-      showFlash(flashId);
-    }).catch(function() {
-      fallbackCopy(msg);
-    });
-  } else {
-    fallbackCopy(msg);
+  if (_msgx.group !== null) return;   // already navigating this page load
+  var stored = _ssGet(_MSGX_SS);
+  if (stored !== null && stored !== undefined && stored !== '__picker__') {
+    _msgx.group = stored;
+    _msgx.step = 'list';
   }
 }
+
+function _msgxShow(step) {
+  _msgx.step = step;
+  ['groups', 'list', 'send'].forEach(function(s) {
+    var el = document.getElementById('msgx-' + s);
+    if (el) el.classList.toggle('hidden', s !== step);
+  });
+}
+
+function msgxRender() {
+  if (!document.getElementById('msgx-groups')) return;
+  ['invite', 'chase'].forEach(function(m) {
+    var btn = document.getElementById('msgx-mode-' + m);
+    if (btn) { btn.classList.toggle('active', msgMode === m); btn.setAttribute('aria-selected', msgMode === m ? 'true' : 'false'); }
+  });
+  if (_msgx.step === 'send' && _msgx.current) return _msgxRenderSend();
+  if (_msgx.step !== 'groups' && _msgx.group !== null) return _msgxRenderList();
+  _msgxRenderGroups();
+}
+// Old name, still called after guest edits elsewhere in the admin.
+function renderMessagesList() { if (_msgx.step !== 'send') msgxRender(); }
+
+// ── Step 1: groups ────────────────────────────
+function msgxShowGroups() {
+  _msgx.group = null;
+  _msgx.current = null;
+  _ssSet(_MSGX_SS, '__picker__');
+  if (/sender=/.test(window.location.hash)) {
+    try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+  }
+  _msgxShow('groups');
+  _msgxRenderGroups();
+  window.scrollTo(0, 0);
+}
+
+function _msgxRenderGroups() {
+  _msgxShow('groups');
+  var chase = msgMode === 'chase';
+  document.getElementById('msgx-groups-title').textContent = chase ? 'Who needs a reminder?' : 'Who are you sending to?';
+  document.getElementById('msgx-groups-sub').textContent = chase
+    ? 'Pick a group. You’ll only see guests who haven’t replied yet.'
+    : 'Pick a group. You’ll only see their invites.';
+  var groups = MSGX_GROUPS.map(function(x) { return x.rel; });
+  if (_msgxInGroup(MSGX_NONE).length) groups.push(MSGX_NONE);
+  var html = groups.map(function(rel) { return _msgxGroupCard(rel, false); }).join('') + _msgxGroupCard('', true);
+  if (!allGuests.length) html = '<div class="msgx-empty">No guests yet. Add some on the Guests or CSV Upload tab.</div>';
+  document.getElementById('msgx-group-list').innerHTML = html;
+}
+
+function _msgxGroupCard(rel, isAll) {
+  var b = _msgxBuckets(msgMode, rel);
+  var total = b.all.length;
+  if (!total && !isAll) return '';
+  var line, meta, pct, done;
+  if (msgMode === 'invite') {
+    var left = b.todo.length + b.skipped.length;   // still to send on WhatsApp
+    done = total > 0 && left === 0 && !b.noPhone.length;
+    line = done ? '✓ All invites sent'
+      : left ? '<b>' + left + '</b> invite' + (left === 1 ? '' : 's') + ' to send'
+      : 'Only guests without a phone left';
+    meta = b.done.length + ' of ' + total + ' sent' + (b.noPhone.length ? ' · ' + b.noPhone.length + ' without a phone' : '');
+    pct = total ? Math.round(b.done.length / total * 100) : 0;
+  } else {
+    var replied = b.all.filter(_msgxReplied).length;
+    done = total > 0 && b.scope.length === 0;
+    line = done ? (replied === total ? '✓ Everyone has replied' : '✓ Nobody to remind yet') : '<b>' + b.scope.length + '</b> still to reply';
+    meta = replied + ' of ' + total + ' replied';
+    pct = total ? Math.round(replied / total * 100) : 0;
+  }
+  return '<button type="button" class="msgx-group' + (done ? ' msgx-group--done' : '') + (isAll ? ' msgx-group--all' : '') + '" onclick="msgxPickGroup(\'' + escapeAttr(rel).replace(/'/g, "\\'") + '\')">' +
+    '<div class="msgx-group__body">' +
+      '<div class="msgx-group__name">' + escapeAttr(_msgxGroupLabel(rel)) + '</div>' +
+      '<div class="msgx-group__line">' + line + '</div>' +
+      '<div class="msgx-group__meta">' + escapeAttr(meta) + '</div>' +
+      (isAll ? '' : '<div class="msgx-bar"><i style="width:' + pct + '%"></i></div>') +
+    '</div>' +
+    '<span class="msgx-group__chev" aria-hidden="true">&#8250;</span>' +
+  '</button>';
+}
+
+function msgxPickGroup(rel) {
+  _msgx.group = rel;
+  _msgx.tab = 'todo';
+  _msgx.q = '';
+  _msgx.shown = MSGX_PAGE;
+  _ssSet(_MSGX_SS, rel);
+  var s = document.getElementById('msgx-search');
+  if (s) s.value = '';
+  _msgxRenderList();
+  window.scrollTo(0, 0);
+}
+
+// ── Step 2: the group's list ──────────────────
+function msgxShowList() {
+  _msgx.current = null;
+  _msgx.editing = false;
+  _msgxRenderList();
+  window.scrollTo(0, 0);
+}
+
+function _msgxRenderList() {
+  _msgxShow('list');
+  var rel = _msgx.group || '';
+  var chase = msgMode === 'chase';
+  var b = _msgxBuckets(msgMode, rel);
+  var total = b.all.length;
+  var label = _msgxGroupLabel(rel);
+  var sentToday = 0;
+  if (!chase) {
+    var inGroup = new Set(b.all.map(function(g) { return g.id; }));
+    sentToday = _readSentToday().ids.filter(function(id) { return inGroup.has(id); }).length;
+  }
+  var replied = chase ? b.all.filter(_msgxReplied).length : 0;
+  var pct = chase
+    ? (total ? Math.round(replied / total * 100) : 0)
+    : (total ? Math.round(b.done.length / total * 100) : 0);
+  var meta = chase
+    ? replied + ' of ' + total + ' replied · reminders only go to guests whose invite was sent'
+    : b.done.length + ' of ' + total + ' sent' + (sentToday ? ' · ' + sentToday + ' today' : '');
+
+  var cta;
+  if (b.todo.length) {
+    cta = '<button type="button" class="msgx-cta" onclick="msgxStart()">&#9654; ' + (chase ? 'Start reminders' : 'Start sending') + ' · ' + b.todo.length + ' to go</button>';
+  } else if (b.skipped.length) {
+    cta = '<button type="button" class="msgx-cta" onclick="msgxRetrySkipped()">&#8634; Go through the ' + b.skipped.length + ' skipped</button>';
+  } else {
+    cta = '<button type="button" class="msgx-cta" disabled>' + (chase ? '✓ Nobody to remind' : '✓ All sent') + '</button>';
+  }
+  document.getElementById('msgx-list-head').innerHTML =
+    '<h2 class="msgx-h">' + escapeAttr(label) + '</h2>' +
+    '<div class="msgx-sub" style="margin:0;">' + (chase ? 'Reminders' : 'Invites') + ' · ' + escapeAttr(meta) + '</div>' +
+    '<div class="msgx-bar"><i style="width:' + pct + '%"></i></div>' +
+    cta;
+  document.getElementById('msgx-share').classList.toggle('hidden', !_slugForSender(rel));
+
+  var tabs = [{ id: 'todo', label: (chase ? 'To remind' : 'To send') + ' · ' + b.todo.length }];
+  if (!chase) tabs.push({ id: 'done', label: 'Sent · ' + b.done.length });
+  if (b.skipped.length || _msgx.tab === 'skipped') tabs.push({ id: 'skipped', label: 'Skipped · ' + b.skipped.length });
+  if (b.noPhone.length || _msgx.tab === 'noPhone') tabs.push({ id: 'noPhone', label: 'No phone · ' + b.noPhone.length });
+  if (!tabs.some(function(t) { return t.id === _msgx.tab; })) _msgx.tab = 'todo';
+  document.getElementById('msgx-seg').innerHTML = tabs.map(function(t) {
+    return '<button type="button" role="tab" class="' + (t.id === _msgx.tab ? 'active' : '') + '" onclick="msgxTab(\'' + t.id + '\')">' + escapeAttr(t.label) + '</button>';
+  }).join('');
+
+  var rows = b[_msgx.tab] || [];
+  var q = _msgx.q.trim().toLowerCase();
+  if (q) rows = rows.filter(function(g) { return (_msgxName(g) + ' ' + (g.invitation_code || '')).toLowerCase().indexOf(q) > -1; });
+  var host = document.getElementById('msgx-rows');
+  if (!rows.length) {
+    var empty = q ? 'No guests match “' + escapeAttr(_msgx.q) + '”.'
+      : _msgx.tab === 'todo' ? (b.skipped.length ? 'Nothing left except the skipped guests.' : (chase ? 'Nobody left to remind. 🎉' : 'Everyone in this group has their invite. 🎉'))
+      : _msgx.tab === 'done' ? 'No invites sent yet.' : 'Nobody here.';
+    host.innerHTML = '<div class="msgx-empty">' + empty + '</div>';
+    return;
+  }
+  var shown = rows.slice(0, _msgx.shown);
+  var html = shown.map(function(g) { return _msgxRow(g); }).join('');
+  if (rows.length > shown.length) {
+    html += '<div style="text-align:center;padding:.8rem;"><button type="button" class="msgx-row__btn" onclick="msgxMore()">Show more (' + (rows.length - shown.length) + ')</button></div>';
+  }
+  host.innerHTML = html;
+}
+
+function _msgxRow(g) {
+  var id = escapeAttr(g.id);
+  var name = escapeAttr(_msgxName(g) || '(no name)');
+  var code = g.invitation_code ? '<span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>' : '';
+  var phone = escapeAttr(sanitiseValue(g.phone) || 'No phone');
+  var aside = '';
+  if (_msgx.tab === 'done') aside = '<span class="ok">✓ Sent ' + escapeAttr(formatSentAt(sanitiseValue(g.invite_sent_at))) + '</span>';
+  if (_msgx.tab === 'skipped') {
+    return '<div class="msgx-row" style="cursor:default;">' +
+      '<div class="msgx-row__body"><div class="msgx-row__name">' + name + '</div><div class="msgx-row__meta">' + phone + ' ' + code + '</div></div>' +
+      '<button type="button" class="msgx-row__btn" onclick="msgxUnskip(\'' + id + '\')">Put back</button></div>';
+  }
+  if (_msgx.tab === 'noPhone') {
+    var emailBtn = g.email ? '<button type="button" class="msgx-row__btn" onclick="msgxOpen(\'' + id + '\')">&#9993; Email</button> ' : '';
+    return '<div class="msgx-row" style="cursor:default;">' +
+      '<div class="msgx-row__body"><div class="msgx-row__name">' + name + '</div><div class="msgx-row__meta">No WhatsApp number ' + code + '</div></div>' +
+      '<div style="display:flex;gap:.3rem;">' + emailBtn + '<button type="button" class="msgx-row__btn" onclick="openEditGuest(\'' + id + '\')">Add phone</button></div></div>';
+  }
+  return '<button type="button" class="msgx-row" onclick="msgxOpen(\'' + id + '\')">' +
+    '<div class="msgx-row__body"><div class="msgx-row__name">' + name + '</div><div class="msgx-row__meta">' + phone + ' ' + code + '</div></div>' +
+    '<div class="msgx-row__aside">' + aside + '</div>' +
+    '<span class="msgx-group__chev" aria-hidden="true">&#8250;</span>' +
+  '</button>';
+}
+
+function msgxTab(tab) { _msgx.tab = tab; _msgx.shown = MSGX_PAGE; _msgxRenderList(); }
+function msgxMore() { _msgx.shown += MSGX_PAGE; _msgxRenderList(); }
+var _msgxSearchTimer = null;
+function msgxSearch(v) {
+  _msgx.q = v || '';
+  _msgx.shown = MSGX_PAGE;
+  clearTimeout(_msgxSearchTimer);
+  _msgxSearchTimer = setTimeout(_msgxRenderList, 120);
+}
+function msgxUnskip(id) {
+  var rel = getCurrentMsgRel();
+  var s = getMsgSkips(msgMode, rel);
+  s.delete(id);
+  saveMsgSkips(msgMode, rel, s);
+  _msgxRenderList();
+}
+function msgxRetrySkipped() {
+  clearMsgSkipsFor(msgMode, getCurrentMsgRel());
+  msgxStart();
+}
+
+function msgxShare() {
+  var slug = _slugForSender(_msgx.group || '');
+  if (!slug) return;
+  var url = window.location.origin + window.location.pathname + '#sender=' + slug;
+  var label = _msgxGroupLabel(_msgx.group);
+  if (navigator.share) {
+    navigator.share({ title: 'Invites · ' + label, text: 'Here’s the ' + label + ' invite list to send:', url: url }).catch(function() {});
+    return;
+  }
+  var done = function() { showToast('Link copied — send it to whoever is sending ' + label + ' invites.', 'success', 3000); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(function() { fallbackCopy(url); });
+  } else {
+    fallbackCopy(url);
+  }
+}
+
+// ── Step 3: one guest at a time ───────────────
+function msgxStart() {
+  var next = findNextMessage(msgMode);
+  if (!next) { _msgxRenderList(); return; }
+  msgxOpen(next.id);
+}
+
+function msgxOpen(id) {
+  if (!_msgxFind(id)) return;
+  _msgx.current = id;
+  _msgx.sent = false;
+  _msgx.editing = false;
+  _msgxRenderSend();
+  window.scrollTo(0, 0);
+}
+
+function _msgxTemplateFor(g) {
+  if (!messageConfig || !messageConfig.templates.length) return null;
+  var tpls = messageConfig.templates;
+  var picked = _msgxTpl[g.id] && tpls.find(function(t) { return t.id === _msgxTpl[g.id]; });
+  if (picked) return picked;
+  if (msgMode === 'chase') {
+    var chaseTpl = tpls.find(function(t) { return /chase|remind/i.test(t.name + ' ' + t.id); });
+    if (chaseTpl) return chaseTpl;
+  }
+  var defId = getDefaultTemplateId(g);
+  return tpls.find(function(t) { return t.id === defId; }) || tpls[0];
+}
+function _msgxBody(g) {
+  if (_msgxDrafts[g.id] != null) return _msgxDrafts[g.id];
+  var t = _msgxTemplateFor(g);
+  var s = (messageConfig && messageConfig.settings) || {};
+  return t ? buildMessage(t.body || '', g, msgMode === 'chase' ? s.chaseDeadline : s.inviteDeadline) : '';
+}
+
+function _msgxEventChips(g) {
+  var ids = String(g.events || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  if (!ids.length) return '';
+  return '<div class="msgx-chips">' + ids.map(function(id) {
+    var ev = (allEvents || []).find(function(e) { return e.id === id; });
+    var names = String(g[id + '_names'] || '').split('|').filter(Boolean);
+    var what = names.length ? names.join(', ') : (Number(g[id + '_guests']) || 0);
+    return '<span class="msgx-chip">' + escapeAttr(ev ? ev.name : id) + ' <b>' + escapeAttr(String(what)) + '</b></span>';
+  }).join('') + '</div>';
+}
+
+function _msgxRenderSend() {
+  var g = _msgxFind(_msgx.current);
+  if (!g) { msgxShowList(); return; }
+  _msgxShow('send');
+  var chase = msgMode === 'chase';
+  var b = _msgxBuckets(msgMode, getCurrentMsgRel());
+  document.getElementById('msgx-send-back').textContent = _msgxGroupLabel(_msgx.group || '');
+  document.getElementById('msgx-send-count').textContent = b.todo.length ? b.todo.length + ' left' : '';
+
+  var id = escapeAttr(g.id);
+  var name = _msgxName(g);
+  var phoneOk = !!normalizePhoneForWhatsApp(g.phone);
+  var sentAt = sanitiseValue(g.invite_sent_at);
+  var body = _msgxBody(g);
+
+  var who = [escapeAttr(sanitiseValue(g.phone) || 'No phone')];
+  if (g.invitation_code) who.push('Code <span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>');
+  var status = '';
+  if (!chase && sentAt && !_msgx.sent) status = '<div class="msgx-who" style="color:var(--green);">✓ Invite already sent ' + escapeAttr(formatSentAt(sentAt)) + '</div>';
+
+  var tplPicker = '';
+  if (messageConfig && messageConfig.templates.length > 1 && !_msgx.sent) {
+    var cur = _msgxTemplateFor(g);
+    tplPicker = '<select aria-label="Message template" onchange="msgxPickTemplate(\'' + id + '\', this.value)">' +
+      messageConfig.templates.map(function(t) {
+        return '<option value="' + escapeAttr(t.id) + '"' + (cur && cur.id === t.id ? ' selected' : '') + '>' + escapeAttr(t.name) + '</option>';
+      }).join('') + '</select>';
+  }
+
+  var messageBlock = _msgx.editing
+    ? '<textarea class="msgx-edit" id="msgx-edit" oninput="msgxDraft(\'' + id + '\', this.value)">' + escapeAttr(body) + '</textarea>'
+    : '<div class="msgx-bubble">' + escapeAttr(body) + '</div>';
+
+  var actions;
+  if (_msgx.sent) {
+    var next = b.todo[0];
+    actions =
+      '<div class="msgx-done">✓ ' + (chase ? 'Reminder sent to ' : 'Sent to ') + escapeAttr(name) + '</div>' +
+      (next
+        ? '<button type="button" class="msgx-cta" id="msgx-primary" onclick="msgxNext()">Next: ' + escapeAttr(_msgxName(next)) + ' &#8594;</button>'
+        : '<button type="button" class="msgx-cta" id="msgx-primary" onclick="msgxShowList()">✓ All done — back to the list</button>') +
+      (chase ? '' : '<button type="button" class="msgx-undo" onclick="msgxUndoSent()">WhatsApp didn’t send? Mark as not sent</button>');
+  } else if (phoneOk) {
+    var waUrl = buildWhatsAppUrl(g.phone, body);
+    actions =
+      '<a class="msgx-cta msgx-cta--wa" id="msgx-primary" href="' + escapeAttr(waUrl) + '" target="_blank" rel="noopener" onclick="msgxSent()">&#128172; ' + (!chase && sentAt ? 'Resend on WhatsApp' : 'Open WhatsApp') + '</a>' +
+      '<div class="msgx-sub-actions">' +
+        '<button type="button" onclick="msgxSkip()">Skip for now</button>' +
+        '<button type="button" onclick="msgxCopy()">Copy message</button>' +
+      '</div>' +
+      (!chase && sentAt ? '<button type="button" class="msgx-undo" onclick="msgxUndoSent()">Mark as not sent</button>' : '');
+  } else {
+    actions =
+      '<div class="msgx-warn">No WhatsApp number for this guest.</div>' +
+      (g.email ? '<button type="button" class="msgx-cta" id="msgx-primary" onclick="msgxEmail()">&#9993; Send by email instead</button>' : '') +
+      '<button type="button" class="msgx-cta msgx-cta--ghost" onclick="openEditGuest(\'' + id + '\')">Add a phone number</button>';
+  }
+
+  document.getElementById('msgx-send-body').innerHTML =
+    '<div class="msgx-card">' +
+      '<h2 class="msgx-name">' + escapeAttr(name || '(no name)') + '</h2>' +
+      '<div class="msgx-who">' + who.join(' · ') + '</div>' +
+      status +
+      _msgxEventChips(g) +
+      '<div class="msgx-label"><span>Message</span>' + tplPicker + '</div>' +
+      messageBlock +
+      (_msgx.sent ? '' : '<div style="text-align:right;"><button type="button" class="msgx-editlink" onclick="msgxToggleEdit()">' + (_msgx.editing ? 'Done editing' : '✎ Edit this message') + '</button></div>') +
+      '<div class="msgx-actions">' + actions + '</div>' +
+    '</div>';
+  if (_msgx.editing) {
+    var ta = document.getElementById('msgx-edit');
+    if (ta) ta.focus();
+  }
+}
+
+function msgxPickTemplate(id, tplId) {
+  _msgxTpl[id] = tplId;
+  delete _msgxDrafts[id];
+  _msgxRenderSend();
+}
+function msgxDraft(id, v) {
+  _msgxDrafts[id] = v;
+  var a = document.getElementById('msgx-primary');
+  var g = _msgxFind(id);
+  if (a && g && a.tagName === 'A') a.href = buildWhatsAppUrl(g.phone, v);
+}
+function msgxToggleEdit() { _msgx.editing = !_msgx.editing; _msgxRenderSend(); }
+
+// The WhatsApp link opens on its own (it's a real link — reliable on
+// phones). This marks the invite as sent straight away; "Mark as not sent"
+// undoes it if WhatsApp didn't go through.
+function msgxSent() {
+  var g = _msgxFind(_msgx.current);
+  if (!g) return;
+  var id = g.id;
+  if (msgMode === 'invite') {
+    var prev = g.invite_sent_at || '';
+    g.invite_sent_at = new Date().toISOString();
+    _rememberLastSent(id);
+    google.script.run
+      .withSuccessHandler(function(res) { if (res && res.invite_sent_at) g.invite_sent_at = res.invite_sent_at; })
+      .withFailureHandler(function(err) {
+        g.invite_sent_at = prev;
+        showToast('Couldn’t mark ' + _msgxName(g) + ' as sent: ' + (err && err.message) + '. Check your connection.', 'error');
+        if (_msgx.step === 'send' && _msgx.current === id) { _msgx.sent = false; _msgxRenderSend(); }
+      })
+      .markInviteSent({ guestId: id });
+  }
+  // Let the browser follow the link first, then swap the screen.
+  setTimeout(function() {
+    if (_msgx.current !== id) return;
+    _msgx.sent = true;
+    _msgx.editing = false;
+    _msgxRenderSend();
+  }, 50);
+}
+
+function msgxUndoSent() {
+  var g = _msgxFind(_msgx.current);
+  if (!g) return;
+  var prev = g.invite_sent_at || '';
+  g.invite_sent_at = '';
+  var v = _readSentToday();
+  v.ids = v.ids.filter(function(x) { return x !== g.id; });
+  _writeSentToday(v);
+  _msgx.sent = false;
+  _msgxRenderSend();
+  google.script.run
+    .withSuccessHandler(function() { showToast(_msgxName(g) + ' is back in the queue.', 'info', 2200); })
+    .withFailureHandler(function(err) {
+      g.invite_sent_at = prev;
+      showToast('Couldn’t undo: ' + (err && err.message), 'error');
+      if (_msgx.current === g.id) _msgxRenderSend();
+    })
+    .markInviteSent({ guestId: g.id, clear: true });
+}
+
+function msgxNext() {
+  var next = findNextMessage(msgMode);
+  if (next) msgxOpen(next.id); else msgxShowList();
+}
+
+function msgxSkip() {
+  var id = _msgx.current;
+  if (!id) return;
+  var rel = getCurrentMsgRel();
+  var s = getMsgSkips(msgMode, rel);
+  s.add(id);
+  saveMsgSkips(msgMode, rel, s);
+  var g = _msgxFind(id);
+  showToast('Skipped ' + (g ? _msgxName(g) : 'guest') + ' — find them under “Skipped”.', 'info', 2200);
+  msgxNext();
+}
+
+function msgxCopy() {
+  var g = _msgxFind(_msgx.current);
+  if (!g) return;
+  var text = _msgxBody(g);
+  var done = function() { showToast('Message copied.', 'success', 1600); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(function() { fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function msgxEmail() {
+  var g = _msgxFind(_msgx.current);
+  if (!g) return;
+  openEmail(g.id, msgMode, _msgxBody(g));
+  _msgx.sent = true;
+  _msgxRenderSend();
+}
+
+// Keyboard (desktop): Enter = the big button, S = skip. Ignored while typing.
+document.addEventListener('keydown', function(e) {
+  if (_msgx.step !== 'send') return;
+  var tab = document.getElementById('tab-messages');
+  if (!tab || !tab.classList.contains('active')) return;
+  var t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT')) return;
+  if (e.key === 'Enter') {
+    var p = document.getElementById('msgx-primary');
+    if (p) { e.preventDefault(); p.click(); }
+  } else if ((e.key === 's' || e.key === 'S') && !_msgx.sent) {
+    e.preventDefault(); msgxSkip();
+  }
+});
 
 function fallbackCopy(text) {
   var ta = document.createElement('textarea');
@@ -5170,196 +5274,6 @@ function showActionToast(message, actionLabel, onAction, durationMs) {
   if (duration > 0) setTimeout(dismiss, duration);
 }
 
-function renderMessagesList() {
-  var rel        = getCurrentMsgRel();
-  var mode       = msgMode;
-  var skips      = getMsgSkips(mode, rel);
-  var scope      = msgScopeGuests(mode, rel);
-  var nextUp     = findNextMessage(mode);
-  var scopeLabel = rel || 'All Relationships';
-
-  var progressHTML, guests;
-
-  if (mode === 'invite') {
-    var sentFilter = (document.getElementById('msg-filter-sent') || {}).value || '';
-    var sentCount    = scope.filter(function(g) { return !!sanitiseValue(g.invite_sent_at); }).length;
-    var skippedCount = scope.filter(function(g) { return skips.has(g.id); }).length;
-    var remaining    = scope.length - sentCount - skippedCount;
-    var pct          = scope.length ? Math.round((sentCount / scope.length) * 100) : 0;
-
-    guests = scope.filter(function(g) {
-      var isSent = !!sanitiseValue(g.invite_sent_at);
-      if (sentFilter === 'sent' && !isSent) return false;
-      if (sentFilter === 'unsent' && isSent) return false;
-      return true;
-    });
-
-    progressHTML = buildMsgProgress({
-      titleLeft:  'Initial Invite &middot; ' + scopeLabel,
-      subline:    sentCount + ' sent &middot; ' + skippedCount + ' skipped &middot; <strong>' + remaining + ' remaining</strong>',
-      pct:        pct,
-      nextUp:     nextUp,
-      skippedCount: skippedCount,
-    });
-  } else {
-    // chase: "sent" doesn't apply; progress tracks RSVP submission across
-    // everyone matching the relationship filter (pending = scope).
-    var allForRel = allGuests.filter(function(g) {
-      if (rel && g.relationship !== rel) return false;
-      return true;
-    });
-    var submitted    = allForRel.length - scope.length;
-    var skippedCountC = scope.filter(function(g) { return skips.has(g.id); }).length;
-    var remainingC    = scope.length - skippedCountC;
-    var pctC          = allForRel.length ? Math.round((submitted / allForRel.length) * 100) : 0;
-    guests = scope; // no sent/unsent filter in chase mode
-
-    progressHTML = buildMsgProgress({
-      titleLeft:  'Chase-Up &middot; ' + scopeLabel,
-      subline:    submitted + ' responded &middot; ' + skippedCountC + ' skipped &middot; <strong>' + remainingC + ' pending</strong>',
-      pct:        pctC,
-      nextUp:     nextUp,
-      skippedCount: skippedCountC,
-    });
-  }
-
-  document.getElementById('msg-progress').innerHTML = progressHTML;
-
-  // ── Row list ──
-  var container = document.getElementById('msg-list');
-  if (!guests.length) {
-    container.innerHTML = '<div class="empty-state">' +
-      (mode === 'chase' && scope.length === 0
-        ? 'No pending RSVPs' + (rel ? ' for this relationship' : '') + '. Everyone has responded.'
-        : 'No guests match the current filter.') +
-      '</div>';
-    _refreshSendPill({ mode: mode, rel: rel, scope: scope, skips: skips, nextUp: nextUp });
-    _renderNoPhoneSection({ scope: scope });
-    return;
-  }
-
-  // Reset the visible-row counter whenever the messages filter/mode changes
-  // (independent of the Guests-tab filter fingerprint so switching between
-  // Invite and Chase also resets).
-  var msgFp = mode + '|' + rel + '|' + (mode === 'invite' ? (document.getElementById('msg-filter-sent') || {}).value || '' : '');
-  if (msgFp !== _lastMsgFingerprint) {
-    _lastMsgFingerprint = msgFp;
-    _msgListShown = MSG_LIST_PAGE;
-  }
-
-  var shown = Math.min(_msgListShown, guests.length);
-  var html  = guests.slice(0, shown).map(function(g) { return buildMsgRow(g, mode, skips, nextUp); }).join('');
-  var more  = guests.length - shown;
-  if (more > 0) {
-    html += '<div style="padding:.8rem;text-align:center;">' +
-      '<button class="btn btn-secondary btn-sm" onclick="showMoreMessages()">' +
-      'Show ' + Math.min(more, MSG_LIST_PAGE) + ' more (' + more + ' hidden)</button></div>';
-  }
-  container.innerHTML = html;
-  // Pass the already-computed scope/skips/nextUp so the helpers don't re-run
-  // three full walks over allGuests + three localStorage reads per render.
-  _refreshSendPill({ mode: mode, rel: rel, scope: scope, skips: skips, nextUp: nextUp });
-  _renderNoPhoneSection({ scope: scope });
-}
-
-var MSG_LIST_PAGE = 50;
-var _msgListShown = MSG_LIST_PAGE;
-var _lastMsgFingerprint = '';
-function showMoreMessages() {
-  _msgListShown += MSG_LIST_PAGE;
-  renderMessagesList();
-}
-
-function buildMsgProgress(opts) {
-  var nextUp = opts.nextUp;
-  var nextName = nextUp ? ((nextUp.first_name || '') + ' ' + (nextUp.last_name || '')).trim() : '';
-  return '<div class="invite-progress-card">' +
-      '<div class="invite-progress-head">' +
-        '<div>' +
-          '<div class="invite-progress-title">' + opts.titleLeft + '</div>' +
-          '<div class="invite-progress-sub">' + opts.subline + '</div>' +
-        '</div>' +
-        '<div style="display:flex;gap:.4rem;flex-wrap:wrap;">' +
-          (nextUp
-            ? '<button class="btn btn-primary btn-sm" onclick="sendNextMessage()" title="Open WhatsApp for ' + escapeAttr(nextName) + '">&#9654; Send next</button>'
-            : '<button class="btn btn-primary btn-sm" disabled>All done</button>') +
-          (opts.skippedCount ? '<button class="btn btn-ghost btn-sm" onclick="resetMessageSession()" title="Clear the skip list for this relationship">&#8634; Reset session</button>' : '') +
-        '</div>' +
-      '</div>' +
-      '<div class="invite-progress-bar"><div class="invite-progress-fill" style="width:' + opts.pct + '%;"></div></div>' +
-      (nextUp
-        ? '<div class="invite-progress-next">Up next: <strong>' + escapeAttr(nextName) + '</strong> &middot; ' + escapeAttr(sanitiseValue(nextUp.relationship)) + '</div>'
-        : '') +
-    '</div>';
-}
-
-function buildMsgRow(g, mode, skips, nextUp) {
-  var fullName   = escapeAttr(((g.first_name || '') + ' ' + (g.last_name || '')).trim());
-  var flashId    = 'flash-msg-' + escapeAttr(g.id);   // security finding #8: only unwrapped id interpolation in the file
-  var defaultTpl = getDefaultTemplateId(g);
-  var sentAt     = sanitiseValue(g.invite_sent_at);
-  var isSkipped  = skips.has(g.id);
-  var isNext     = nextUp && nextUp.id === g.id;
-
-  // Session tag (separate from the RSVP traffic-light dot) — "Up next" and
-  // "Skipped" are per-session concepts, not invite/RSVP state. In invite
-  // mode we also surface the sent date so the admin sees when they last
-  // reached out.
-  var sessionTag = '';
-  if (isSkipped)       sessionTag = '<span class="msg-tag msg-tag--skipped">Skipped</span>';
-  else if (isNext)     sessionTag = '<span class="msg-tag msg-tag--next">Up next</span>';
-  else if (mode === 'invite' && sentAt) sessionTag = '<span class="msg-tag msg-tag--sent" title="' + escapeAttr(sentAt) + '">&#10003; Sent ' + escapeAttr(formatSentAt(sentAt)) + '</span>';
-
-  var sendBtnLabel = (mode === 'invite' && sentAt) ? 'Resend' : 'Send';
-
-  var clearSentBtn = (mode === 'invite' && sentAt)
-    ? '<button class="btn btn-ghost btn-sm" onclick="clearInviteSent(\'' + escapeAttr(g.id) + '\')" title="Clear sent timestamp">&#10007;</button>'
-    : '';
-
-  // Invite mode hides Skip on already-sent rows; chase mode always allows skip.
-  var skipBtn = '';
-  if (mode !== 'invite' || !sentAt) {
-    skipBtn = isSkipped
-      ? '<button class="btn btn-ghost btn-sm" onclick="unskipMessage(\'' + escapeAttr(g.id) + '\')" title="Put back in the queue">&#8634; Unskip</button>'
-      : '<button class="btn btn-ghost btn-sm" onclick="skipMessage(\'' + escapeAttr(g.id) + '\')" title="Skip for this session">Skip</button>';
-  }
-
-  // Compact identity — headline row (dot + name + tag | code pill) with a
-  // single meta line under it (relationship · phone) so the row stays two
-  // text-lines tall rather than four. Email is intentionally omitted.
-  var rel   = escapeAttr(g.relationship || '');
-  var phone = phoneWhatsAppHtml(g.phone);
-  var metaSpans = [];
-  if (rel)   metaSpans.push('<span>' + rel + '</span>');
-  if (phone) metaSpans.push('<span>' + phone + '</span>');
-
-  return '<div id="msg-row-' + escapeAttr(g.id) + '" class="invite-row' + (isNext ? ' invite-row--next' : '') + (isSkipped ? ' invite-row--skipped' : '') + '">' +
-    '<div class="invite-row__identity">' +
-      '<div class="msg-row__headline">' +
-        '<div class="msg-row__headline-left">' +
-          guestStatusDot(g) +
-          '<span class="guest-name-cell">' + fullName + '</span>' +
-          sessionTag +
-        '</div>' +
-        (g.invitation_code ? '<span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>' : '') +
-      '</div>' +
-      (metaSpans.length ? '<div class="msg-row__meta">' + metaSpans.join('') + '</div>' : '') +
-    '</div>' +
-    '<div class="invite-row__controls">' +
-      buildTemplateDropdown(g.id, mode, defaultTpl) +
-      '<button class="btn btn-secondary btn-sm" onclick="copyMessage(\'' + escapeAttr(flashId) + '\',\'' + escapeAttr(g.id) + '\',\'' + mode + '\')">Copy</button>' +
-      (normalizePhoneForWhatsApp(g.phone)
-        ? '<button class="btn btn-primary btn-sm" onclick="openWhatsApp(\'' + escapeAttr(g.id) + '\',\'' + mode + '\')" title="Send via WhatsApp">&#128172; ' + sendBtnLabel + '</button>'
-        : (g.email
-            ? '<button class="btn btn-primary btn-sm" onclick="openEmail(\'' + escapeAttr(g.id) + '\',\'' + mode + '\')" title="No phone — send via email instead">&#9993; Email</button>'
-            : '')) +
-      skipBtn +
-      clearSentBtn +
-      '<span id="' + flashId + '" class="flash-note"></span>' +
-    '</div></div>';
-}
-
-
 /* ══════════════════════════════════════════════
    INTERACTIVE TOUR
    A spotlight walkthrough over the REAL dashboard. Each step switches to
@@ -5391,14 +5305,12 @@ var WA_TOUR_STEPS = [
   { tab: 'csv', selector: '#csv-drop-zone', title: 'Drop the file here',
     text: 'You’ll see a preview of every row before anything is saved. Rows with problems are listed by number so you can fix just those.' },
 
-  { tab: 'messages', selector: '#sender-bar', title: '2 · Send invites — who are you?',
-    text: 'Pick yourself here first. It locks the list to <em>your</em> guests, so the bride only sees Bride’s Friends and the groom’s mum only Groom’s Family. <strong>Share link</strong> hands a queue to someone else.' },
-  { tab: 'messages', selector: '#tab-messages .msg-mode-switcher', title: 'Invite or Chase-Up',
-    text: '<strong>Initial Invite</strong> for the first message. <strong>Chase-Up</strong> later, for people who haven’t replied — it only shows them.' },
-  { tab: 'messages', selector: '#msg-send-pill', skipIfMissing: true, title: 'Send next',
-    text: 'The big button previews the next message. Check it, tap <strong>Send via WhatsApp</strong>, press send in WhatsApp, come back — they’re marked as sent and the list moves on. Turn on <strong>Auto-advance</strong> to fly through a long list.' },
-  { tab: 'messages', selector: '#msg-list', skipIfMissing: true, title: 'Your queue',
-    text: 'Everyone still to message, in order. Each row has its own <strong>Send</strong> and <strong>Skip</strong>. Guests with no phone number are listed underneath with an <strong>Add phone</strong> shortcut.' },
+  { tab: 'messages', before: function() { msgxShowGroups(); }, selector: '#msgx-group-list', title: '2 · Send invites — pick a group',
+    text: 'Sending is a simple flow. First pick whose invites you’re sending — Bride’s Family, Groom’s Friends and so on. Each card shows how many are left. <strong>Invites</strong> / <strong>Reminders</strong> at the top switches to chasing people who haven’t replied.' },
+  { tab: 'messages', before: function() { msgxPickGroup(MSGX_GROUPS[0].rel); }, selector: '#msgx-list-head', skipIfMissing: true, title: 'Only that group',
+    text: 'Now you only see that group. Tap <strong>Start sending</strong> to go through them one by one. The tabs below show who’s sent, skipped, or has no phone number. <strong>Share this list</strong> hands the group to someone else.' },
+  { tab: 'messages', selector: '#msgx-rows', skipIfMissing: true, title: 'One guest at a time',
+    text: 'Each guest gets their own screen: their events, the exact message, and one big <strong>Open WhatsApp</strong> button. Press send in WhatsApp, come back, tap <strong>Next</strong>. They’re marked as sent automatically — if WhatsApp didn’t go through, tap <strong>Mark as not sent</strong>.' },
 
   { tab: 'settings', selector: '#msg-templates-list', skipIfMissing: true, title: 'The message text',
     text: 'Templates live here. <code>{{name}}</code>, <code>{{code}}</code>, <code>{{url}}</code> and <code>{{deadline}}</code> are filled in per guest. <strong>Always tap “Send test to my phone” before a real send.</strong>' },
@@ -5495,6 +5407,7 @@ function _tourShowStep() {
     var already = btn && btn.classList.contains('active');
     if (btn && !already) switchTab(step.tab, btn);
   }
+  if (typeof step.before === 'function') { try { step.before(); } catch (e) {} }
   setTimeout(function() {
     if (!_tour.active) return;
     var el = step.selector ? document.querySelector(step.selector) : null;
