@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261004085919"/>
+<meta name="app-build" content="20261004093532"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -530,6 +530,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <option value="Bride&#8217;s Friend">Bride&#8217;s Friend</option>
         <option value="Groom&#8217;s Friend">Groom&#8217;s Friend</option>
       </select>
+      <select id="filter-group" onchange="applyFilters()" title="Group">
+        <option value="">All groups</option>
+      </select>
       <select id="filter-rsvp" onchange="applyFilters()">
         <option value="">All RSVP Status</option>
         <option value="submitted">Submitted</option>
@@ -746,6 +749,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       .msgx-seg::-webkit-scrollbar{display:none;}
       .msgx-seg button{flex:0 0 auto;min-height:38px;padding:0 .9rem;border:1px solid var(--border);border-radius:999px;background:#fff;font-family:'Jost',sans-serif;font-size:.82rem;color:var(--ink);cursor:pointer;white-space:nowrap;}
       .msgx-seg button.active{background:var(--ink);border-color:var(--ink);color:#fff;}
+      .msgx-subs{margin:1rem 0 -.3rem;}
+      .msgx-subs button{min-height:34px;font-size:.78rem;border-style:dashed;}
+      .msgx-subs button.active{background:var(--gold-pale);border:1px solid var(--gold);color:var(--wine);}
       .msgx-search{width:100%;min-height:44px;padding:0 .9rem;border:1px solid var(--border);border-radius:10px;font-family:'Jost',sans-serif;font-size:16px;background:#fff;margin-bottom:.6rem;box-sizing:border-box;}
       .msgx-row{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid rgba(0,0,0,.06);padding:.8rem .3rem;min-height:60px;cursor:pointer;font-family:'Jost',sans-serif;color:var(--ink);}
       .msgx-row:first-child{border-top:1px solid rgba(0,0,0,.06);}
@@ -799,6 +805,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <button type="button" class="msgx-link" id="msgx-share" onclick="msgxShare()">Share this list</button>
         </div>
         <div id="msgx-list-head"></div>
+        <div class="msgx-seg msgx-subs" id="msgx-subs" aria-label="Group"></div>
         <div class="msgx-seg" id="msgx-seg" role="tablist"></div>
         <input type="search" class="msgx-search" id="msgx-search" placeholder="Find a guest by name or code" oninput="msgxSearch(this.value)" autocomplete="off"/>
         <div id="msgx-rows"></div>
@@ -870,6 +877,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
               <li><code>phone</code> &mdash; include the country code, e.g. <code>+254712345678</code>. Needed for WhatsApp.</li>
               <li><code>email</code> &mdash; optional but lets us send a confirmation.</li>
               <li><code>relationship</code> &mdash; one of: Bride's Family, Groom's Family, Bride's Friend, Groom's Friend. (Or leave it and use the dropdown in step 4.)</li>
+              <li><code>group</code> &mdash; optional sub-group within the relationship, e.g. <em>Jays Friends</em>, <em>Business</em>, <em>London</em>. Lets you filter the guest list and send invites one group at a time.</li>
               <li><code>is_overseas</code> &mdash; <code>TRUE</code> or <code>FALSE</code>.</li>
               <li>One <code>&hellip; Guests</code> column per event. Put either a <em>number</em> &mdash; how many seats; the family decides who comes, and the guest page says <em>&ldquo;Name and Family&rdquo;</em> when it&rsquo;s more than the people on the invite &mdash; or the <em>exact names</em>, comma-separated (e.g. Black Tie: <code>Mike, Tinu, Krisha</code>), when only those people are invited. The guest ticks who&rsquo;s coming from that list and can&rsquo;t add anyone else. <code>0</code> or blank = not invited to that event.</li>
               <li><code>Black Tie Table</code> &mdash; optional table number. Only the Black Tie has a table plan.</li>
@@ -1014,6 +1022,11 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
             <option>Bride&#8217;s Friend</option>
             <option>Groom&#8217;s Friend</option>
           </select>
+        </div>
+        <div class="form-row">
+          <label>Group <span style="font-weight:400;color:var(--muted);">(optional — e.g. Jays Friends, Business, London)</span></label>
+          <input type="text" id="m-group" list="group-options" maxlength="60" autocomplete="off" placeholder="Pick or type a group"/>
+          <datalist id="group-options"></datalist>
         </div>
         <div class="form-row">
           <label>Notes</label>
@@ -1346,6 +1359,9 @@ function _renderBulkBar() {
     '</select>' +
     '<button class="btn btn-secondary btn-sm" onclick="bulkApplyRelationship()">Apply</button>' +
     '<span style="width:1px;height:24px;background:var(--border);"></span>' +
+    '<input id="bulk-group-input" list="group-options" class="btn-sm" placeholder="Set group…" style="padding:.35rem .5rem;width:150px;"/>' +
+    '<button class="btn btn-secondary btn-sm" onclick="bulkApplyGroup()">Apply</button>' +
+    '<span style="width:1px;height:24px;background:var(--border);"></span>' +
     '<button class="btn btn-secondary btn-sm" onclick="bulkTagOverseas(true)">Tag overseas</button>' +
     '<button class="btn btn-secondary btn-sm" onclick="bulkTagOverseas(false)">Not overseas</button>' +
     '<span style="flex:1;"></span>' +
@@ -1380,6 +1396,15 @@ function bulkApplyRelationship() {
     .withSuccessHandler(function() { _bulkAfterServer('Relationship set on ' + _bulkCount() + ' guest(s).'); })
     .withFailureHandler(_bulkOnError)
     .bulkUpdate({ ids: _bulkIds(), fields: { relationship: val } });
+}
+function bulkApplyGroup() {
+  var el = document.getElementById('bulk-group-input');
+  var val = el ? el.value.replace(/\s+/g, ' ').trim() : '';
+  if (!val && !confirm('Clear the group on ' + _bulkCount() + ' guest(s)?')) return;
+  google.script.run
+    .withSuccessHandler(function() { _bulkAfterServer((val ? 'Group "' + val + '" set on ' : 'Group cleared on ') + _bulkCount() + ' guest(s).'); })
+    .withFailureHandler(_bulkOnError)
+    .bulkUpdate({ ids: _bulkIds(), fields: { group: val } });
 }
 function bulkTagOverseas(on) {
   google.script.run
@@ -1596,7 +1621,7 @@ function checkLogin() {
 // window just gets fresh defaults.
 var _SS_KEYS = {
   tab: 'wa:tab', view: 'wa:view',
-  q: 'wa:search', rel: 'wa:relFilter', rsvp: 'wa:rsvpFilter', overseas: 'wa:overseasFilter',
+  q: 'wa:search', rel: 'wa:relFilter', group: 'wa:groupFilter', rsvp: 'wa:rsvpFilter', overseas: 'wa:overseasFilter',
   sort: 'wa:sort',
 };
 function _ssSet(k, v) { try { if (v == null || v === '') sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) {} }
@@ -1609,6 +1634,7 @@ function persistGuestFilters() {
   var o  = (document.getElementById('filter-overseas')    || {}).value || '';
   var so = (document.getElementById('guest-sort')         || {}).value || '';
   _ssSet(_SS_KEYS.q, q); _ssSet(_SS_KEYS.rel, r); _ssSet(_SS_KEYS.rsvp, s); _ssSet(_SS_KEYS.overseas, o);
+  _ssSet(_SS_KEYS.group, (document.getElementById('filter-group') || {}).value || '');
   _ssSet(_SS_KEYS.sort, so);
 }
 function restoreGuestFilters() {
@@ -1624,6 +1650,32 @@ function restoreGuestFilters() {
   if (sEl && s) sEl.value = s;
   if (oEl && o) oEl.value = o;
   if (sortEl && so) sortEl.value = so;
+  _pendingGroupFilter = _ssGet(_SS_KEYS.group) || '';
+}
+
+// ── Groups (sub-groups within a relationship, e.g. "Jays Friends") ──
+var _pendingGroupFilter = '';
+function guestGroup(g) { return String(sanitiseValue(g && g.group) || '').trim(); }
+function allGroupNames() {
+  var seen = {};
+  allGuests.forEach(function(g) { var x = guestGroup(g); if (x) seen[x] = true; });
+  return Object.keys(seen).sort(function(a, b) { return a.localeCompare(b); });
+}
+// Rebuild the Group filter's options from the data, keeping the selection.
+function refreshGroupFilterOptions() {
+  var sel = document.getElementById('filter-group');
+  if (!sel) return;
+  var cur = sel.value || _pendingGroupFilter;
+  var names = allGroupNames();
+  var hasNone = allGuests.some(function(g) { return !guestGroup(g); });
+  sel.innerHTML = '<option value="">All groups</option>' +
+    names.map(function(n) { return '<option value="' + escapeAttr(n) + '">' + escapeAttr(n) + '</option>'; }).join('') +
+    (hasNone && names.length ? '<option value="__none__">(No group)</option>' : '');
+  sel.style.display = names.length ? '' : 'none';
+  if (cur && (cur === '__none__' || names.indexOf(cur) > -1)) sel.value = cur;
+  _pendingGroupFilter = '';
+  var dl = document.getElementById('group-options');
+  if (dl) dl.innerHTML = names.map(function(n) { return '<option value="' + escapeAttr(n) + '">'; }).join('');
 }
 
 function switchTab(name, btn) {
@@ -2136,11 +2188,12 @@ var _lastGuestFilterFingerprint = '';
 function rebuildFilteredGuests() {
   var q = (document.getElementById('guest-search').value || '').toLowerCase();
   var relFilter = document.getElementById('filter-relationship').value;
+  var groupFilter = (document.getElementById('filter-group') || {}).value || '';
   var rsvpFilter = document.getElementById('filter-rsvp').value;
   var overseasFilter = document.getElementById('filter-overseas').value;
 
   // Reset pagination counters if the filter/search changed since last render.
-  var fp = [q, relFilter, rsvpFilter, overseasFilter].join('|');
+  var fp = [q, relFilter, groupFilter, rsvpFilter, overseasFilter].join('|');
   if (fp !== _lastGuestFilterFingerprint) {
     _lastGuestFilterFingerprint = fp;
     _rsvpStatusShown = { submitted: RSVP_STATUS_PAGE, pending: RSVP_STATUS_PAGE };
@@ -2152,12 +2205,13 @@ function rebuildFilteredGuests() {
       // Cache the lowercase searchable string per guest so re-filtering doesn't
       // rebuild a fresh joined-lowercase per keystroke × per row.
       if (g._search == null) {
-        g._search = [g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship]
+        g._search = [g.first_name, g.last_name, g.phone, g.email, g.notes, g.relationship, g.group]
           .filter(Boolean).join(' ').toLowerCase();
       }
       if (g._search.indexOf(q) === -1) return false;
     }
     if (relFilter && g.relationship !== relFilter) return false;
+    if (groupFilter === '__none__' ? guestGroup(g) : (groupFilter && guestGroup(g) !== groupFilter)) return false;
     if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
     if (rsvpFilter === 'pending'   &&  allSubmittedCodes.has(g.invitation_code)) return false;
     var isOverseas = String(g.is_overseas || '').toUpperCase() === 'TRUE';
@@ -2193,6 +2247,7 @@ function rebuildFilteredGuests() {
 }
 
 function renderGuestView() {
+  refreshGroupFilterOptions();
   filteredGuests = rebuildFilteredGuests();
   renderCurrentView();
 }
@@ -2220,7 +2275,7 @@ function renderTableView(guests, container) {
     var isOverseas = String(g.is_overseas).toUpperCase() === 'TRUE';
     var overseasBadge = isOverseas ? ' <span class="overseas-badge">&#127757; Overseas</span>' : '';
     var dots       = buildEventDots(g);
-    var rel        = escapeAttr(g.relationship || '');
+    var rel        = escapeAttr([g.relationship, guestGroup(g)].filter(Boolean).join(' · '));
     var phone      = phoneWhatsAppHtml(g.phone);
     var checked    = _bulkSelection.has(g.id) ? ' checked' : '';
 
@@ -2792,6 +2847,7 @@ function openAddGuest() {
   document.getElementById('m-phone').value = '';
   document.getElementById('m-email').value = '';
   document.getElementById('m-relationship').value = '';
+  document.getElementById('m-group').value = '';
   document.getElementById('m-notes').value = '';
   document.getElementById('m-overseas').checked = false;
   buildModalEventTicks([]);
@@ -2819,6 +2875,7 @@ function openEditGuest(id) {
   document.getElementById('m-phone').value = sanitiseValue(g.phone);
   document.getElementById('m-email').value = sanitiseValue(g.email);
   document.getElementById('m-relationship').value = sanitiseValue(g.relationship);
+  document.getElementById('m-group').value = guestGroup(g);
   document.getElementById('m-notes').value = sanitiseValue(g.notes);
   document.getElementById('m-overseas').checked = String(g.is_overseas).toUpperCase() === 'TRUE';
   var gEvents = String(g.events || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
@@ -3073,6 +3130,7 @@ function saveGuest() {
     phone: document.getElementById('m-phone').value.trim(),
     email: document.getElementById('m-email').value.trim(),
     relationship: document.getElementById('m-relationship').value,
+    group: document.getElementById('m-group').value.replace(/\s+/g, ' ').trim(),
     notes: document.getElementById('m-notes').value.trim(),
     is_overseas: document.getElementById('m-overseas').checked ? 'TRUE' : 'FALSE',
     events: eventIds.join(','),
@@ -3287,6 +3345,7 @@ function openViewGuest(id) {
   }
   if (g.email)        detailRows.push('<dt>Email</dt><dd>' + escapeAttr(g.email) + '</dd>');
   if (g.relationship) detailRows.push('<dt>Relationship</dt><dd>' + escapeAttr(g.relationship) + '</dd>');
+  if (guestGroup(g)) detailRows.push('<dt>Group</dt><dd>' + escapeAttr(guestGroup(g)) + '</dd>');
   if (g.notes)        detailRows.push('<dt>Notes</dt><dd>' + escapeAttr(g.notes) + '</dd>');
   var detailsHtml = detailRows.length
     ? '<dl class="view-guest-meta">' + detailRows.join('') + '</dl>'
@@ -3531,7 +3590,7 @@ function exportGuestListCSV() {
     .withSuccessHandler(function(guests) {
       if (!guests || !guests.length) { showToast('No guests to export.', 'info'); return; }
       var fixedHeaders = [
-        'first_name','last_name','phone','email','relationship',
+        'first_name','last_name','phone','email','relationship','group',
         'notes','is_overseas','events','invitation_code','status'
       ];
       // One "{Event} Guests" column per event (a seat count, or the reserved
@@ -3645,7 +3704,7 @@ function downloadCSVTemplate() {
   ];
 
   var fixed = [
-    'first_name', 'last_name', 'phone', 'email', 'relationship',
+    'first_name', 'last_name', 'phone', 'email', 'relationship', 'group',
     'is_overseas', 'notes', 'events', 'invitation_code',
   ];
   // Each "{Event} Guests" cell is a seat count (the family decides who
@@ -3660,7 +3719,7 @@ function downloadCSVTemplate() {
   var attending = { MS: 2, We: 2, BT: '"Priya, Raj"' };
   var fixedRow = [
     'Priya', 'Sharma', '+254700000000', 'priya@email.com',
-    "Bride's Family", 'FALSE', 'Vegetarian',
+    "Bride's Family", 'Jays Friends', 'FALSE', 'Vegetarian',
     '"' + events.filter(function(ev) { return attending[ev.id]; }).map(function(ev) { return ev.id; }).join(',') + '"',
     '',
   ];
@@ -3798,6 +3857,7 @@ function _applyFriendlyCSVHeaders(obj) {
   take(['phoneno', 'phone', 'phonenumber', 'mobile', 'whatsapp', 'whatsappno'], 'phone');
   take(['emailaddress', 'email'], 'email');
   take(['relationship', 'side'], 'relationship');
+  take(['group', 'section', 'subgroup', 'category'], 'group');
   take(['international', 'overseas'], 'is_overseas');
 
   // Bare event columns: number → seats, anything else → reserved names.
@@ -4896,7 +4956,7 @@ var MSGX_NONE = '__none__';       // guests with no (or an unknown) relationship
 var _MSGX_SS = 'wa:msgxGroup';
 var MSGX_PAGE = 50;
 // group: null = on the group picker; '' = everyone; otherwise a relationship.
-var _msgx = { group: null, step: 'groups', tab: 'todo', q: '', shown: MSGX_PAGE, current: null, sent: false, editing: false };
+var _msgx = { group: null, sub: '', step: 'groups', tab: 'todo', q: '', shown: MSGX_PAGE, current: null, sent: false, editing: false };
 var _msgxDrafts = {};   // guestId → one-off edited message (this page load only)
 var _msgxTpl = {};      // guestId → template picked on the send screen
 
@@ -4962,7 +5022,12 @@ function _msgxHasEvents(g) {
 function _msgxBuckets(mode, rel) {
   var skips = getMsgSkips(mode, rel);
   var all = _msgxInGroup(rel);
-  var b = { all: all, invitable: all.filter(_msgxHasEvents), scope: msgScopeGuests(mode, rel),
+  // Inside a relationship's list, an optional group chip narrows everything
+  // (counts, tabs and the sending queue) to that group.
+  var sub = (_msgx.step !== 'groups' && rel === (_msgx.group || '')) ? _msgx.sub : '';
+  var inSub = function(g) { return !sub || (sub === '__none__' ? !guestGroup(g) : guestGroup(g) === sub); };
+  if (sub) all = all.filter(inSub);
+  var b = { all: all, invitable: all.filter(_msgxHasEvents), scope: msgScopeGuests(mode, rel).filter(inSub),
     todo: [], done: [], skipped: [], noPhone: [], noEvents: all.filter(function(g) { return !_msgxHasEvents(g); }), skips: skips };
   b.scope.forEach(function(g) {
     if (!_msgxHasEvents(g)) return;
@@ -5028,6 +5093,7 @@ function renderMessagesList() { if (_msgx.step !== 'send') msgxRender(); }
 // ── Step 1: groups ────────────────────────────
 function msgxShowGroups() {
   _msgx.group = null;
+  _msgx.sub = '';
   _msgx.current = null;
   _ssSet(_MSGX_SS, '__picker__');
   if (/sender=/.test(window.location.hash)) {
@@ -5086,6 +5152,7 @@ function _msgxGroupCard(rel, isAll) {
 
 function msgxPickGroup(rel) {
   _msgx.group = rel;
+  _msgx.sub = '';
   _msgx.tab = 'todo';
   _msgx.q = '';
   _msgx.shown = MSGX_PAGE;
@@ -5138,6 +5205,7 @@ function _msgxRenderList() {
     '<div class="msgx-bar"><i style="width:' + pct + '%"></i></div>' +
     cta;
   document.getElementById('msgx-share').classList.toggle('hidden', !_slugForSender(rel));
+  _msgxRenderSubs(rel);
 
   var tabs = [{ id: 'todo', label: (chase ? 'To remind' : 'To send') + ' · ' + b.todo.length }];
   if (!chase) tabs.push({ id: 'done', label: 'Sent · ' + b.done.length });
@@ -5199,6 +5267,27 @@ function _msgxRow(g) {
     '<span class="msgx-group__chev" aria-hidden="true">&#8250;</span>' +
   '</button>';
 }
+
+// Group chips for the current relationship (only if any guest has a group).
+function _msgxRenderSubs(rel) {
+  var host = document.getElementById('msgx-subs');
+  if (!host) return;
+  var everyone = _msgxInGroup(rel);
+  var counts = {}, none = 0;
+  everyone.forEach(function(g) { var x = guestGroup(g); if (x) counts[x] = (counts[x] || 0) + 1; else none++; });
+  var names = Object.keys(counts).sort(function(a, b) { return a.localeCompare(b); });
+  if (!names.length) { host.innerHTML = ''; host.classList.add('hidden'); _msgx.sub = ''; return; }
+  host.classList.remove('hidden');
+  if (_msgx.sub && _msgx.sub !== '__none__' && !counts[_msgx.sub]) _msgx.sub = '';
+  var chip = function(val, label, n) {
+    return '<button type="button" class="' + (_msgx.sub === val ? 'active' : '') + '" onclick="msgxSub(\'' + escapeAttr(val).replace(/'/g, "\\'") + '\')">' +
+      escapeAttr(label) + (n != null ? ' · ' + n : '') + '</button>';
+  };
+  host.innerHTML = chip('', 'All groups', everyone.length) +
+    names.map(function(n) { return chip(n, n, counts[n]); }).join('') +
+    (none ? chip('__none__', 'No group', none) : '');
+}
+function msgxSub(val) { _msgx.sub = val; _msgx.tab = 'todo'; _msgx.shown = MSGX_PAGE; _msgxRenderList(); }
 
 function msgxTab(tab) { _msgx.tab = tab; _msgx.shown = MSGX_PAGE; _msgxRenderList(); }
 function msgxMore() { _msgx.shown += MSGX_PAGE; _msgxRenderList(); }

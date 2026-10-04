@@ -367,7 +367,7 @@ function _withRevs(list) {
 // everything else (id, status, invite_sent_at, *_table, _rev) has its own
 // dedicated action (deleteGuest/restoreGuest, markInviteSent, updateSeating).
 const GUEST_WRITABLE_FIXED = new Set([
-  'first_name', 'last_name', 'phone', 'email', 'relationship',
+  'first_name', 'last_name', 'phone', 'email', 'relationship', 'group',
   'notes', 'events', 'invitation_code', 'is_overseas',
 ]);
 function _isGuestWritable(header) {
@@ -802,7 +802,10 @@ function sanitiseSheetValue(val) {
 
 function guestHeaders() {
   // Reserved names go in the {id}_guests cell; only Black Tie has table plans.
-  const fixed = ['id','first_name','last_name','phone','email','relationship','is_overseas','notes','invitation_code','events','status','invite_sent_at'];
+  // relationship = the SIDE (drives side-specific artwork/times and the
+  // Messages group cards); group = a free-text sub-group within it
+  // ("Jays Friends", "Business Friends/Others", "London"…) for filtering.
+  const fixed = ['id','first_name','last_name','phone','email','relationship','group','is_overseas','notes','invitation_code','events','status','invite_sent_at'];
   return [...fixed, ...EVENT_IDS.map(id => id + '_guests'), 'BT_table'];
 }
 
@@ -1214,6 +1217,7 @@ function addGuest(payload) {
     const id = 'g-' + Utilities.getUuid();
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     _normaliseReservedPayload(payload);
+    if (payload.group) headers = _ensureGuestColumn(sheet, headers, 'group').headers;
     const row = headers.map(h => {
       if (h === 'id') return id;
       if (!_isGuestWritable(h)) return '';   // status, invite_sent_at, *_table, _rev
@@ -1255,6 +1259,8 @@ function updateGuest(payload) {
     if (rowNum === -1) throw new Error('Guest not found: ' + payload.id);
 
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    // A new (blank) column doesn't change the rev — empty values are skipped.
+    if (payload.group) headers = _ensureGuestColumn(sheet, headers, 'group').headers;
 
     // ── Optimistic concurrency check ──────────────────────
     // If the client sent the _rev it loaded the edit form with, compare it
@@ -1486,6 +1492,7 @@ function bulkAddGuests(payload) {
     }
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     (payload.guests || []).forEach(g => { if (g) _normaliseReservedPayload(g); });
+    if ((payload.guests || []).some(g => g && g.group)) headers = _ensureGuestColumn(sheet, headers, 'group').headers;
     // Snapshot existing codes once; mutate the map as we build so CSV-internal
     // duplicates (and newly-generated ones) are detected within this batch.
     const used = collectExistingCodes();
@@ -1561,7 +1568,7 @@ function bulkAddGuests(payload) {
 //   { ids: [guestId, ...], fields?: {relationship, is_overseas, ...} }
 // Only these keys are honoured by bulkUpdate to prevent an admin from
 // accidentally overwriting e.g. invitation_code from a bulk pane.
-const BULK_ALLOWED_FIELDS = ['relationship','is_overseas','notes'];
+const BULK_ALLOWED_FIELDS = ['relationship','group','is_overseas','notes'];
 
 function _bulkResolveRows(sheet, ids) {
   const idSet = new Set((ids || []).map(function(x) { return String(x || '').trim(); }).filter(Boolean));
@@ -1665,6 +1672,9 @@ function bulkUpdate(payload) {
   lock.waitLock(30000);
   try {
     const resolved = _bulkResolveRows(sheet, payload && payload.ids);
+    if (fieldKeys.indexOf('group') > -1 && resolved.headers.indexOf('group') < 0) {
+      resolved.headers = _ensureGuestColumn(sheet, resolved.headers, 'group').headers;
+    }
     const colIdx = {};
     fieldKeys.forEach(function(k) { colIdx[k] = resolved.headers.indexOf(k); });
     // Write each column in one setValues covering all affected rows.
