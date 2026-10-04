@@ -1832,7 +1832,12 @@ function submitRSVP(payload) {
   // Use script lock for atomicity — duplicate check + write must be inside lock
   const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(15000);
+    // Replies are saved one at a time (so duplicates can't slip in). In a
+    // burst — everyone replying after the invites go out — later ones queue
+    // behind earlier ones; wait up to 28 s rather than failing at 15 s. The
+    // guest page allows 35 s and checks whether the reply landed before it
+    // ever shows an error.
+    lock.waitLock(28000);
   } catch (lockErr) {
     // Guests should never see Apps Script's raw "Lock timeout: another
     // process was holding the lock" text. This fires when an admin is
@@ -2491,9 +2496,32 @@ function diagnoseSpeed(name, code) {
   Logger.log(msg);
   return msg;
 }
-// Convenience: edit the name/code here and run this from the dropdown.
+// Convenience: run from the dropdown. Times the setup steps once, then a
+// full sign-in for every test guest below (one after another).
+const TEST_GUESTS = [
+  ['Paul & Mehreen', 'WYWB6C'], ['Mehul & Jaini', 'B9GREU'], ['Neeval & Sonia', 'GVMSTU'],
+  ['Nish', 'PAVYUP'], ['Nihar & Aashna', 'CYERMC'], ['Harshil & Saloni', 'NAAJAE'],
+  ['Hussein & +1', 'UJE5ZU'], ['Sanjay & Rita', 'CPS59H'], ['Kush & Nirali', '6E7NJT'],
+  ['Sahil Seth & Sheena', 'PPBDSH'], ['Arjun M & Gurpeet', 'EXDTFG'], ['Kunj & Chandni', '6JKUQR'],
+  ['Mowgli & Gita', 'V6YUSS'], ['Shiv & Isabella', 'W6C8Y4'], ['Seeta & Avin', '44X394'],
+  ['Madhvi & Nihar', '58YT3S'], ['Mikey & Paula', 'ZCA8DQ'], ['Mikey Dad & Mum', 'KVVQ4Q'],
+  ['Akash P & Misha', 'FKSUH8'],
+];
 function diagnoseSpeedForTestGuest() {
-  return diagnoseSpeed('Neeval & Sonia', 'GVMSTU');
+  const head = diagnoseSpeed();
+  const lines = [];
+  TEST_GUESTS.forEach(function(g) {
+    const s0 = Date.now();
+    let note = '';
+    try {
+      const r = validateGuest(g[1], g[0], '');
+      note = (r.events || []).length + ' events' + (r.existingRSVP ? ', already replied' : '');
+    } catch (e) { note = 'ERROR: ' + e.message; }
+    lines.push('  ' + g[0] + ' (' + g[1] + '): ' + (Date.now() - s0) + ' ms — ' + note);
+  });
+  const msg = head + '\nSign-in per test guest:\n' + lines.join('\n');
+  Logger.log(msg);
+  return msg;
 }
 
 // ── removeLuncheon ────────────────────────────────────────

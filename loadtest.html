@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="robots" content="noindex, nofollow"/>
+<title>RSVP Load Test</title>
+<style>
+  :root { --wine:#6b2737; --green:#2d6a4f; --red:#9b2226; --ink:#2a1a18; --muted:#6b5a51; --rule:#e6dccf; --cream:#faf5ec; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); font: 15px/1.5 -apple-system, system-ui, Segoe UI, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; color: var(--wine); }
+  p.sub { margin: 0 0 18px; color: var(--muted); }
+  section { background: #fff; border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .desc { color: var(--muted); margin: 0 0 10px; font-size: .9rem; }
+  button { min-height: 42px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--wine); color: #fff; font-size: .95rem; cursor: pointer; margin: 0 6px 6px 0; }
+  button.secondary { background: #fff; color: var(--wine); border: 1px solid var(--wine); }
+  button:disabled { opacity: .5; cursor: default; }
+  input { min-height: 42px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 8px; font-size: 16px; width: 200px; }
+  .summary { font-weight: 600; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 5px 6px; border-top: 1px solid var(--rule); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.ms { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .warn { color: #a05a00; }
+  .log { white-space: pre-wrap; font: 12px/1.45 ui-monospace, Menlo, monospace; background: #f6f1e8; padding: 8px; border-radius: 6px; max-height: 240px; overflow: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>RSVP load test</h1>
+  <p class="sub">Runs real requests against the live site with the test guests below, to check it copes when many people reply at once. Sign-in tests only read. The sending test writes test replies; clean up afterwards.</p>
+
+  <section>
+    <h2>1 · Sign-in, all at once</h2>
+    <p class="desc">Every test guest checks their name and code at the same moment, like a burst right after invites go out.</p>
+    <button onclick="runSignIns(true)">Run</button>
+    <div id="out-burst"></div>
+  </section>
+
+  <section>
+    <h2>2 · Sign-in, one after another</h2>
+    <p class="desc">The same guests, one at a time — compare with test 1 to see how much a crowd slows each person down.</p>
+    <button onclick="runSignIns(false)">Run</button>
+    <div id="out-serial"></div>
+  </section>
+
+  <section>
+    <h2>3 · Tricky cases</h2>
+    <p class="desc">Wrong code, wrong name, odd capitals/spaces, and the same guest signing in twice at the same moment. Each line says what should happen.</p>
+    <button onclick="runEdgeCases()">Run</button>
+    <div id="out-edge"></div>
+  </section>
+
+  <section>
+    <h2>4 · Sending replies, all at once <span class="warn">(writes to the sheet)</span></h2>
+    <p class="desc">Every test guest sends an RSVP (yes to everything) at the same moment, and one guest double-sends at the same moment — that guest must be saved exactly once. Needs the admin PIN so the replies can be cleaned up.</p>
+    <input id="pin" type="password" placeholder="Admin PIN" autocomplete="off"/>
+    <button onclick="runSends()">Run</button>
+    <button class="secondary" onclick="cleanUp()">Clean up test replies</button>
+    <div id="out-send"></div>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<script>
+// Same backend as the guest page.
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2K9wdBFRYbkyELWEVuhBvUrZCIrOyzuXTNbjd7rMOJN9a0PojQo1MUEbjNek1wo7Shg/exec';
+
+// Test guests: name exactly as on the invite + code.
+var GUESTS = [
+  ['Paul & Mehreen', 'WYWB6C'], ['Mehul & Jaini', 'B9GREU'], ['Neeval & Sonia', 'GVMSTU'],
+  ['Nish', 'PAVYUP'], ['Nihar & Aashna', 'CYERMC'], ['Harshil & Saloni', 'NAAJAE'],
+  ['Hussein & +1', 'UJE5ZU'], ['Sanjay & Rita', 'CPS59H'], ['Kush & Nirali', '6E7NJT'],
+  ['Sahil Seth & Sheena', 'PPBDSH'], ['Arjun M & Gurpeet', 'EXDTFG'], ['Kunj & Chandni', '6JKUQR'],
+  ['Mowgli & Gita', 'V6YUSS'], ['Shiv & Isabella', 'W6C8Y4'], ['Seeta & Avin', '44X394'],
+  ['Madhvi & Nihar', '58YT3S'], ['Mikey & Paula', 'ZCA8DQ'], ['Mikey Dad & Mum', 'KVVQ4Q'],
+  ['Akash P & Misha', 'FKSUH8'],
+];
+
+function log(msg) {
+  var el = document.getElementById('log');
+  el.textContent += new Date().toLocaleTimeString() + '  ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+// One request, timed. Never throws: returns { ok, ms, data, error }.
+async function call(action, payload, pin, timeoutMs) {
+  var t0 = performance.now();
+  var ctrl = new AbortController();
+  var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs || 60000);
+  try {
+    var body = { action: action, payload: payload || {} };
+    if (pin) body.pin = pin;
+    var res = await fetch(SCRIPT_URL, {
+      method: 'POST', credentials: 'omit', signal: ctrl.signal,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body),
+    });
+    var ms = Math.round(performance.now() - t0);
+    if (!res.ok) return { ok: false, ms: ms, error: 'HTTP ' + res.status };
+    var json = await res.json();
+    return json.ok ? { ok: true, ms: ms, data: json.data } : { ok: false, ms: ms, error: json.error || 'failed' };
+  } catch (e) {
+    return { ok: false, ms: Math.round(performance.now() - t0), error: e.name === 'AbortError' ? 'timed out' : (e.message || String(e)) };
+  } finally { clearTimeout(timer); }
+}
+function validate(name, code) { return call('validate', { code: code, firstName: name, lastName: '' }); }
+
+function stats(list) {
+  var ms = list.map(function(r) { return r.ms; }).sort(function(a, b) { return a - b; });
+  var pick = function(p) { return ms.length ? ms[Math.min(ms.length - 1, Math.floor(p * ms.length))] : 0; };
+  var fails = list.filter(function(r) { return !r.ok; }).length;
+  return 'Fastest ' + (ms[0] || 0) + ' ms · typical ' + pick(0.5) + ' ms · slowest 10% ' + pick(0.9) + ' ms · slowest ' + (ms[ms.length - 1] || 0) + ' ms · ' +
+    (fails ? '<span class="bad">' + fails + ' failed</span>' : '<span class="ok">all succeeded</span>');
+}
+function table(rows, cols) {
+  return '<table><tr>' + cols.map(function(c) { return '<th>' + c + '</th>'; }).join('') + '</tr>' +
+    rows.map(function(r) { return '<tr>' + r.map(function(v, i) { return '<td' + (cols[i] === 'Time' ? ' class="ms"' : '') + '>' + v + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+}
+function busy(on) { document.querySelectorAll('button').forEach(function(b) { b.disabled = on; }); }
+
+async function runSignIns(together) {
+  var host = document.getElementById(together ? 'out-burst' : 'out-serial');
+  host.innerHTML = '<p>Running…</p>'; busy(true);
+  log((together ? 'Burst' : 'Serial') + ' sign-in test for ' + GUESTS.length + ' guests');
+  var t0 = performance.now(), results = [];
+  if (together) {
+    results = await Promise.all(GUESTS.map(function(g) { return validate(g[0], g[1]); }));
+  } else {
+    for (var i = 0; i < GUESTS.length; i++) results.push(await validate(GUESTS[i][0], GUESTS[i][1]));
+  }
+  var total = Math.round(performance.now() - t0);
+  host.innerHTML = '<div class="summary">' + stats(results) + ' · whole test ' + total + ' ms</div>' +
+    table(results.map(function(r, i) {
+      var note = r.ok ? '<span class="ok">✓ ' + (r.data.events || []).length + ' events' + (r.data.existingRSVP ? ' · already replied' : '') + '</span>' : '<span class="bad">' + esc(r.error) + '</span>';
+      return [esc(GUESTS[i][0]), GUESTS[i][1], r.ms + ' ms', note];
+    }), ['Guest', 'Code', 'Time', 'Result']);
+  log('Done in ' + total + ' ms'); busy(false);
+}
+
+async function runEdgeCases() {
+  var host = document.getElementById('out-edge');
+  host.innerHTML = '<p>Running…</p>'; busy(true);
+  var g = GUESTS[2];
+  var cases = [
+    ['Right name, right code', g[0], g[1], true],
+    ['Name in capitals with extra spaces', '  ' + g[0].toUpperCase().replace(' & ', '  &  ') + ' ', g[1], true],
+    ['Code in lower case', g[0], g[1].toLowerCase(), true],
+    ['Right name, wrong code', g[0], 'ZZZ999', false],
+    ['Wrong name, right code', 'Not A Guest', g[1], false],
+    ['Code too short', g[0], 'AB1', false],
+    ['Name with a plus sign', 'Hussein & +1', 'UJE5ZU', true],
+  ];
+  var rows = [];
+  for (var i = 0; i < cases.length; i++) {
+    var c = cases[i], r = await validate(c[1], c[2]);
+    var pass = r.ok === c[3];
+    rows.push([esc(c[0]), c[3] ? 'signs in' : 'friendly error', r.ms + ' ms',
+      (pass ? '<span class="ok">✓ ' : '<span class="bad">✗ ') + esc(r.ok ? 'signed in' : r.error) + '</span>']);
+  }
+  // Same guest twice at the same moment
+  var pair = await Promise.all([validate(g[0], g[1]), validate(g[0], g[1])]);
+  var both = pair[0].ok && pair[1].ok;
+  rows.push(['Same guest twice at once', 'both sign in', Math.max(pair[0].ms, pair[1].ms) + ' ms',
+    (both ? '<span class="ok">✓ both signed in' : '<span class="bad">✗ ' + esc(pair[0].error || pair[1].error)) + '</span>']);
+  host.innerHTML = table(rows, ['Case', 'Should', 'Time', 'Result']);
+  busy(false);
+}
+
+// Build a reply like the guest page does: yes to every event, full seats,
+// reserved names all ticked.
+function buildPayload(name, code, guest) {
+  return {
+    submissionName: name, invitationCode: guest.invitationCode || code, submittedAt: new Date().toISOString(), guestEmail: '',
+    events: (guest.events || []).map(function(id) {
+      var a = (guest.allocations || {})[id] || {};
+      var names = (a.names || []).slice();
+      return { id: id, name: id, attending: true, guests: names.length || Number(a.guests) || 1, notes: 'load test', names: names };
+    }),
+  };
+}
+
+async function runSends() {
+  var pin = document.getElementById('pin').value.trim();
+  var host = document.getElementById('out-send');
+  if (!pin) { host.innerHTML = '<p class="bad">Enter the admin PIN first.</p>'; return; }
+  var check = await call('checkPin', { pin: pin });
+  if (!check.ok || !check.data) { host.innerHTML = '<p class="bad">That PIN didn’t work.</p>'; return; }
+  busy(true); host.innerHTML = '<p>Signing everyone in…</p>';
+  var signed = await Promise.all(GUESTS.map(function(g) { return validate(g[0], g[1]); }));
+  var ready = [], rows = [];
+  signed.forEach(function(r, i) {
+    if (!r.ok) rows.push([esc(GUESTS[i][0]), '—', '<span class="bad">sign-in failed: ' + esc(r.error) + '</span>']);
+    else if (r.data.existingRSVP) rows.push([esc(GUESTS[i][0]), '—', '<span class="warn">already replied — run Clean up first</span>']);
+    else ready.push({ name: GUESTS[i][0], code: GUESTS[i][1], payload: buildPayload(GUESTS[i][0], GUESTS[i][1], r.data) });
+  });
+  if (!ready.length) { host.innerHTML = table(rows, ['Guest', 'Time', 'Result']); busy(false); return; }
+  host.innerHTML = '<p>Sending ' + ready.length + ' replies at once (plus one double-send)…</p>';
+  log('Sending ' + ready.length + ' replies at once');
+  var t0 = performance.now();
+  var dup = ready[0];
+  var jobs = ready.map(function(x) { return call('submitRSVP', x.payload, null, 60000); });
+  jobs.push(call('submitRSVP', dup.payload, null, 60000));   // the double-send
+  var res = await Promise.all(jobs);
+  var total = Math.round(performance.now() - t0);
+  var sendRes = res.slice(0, ready.length);
+  ready.forEach(function(x, i) {
+    var r = sendRes[i];
+    rows.push([esc(x.name), r.ms + ' ms', r.ok ? '<span class="ok">✓ saved</span>' : (/already been received/i.test(r.error) ? '<span class="ok">✓ saved (by the other send)</span>' : '<span class="bad">' + esc(r.error) + '</span>')]);
+  });
+  // Double-send: exactly one of the two should have saved
+  var a = sendRes[0], b = res[res.length - 1];
+  var dupOk = (a.ok !== b.ok) && [a, b].some(function(r) { return !r.ok && /already been received/i.test(r.error); });
+  rows.push(['<em>' + esc(dup.name) + ' — double-send</em>', b.ms + ' ms', dupOk ? '<span class="ok">✓ saved once, second refused</span>' : '<span class="bad">✗ ' + esc(b.ok ? 'both saved — duplicate!' : b.error) + '</span>']);
+  // Confirm every reply is on record
+  var after = await Promise.all(ready.map(function(x) { return validate(x.name, x.code); }));
+  var missing = after.filter(function(r) { return !(r.ok && r.data.existingRSVP); }).length;
+  host.innerHTML = '<div class="summary">' + stats(sendRes.map(function(r) { return { ok: r.ok || /already been received/i.test(r.error), ms: r.ms }; })) +
+    ' · whole test ' + total + ' ms · ' + (missing ? '<span class="bad">' + missing + ' not on record afterwards</span>' : '<span class="ok">every reply is on record</span>') + '</div>' +
+    table(rows, ['Guest', 'Time', 'Result']);
+  log('Sends done in ' + total + ' ms; missing afterwards: ' + missing);
+  busy(false);
+}
+
+async function cleanUp() {
+  var pin = document.getElementById('pin').value.trim();
+  var host = document.getElementById('out-send');
+  if (!pin) { host.innerHTML = '<p class="bad">Enter the admin PIN first.</p>'; return; }
+  busy(true); host.innerHTML = '<p>Resetting test replies…</p>';
+  var cleared = 0, failed = [];
+  for (var i = 0; i < GUESTS.length; i++) {
+    var r = await call('resetGuestRSVP', { code: GUESTS[i][1] }, pin);
+    if (r.ok) cleared += (r.data && r.data.reset) ? 1 : 0; else failed.push(GUESTS[i][0] + ': ' + r.error);
+  }
+  host.innerHTML = '<p class="' + (failed.length ? 'bad' : 'ok') + '">Reset ' + cleared + ' guest(s)' + (failed.length ? ' · problems: ' + esc(failed.join('; ')) : ' · all test guests can reply again') + '.</p>';
+  log('Clean-up: reset ' + cleared + (failed.length ? ', failed ' + failed.length : ''));
+  busy(false);
+}
+</script>
+</body>
+</html>
