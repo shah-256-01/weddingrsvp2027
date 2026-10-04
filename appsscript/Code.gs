@@ -97,6 +97,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  _requestStart = Date.now();
   // Hoisted so the catch block can tell admin from public callers when
   // deciding how much of an error to reveal (security finding #7).
   let action = '';
@@ -260,7 +261,12 @@ function doPost(e) {
   }
 }
 
+// _requestStart is set as soon as doPost runs; every reply carries how
+// long the script itself spent (serverMs), so the load-test page can tell
+// our code's time apart from Google's web-app overhead and the network.
+let _requestStart = 0;
 function jsonResponse(obj) {
+  if (_requestStart && obj && typeof obj === 'object') obj.serverMs = Date.now() - _requestStart;
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);

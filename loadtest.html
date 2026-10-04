@@ -95,7 +95,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(
 async function call(action, payload, pin, timeoutMs) {
   var t0 = performance.now();
   var ctrl = new AbortController();
-  var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs || 60000);
+  var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs || 30000);
   try {
     var body = { action: action, payload: payload || {} };
     if (pin) body.pin = pin;
@@ -106,13 +106,22 @@ async function call(action, payload, pin, timeoutMs) {
     var ms = Math.round(performance.now() - t0);
     if (!res.ok) return { ok: false, ms: ms, error: 'HTTP ' + res.status };
     var json = await res.json();
-    return json.ok ? { ok: true, ms: ms, data: json.data } : { ok: false, ms: ms, error: json.error || 'failed' };
+    var server = typeof json.serverMs === 'number' ? json.serverMs : null;
+    return json.ok ? { ok: true, ms: ms, server: server, data: json.data } : { ok: false, ms: ms, server: server, error: json.error || 'failed' };
   } catch (e) {
     return { ok: false, ms: Math.round(performance.now() - t0), error: e.name === 'AbortError' ? 'timed out' : (e.message || String(e)) };
   } finally { clearTimeout(timer); }
 }
 function validate(name, code) { return call('validate', { code: code, firstName: name, lastName: '' }); }
 
+function serverStats(list) {
+  var withS = list.filter(function(r) { return typeof r.server === 'number'; });
+  if (!withS.length) return '<br><span class="warn">No server timing in replies — redeploy the latest Code.gs to see it.</span>';
+  var avgS = Math.round(withS.reduce(function(a, r) { return a + r.server; }, 0) / withS.length);
+  var avgT = Math.round(withS.reduce(function(a, r) { return a + r.ms; }, 0) / withS.length);
+  return '<br>Average time inside our script: <b>' + avgS + ' ms</b> · average total: <b>' + avgT + ' ms</b> → <b>' +
+    (avgT - avgS) + ' ms</b> spent outside our code (Google’s web-app overhead + network).';
+}
 function stats(list) {
   var ms = list.map(function(r) { return r.ms; }).sort(function(a, b) { return a - b; });
   var pick = function(p) { return ms.length ? ms[Math.min(ms.length - 1, Math.floor(p * ms.length))] : 0; };
@@ -134,14 +143,19 @@ async function runSignIns(together) {
   if (together) {
     results = await Promise.all(GUESTS.map(function(g) { return validate(g[0], g[1]); }));
   } else {
-    for (var i = 0; i < GUESTS.length; i++) results.push(await validate(GUESTS[i][0], GUESTS[i][1]));
+    for (var i = 0; i < GUESTS.length; i++) {
+      host.innerHTML = '<p>Running… guest ' + (i + 1) + ' of ' + GUESTS.length + '</p>';
+      results.push(await validate(GUESTS[i][0], GUESTS[i][1]));
+      var last = results[results.length - 1];
+      log(GUESTS[i][0] + ': ' + last.ms + ' ms' + (typeof last.server === 'number' ? ' (script ' + last.server + ' ms)' : '') + (last.ok ? '' : ' — ' + last.error));
+    }
   }
   var total = Math.round(performance.now() - t0);
-  host.innerHTML = '<div class="summary">' + stats(results) + ' · whole test ' + total + ' ms</div>' +
+  host.innerHTML = '<div class="summary">' + stats(results) + ' · whole test ' + total + ' ms' + serverStats(results) + '</div>' +
     table(results.map(function(r, i) {
       var note = r.ok ? '<span class="ok">✓ ' + (r.data.events || []).length + ' events' + (r.data.existingRSVP ? ' · already replied' : '') + '</span>' : '<span class="bad">' + esc(r.error) + '</span>';
-      return [esc(GUESTS[i][0]), GUESTS[i][1], r.ms + ' ms', note];
-    }), ['Guest', 'Code', 'Time', 'Result']);
+      return [esc(GUESTS[i][0]), GUESTS[i][1], r.ms + ' ms', typeof r.server === 'number' ? r.server + ' ms' : '—', note];
+    }), ['Guest', 'Code', 'Time', 'In script', 'Result']);
   log('Done in ' + total + ' ms'); busy(false);
 }
 
