@@ -1867,7 +1867,13 @@ function submitRSVP(payload) {
     // Reuse the guest list we already read for name validation — the sheet
     // hasn't been mutated by anyone else (we're inside the script lock) so
     // a second full read here would be redundant.
+    // Same match as sign-in (code AND name). Matching on code alone could
+    // pick a different row that shares the code (e.g. a duplicate or old
+    // test row) and reject the reply with "No valid events".
     const guestRecord = guestsForValidation.find(g =>
+      String(g.invitation_code || '').toUpperCase().trim() === invitationCode &&
+      normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName)
+    ) || guestsForValidation.find(g =>
       String(g.invitation_code || '').toUpperCase().trim() === invitationCode
     );
     if (guestRecord) {
