@@ -239,7 +239,10 @@ function doPost(e) {
       'bulkAddGuests', 'updateSeating', 'updateContact',
       'updateRSVP',   // submitRSVP: _commitRSVP refreshes caches when it writes
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
-      'markInviteSent',   // so other admins' devices see "sent" on their next refresh
+      // markInviteSent deliberately NOT here: it runs every few seconds while
+      // invites go out, and throwing away the saved guest list each time
+      // would slow guest sign-ins. Admin loads read the sent column fresh
+      // instead (see _withFreshInviteSent).
       'deleteRSVPSubmission', 'resetGuestRSVP',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
@@ -2934,7 +2937,38 @@ function getBootstrap() {
   // Cached with the chunked helper because at 700 guests + 700 RSVPs the
   // JSON payload is well over the 100 KB single-key cache limit. The cache
   // is keyed by the admin cache version so any mutation invalidates it.
-  return cachedReadChunked('bootstrap', _getBootstrap, ADMIN_CACHE_TTL_SEC);
+  const data = cachedReadChunked('bootstrap', _getBootstrap, ADMIN_CACHE_TTL_SEC);
+  // "Invite sent" changes constantly while invites go out and doesn't bump
+  // the cache, so overlay it fresh from the sheet (two small column reads)
+  // — every admin device sees other people's sends on its next refresh.
+  try {
+    _withFreshInviteSent(data.guests);
+    _withFreshInviteSent(data.deletedGuests);
+  } catch (e) { /* best-effort */ }
+  return data;
+}
+
+// Patch invite_sent_at on guest objects from the sheet, reading only the
+// id and invite_sent_at columns.
+function _withFreshInviteSent(list) {
+  if (!Array.isArray(list) || !list.length) return list;
+  const sheet = getSheet(TABS.guests);
+  const n = sheet.getLastRow() - 1;
+  if (n < 1) return list;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const idI = headers.indexOf('id'), sentI = headers.indexOf('invite_sent_at');
+  if (idI < 0 || sentI < 0) return list;
+  const ids = sheet.getRange(2, idI + 1, n, 1).getValues();
+  const sent = sheet.getRange(2, sentI + 1, n, 1).getValues();
+  const byId = {};
+  for (let i = 0; i < n; i++) byId[String(ids[i][0])] = sent[i][0];
+  list.forEach(function(g) {
+    if (g && Object.prototype.hasOwnProperty.call(byId, String(g.id))) {
+      const v = byId[String(g.id)];
+      g.invite_sent_at = v instanceof Date ? v.toISOString() : v;
+    }
+  });
+  return list;
 }
 function _getBootstrap() {
   function safe(fn) { try { return fn(); } catch (e) { return null; } }
