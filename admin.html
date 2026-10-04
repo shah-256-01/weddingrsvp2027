@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261004080335"/>
+<meta name="app-build" content="20261004082204"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -2020,6 +2020,30 @@ function gasAsync(fnName) {
   });
 }
 
+// ── Keep devices in sync ─────────────────────────────────
+// Several people send invites from different phones. Each admin refreshes
+// its data in the background every minute while it's on screen, and as
+// soon as you come back to it (e.g. from WhatsApp) — never while you're in
+// the middle of something (sending an invite, an open form, a save).
+var SYNC_EVERY_MS = 60000;
+function syncFromServer(force) {
+  if (document.visibilityState === 'hidden') return;
+  var dash = document.getElementById('admin-dashboard');
+  if (!dash || dash.classList.contains('hidden')) return;          // not signed in
+  if (typeof _adminBusy === 'function' && _adminBusy()) return;
+  if (!force && Date.now() - _lastGuestsLoadAt < SYNC_EVERY_MS - 5000) return;
+  loadGuests({ silent: true });
+}
+function _refreshOpenTabAfterSync() {
+  var active = document.querySelector('.admin-panel.active');
+  var id = active ? active.id : '';
+  if (id === 'tab-rsvps' && typeof renderRSVPsTab === 'function') renderRSVPsTab();
+}
+setInterval(function() { syncFromServer(false); }, SYNC_EVERY_MS);
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') setTimeout(function() { syncFromServer(false); }, 400);
+});
+
 // The Messages tab can be open before the guest list arrives (e.g. the
 // admin reopened on that tab) — redraw it once the data is in.
 function _refreshMessagesIfOpen() {
@@ -2045,8 +2069,13 @@ function _showEmailStatus(st) {
   showToast(msg, 'info', 12000);
 }
 
-function loadGuests() {
-  document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
+// opts.silent: background refresh — no "Loading…" placeholder, and the
+// current screen is redrawn in place afterwards.
+var _lastGuestsLoadAt = 0;
+function loadGuests(opts) {
+  var silent = !!(opts && opts.silent);
+  if (!silent) document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
+  _lastGuestsLoadAt = Date.now();
   // Single bootstrap round-trip: one doPost returns guests + rsvps + codes
   // + duplicates + deleted in one payload. Falls back to the legacy 5-call
   // fan-out if the server hasn't been redeployed with getBootstrap yet.
@@ -2066,7 +2095,9 @@ function loadGuests() {
     refreshStats();
     renderGuestView();
     _refreshMessagesIfOpen();
+    if (silent) _refreshOpenTabAfterSync();
   }).catch(function() {
+    if (silent) return;   // a failed background refresh just waits for the next one
     // Fallback path for old deployments — parallel fan-out, render when all done.
     Promise.all([
       gasAsync('getGuests').then(function(d) { allGuests = _canonGuests(d); }),

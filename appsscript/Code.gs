@@ -239,6 +239,7 @@ function doPost(e) {
       'bulkAddGuests', 'updateSeating', 'updateContact',
       'updateRSVP',   // submitRSVP: _commitRSVP refreshes caches when it writes
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
+      'markInviteSent',   // so other admins' devices see "sent" on their next refresh
       'deleteRSVPSubmission', 'resetGuestRSVP',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
