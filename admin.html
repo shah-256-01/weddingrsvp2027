@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261004082204"/>
+<meta name="app-build" content="20261004083535"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1956,8 +1956,8 @@ var _extraGuestFilterLabel = '';
 
 // Days-to-deadline pill in the admin nav so urgency is always visible.
 // Deadline source of truth: messageConfig.settings.inviteDeadline (or the
-// chase deadline as a fallback). Parses common formats: "30 November 2026",
-// "2026-11-30", "30/11/2026", etc.
+// chase deadline as a fallback). Parses common formats: "30 October 2026",
+// "2026-10-30", "30/10/2026", etc.
 function _parseDeadlineText(s) {
   if (!s) return null;
   var d = new Date(s);
@@ -4452,11 +4452,11 @@ function renderMessageSettingsUI() {
       '</div>' +
       '<div class="form-row">' +
         '<label>Chase-Up Deadline</label>' +
-        '<input type="text" id="msg-chase-deadline" value="' + escapeAttr(s.chaseDeadline || '') + '" placeholder="e.g. 30 November 2026" oninput="onMsgSettingChange()"/>' +
+        '<input type="text" id="msg-chase-deadline" value="' + escapeAttr(s.chaseDeadline || '') + '" placeholder="e.g. 30 October 2026" oninput="onMsgSettingChange()"/>' +
       '</div>' +
       '<div class="form-row">' +
         '<label>Invite Deadline</label>' +
-        '<input type="text" id="msg-invite-deadline" value="' + escapeAttr(s.inviteDeadline || '') + '" placeholder="e.g. 30 November 2026" oninput="onMsgSettingChange()"/>' +
+        '<input type="text" id="msg-invite-deadline" value="' + escapeAttr(s.inviteDeadline || '') + '" placeholder="e.g. 30 October 2026" oninput="onMsgSettingChange()"/>' +
       '</div>' +
       '<div class="form-row">' +
         '<label>Default Country Code</label>' +
@@ -4609,7 +4609,7 @@ function sendTestTemplate(templateId) {
   phone = phone.trim();
   try { localStorage.setItem('wa:testPhone', phone); } catch (e) {}
   var sampleGuest = { first_name: 'Priya', last_name: 'Sharma', invitation_code: 'ABC234' };
-  var deadline = (messageConfig && messageConfig.settings && messageConfig.settings.inviteDeadline) || '30 November 2026';
+  var deadline = (messageConfig && messageConfig.settings && messageConfig.settings.inviteDeadline) || '30 October 2026';
   var msg = buildMessage(body, sampleGuest, deadline);
   var url = buildWhatsAppUrl(phone, msg);
   if (!url) { showToast('Could not build WhatsApp URL — check the number.', 'error'); return; }
@@ -4635,7 +4635,7 @@ function updateTemplatePreview(templateId) {
   var pre = document.getElementById('tpl-preview-' + templateId);
   if (!ta || !pre) return;
   var sampleGuest = { first_name: 'Priya', last_name: 'Sharma', invitation_code: 'ABC234' };
-  var deadline = (messageConfig && messageConfig.settings && messageConfig.settings.inviteDeadline) || '30 November 2026';
+  var deadline = (messageConfig && messageConfig.settings && messageConfig.settings.inviteDeadline) || '30 October 2026';
   pre.textContent = buildMessage(ta.value, sampleGuest, deadline);
 }
 

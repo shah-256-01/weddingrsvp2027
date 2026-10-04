@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261004083322"/>
+<meta name="app-build" content="20261004083535"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -566,7 +566,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         </div>
       </div>
       <p class="welcome-deadline" id="welcome-deadline">
-        Kindly respond by <strong>30th of November, 2026</strong>
+        Kindly respond by <strong>30th of October, 2026</strong>
       </p>
     </div>
   </div>
@@ -676,7 +676,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
     <button type="button" class="rsvp-bar__btn" id="rsvp-bar-btn" onclick="rsvpBarAction()"></button>
   </div>
   <div class="submit-section" id="submit-section">
-    <p class="submit-note">Please confirm by 30th November 2026</p>
+    <p class="submit-note">Please confirm by 30th October 2026</p>
     <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">Send my reply</button>
     <span class="family-name-error hidden" id="submit-error" style="margin-top:.6rem;text-align:center;"></span>
   </div>
@@ -756,7 +756,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
         <div class="faq-category-title">General</div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>When is the RSVP deadline?</span><span class="faq-arrow">+</span></div>
-          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — e.g. Please respond by 30th November 2026 so we can finalise arrangements.]</div></div>
+          <div class="faq-answer"><div class="faq-answer-inner">[Placeholder — e.g. Please respond by 30th October 2026 so we can finalise arrangements.]</div></div>
         </div>
         <div class="faq-item" role="button" tabindex="0" aria-expanded="false" onclick="toggleFAQ(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFAQ(this);}">
           <div class="faq-question"><span>What if I need to change my RSVP?</span><span class="faq-arrow">+</span></div>
@@ -819,8 +819,8 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 // Replace with your Apps Script Web App URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2K9wdBFRYbkyELWEVuhBvUrZCIrOyzuXTNbjd7rMOJN9a0PojQo1MUEbjNek1wo7Shg/exec';
 const WEDDING_DATETIME = '2026-12-28T19:30:00+03:00';
-const RSVP_DEADLINE_DATE = '2026-11-30';  // Display deadline (inclusive)
-const RSVP_DEADLINE_BLOCK = '2026-12-01T00:00:00+03:00'; // Block submissions from this date
+const RSVP_DEADLINE_DATE = '2026-10-30';  // Display deadline (inclusive)
+const RSVP_DEADLINE_BLOCK = '2026-10-31T00:00:00+03:00'; // Block submissions from this date
 // Shown when a guest needs to reach the couple (e.g. to change a sent
 // reply). Set to an email address or phone number; blank = "Jaini or
 // Shanay directly".
