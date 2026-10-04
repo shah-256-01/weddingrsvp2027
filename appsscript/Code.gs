@@ -237,7 +237,7 @@ function doPost(e) {
     const MUTATING_ACTIONS = [
       'addGuest', 'updateGuest', 'deleteGuest', 'restoreGuest',
       'bulkAddGuests', 'updateSeating', 'updateContact',
-      'submitRSVP', 'updateRSVP',
+      'updateRSVP',   // submitRSVP: _commitRSVP refreshes caches when it writes
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
       'deleteRSVPSubmission', 'resetGuestRSVP',
     ];
@@ -1068,7 +1068,19 @@ function validateGuest(code, firstName, lastName) {
 // `strict` is false / omitted, errors return null so callers on the guest
 // login path stay fail-open (worst case: user sees the RSVP form when they
 // could have seen the "already submitted" screen).
-function getExistingRSVP(code, familyName, strict) {
+function getExistingRSVP(code, familyName, strict, ignorePending) {
+  // A reply accepted but not yet written to the sheet (see submitRSVP)
+  // counts as received, so the guest sees their keepsake straight away.
+  if (!ignorePending) {
+    const held = _readPending(code, familyName);
+    if (held && held.payload) {
+      const evs = (held.payload.events || []).map(function(ev) {
+        return { id: ev.id, name: ev.name, attending: !!ev.attending, guests: ev.attending ? Number(ev.guests) || 0 : 0,
+          names: ev.attending ? (ev.names || []).filter(Boolean) : [] };
+      });
+      return { submittedAt: held.acceptedAt, submissionName: held.payload.submissionName, eventSummary: evs, pending: true };
+    }
+  }
   try {
     const sheet = getSheet(TABS.rsvpByFamily);
     if (sheet.getLastRow() < 2) return null;
@@ -1348,7 +1360,7 @@ function deleteGuest(payload) {
   const codeCol = headers.indexOf('invitation_code');
   if (codeCol > -1) {
     const code = sheet.getRange(rowNum, codeCol + 1).getValue();
-    if (code) markRSVPRowsDeleted(String(code));
+    if (code) { _clearPendingRSVPs(String(code)); markRSVPRowsDeleted(String(code)); }
   }
   return { deleted: true, id: payload.id };
 }
@@ -1404,8 +1416,9 @@ function markRSVPRowsDeleted(invitationCode) {
 function resetGuestRSVP(payload) {
   const code = String((payload && payload.code) || '').toUpperCase().trim();
   if (!code) throw new Error('Invitation code required.');
+  const held = _clearPendingRSVPs(code);
   const rows = markRSVPRowsDeleted(code);
-  return { reset: rows > 0, rows: rows, code: code };
+  return { reset: rows > 0 || held > 0, rows: rows + held, code: code };
 }
 
 // ── restoreGuest ─────────────────────────────────────────
@@ -1790,9 +1803,171 @@ function markInviteSent(guestId, clear) {
 }
 
 // ── submitRSVP ────────────────────────────────────────────
+// ── submitRSVP: instant acceptance ────────────────────────
+// Writing a reply to the sheet takes 2–3 s and replies are written one at
+// a time (so duplicates can't slip in). In a burst that queued guests for
+// up to a minute. Now, when the background trigger is installed:
+//   1. Run every check the write does — name + code, deadline, seats,
+//      reserved names, not already replied (sheet or held).
+//   2. Hold the reply in Script Properties under one key per guest (a
+//      double-send just overwrites the same key) and answer at once.
+//   3. processPendingRSVPs (run every minute by the trigger) writes held
+//      replies with _commitRSVP — the original write, duplicate checks
+//      and all — then the alert/confirmation emails go out as before.
+// A held reply counts as "already received" for sign-in and re-sends.
+// Without the trigger it writes straight away, as before.
+const PENDING_RSVP_PREFIX = 'PENDING_RSVP|';
+const PENDING_RSVP_DEAD_KEY = 'PENDING_RSVP_DEAD';
+function _pendingKey(code, name) {
+  return PENDING_RSVP_PREFIX + String(code || '').toUpperCase().trim() + '|' + normaliseName(name);
+}
+function _readPending(code, name) {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty(_pendingKey(code, name));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+// Clear held replies for one code (or all of them when code is omitted).
+function _clearPendingRSVPs(code) {
+  const props = PropertiesService.getScriptProperties();
+  const prefix = PENDING_RSVP_PREFIX + (code ? String(code).toUpperCase().trim() + '|' : '');
+  let n = 0;
+  Object.keys(props.getProperties()).forEach(function(k) {
+    if (k.indexOf(prefix) === 0) { props.deleteProperty(k); n++; }
+  });
+  return n;
+}
+
 function submitRSVP(payload) {
-  // Check deadline
-  if (RSVP_DEADLINE) {
+  if (!_notificationTriggerInstalled()) return _commitRSVP(payload);
+
+  if (RSVP_DEADLINE && new Date() >= new Date(RSVP_DEADLINE)) {
+    throw userError('The RSVP deadline has passed. Please contact us directly if you need to update your response.');
+  }
+  const normCode = String(payload.invitationCode || '').toUpperCase().trim();
+  if (!validateCodeFormat(normCode)) throw userError('No matching guest found. Please check your name and code.');
+  const submissionName = payload.submissionName;
+  if (!submissionName) throw userError('Submission name is required.');
+  const events = (payload.events || []).filter(ev => ev && EVENT_IDS.includes(ev.id));
+  if (events.length === 0) throw userError('No valid events in submission.');
+
+  const guests = (getGuestsCached() || []).filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
+  const guestRecord = guests.find(g =>
+    String(g.invitation_code || '').toUpperCase().trim() === normCode &&
+    normaliseName(g.first_name + ' ' + g.last_name) === normaliseName(submissionName));
+  if (!guestRecord) throw userError('Submission name does not match any guest with this invitation code.');
+
+  const activeEvents = getEvents();
+  events.forEach(ev => {
+    const canonical = activeEvents.find(e => e.id === ev.id);
+    if (canonical) ev.name = canonical.name;
+  });
+  _checkRSVPEvents(events, guestRecord);
+
+  if (_readPending(normCode, submissionName) || getExistingRSVP(normCode, submissionName, true, true)) {
+    throw userError('An RSVP has already been received for this name and invitation code. ' +
+      'Please contact the wedding team if you need to make any changes.');
+  }
+  const held = Object.assign({}, payload, { invitationCode: normCode, events: events });
+  PropertiesService.getScriptProperties().setProperty(_pendingKey(normCode, submissionName),
+    JSON.stringify({ payload: held, acceptedAt: new Date().toISOString(), attempts: 0 }));
+  return { submitted: true, queued: true };
+}
+
+// Write held replies to the sheet. Called at the start of every
+// processNotificationQueue run (every minute). Stops after ~4 min so a big
+// backlog spreads over a few runs instead of hitting the 6-min limit.
+function processPendingRSVPs() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const keys = Object.keys(all).filter(k => k.indexOf(PENDING_RSVP_PREFIX) === 0);
+  if (!keys.length) return 0;
+  keys.sort(function(a, b) {             // oldest first
+    try { return String(JSON.parse(all[a]).acceptedAt).localeCompare(String(JSON.parse(all[b]).acceptedAt)); }
+    catch (e) { return 0; }
+  });
+  const started = Date.now();
+  let written = 0;
+  for (let i = 0; i < keys.length; i++) {
+    if (Date.now() - started > 4 * 60 * 1000) break;
+    const k = keys[i];
+    let item;
+    try { item = JSON.parse(all[k]); } catch (e) { props.deleteProperty(k); continue; }
+    try {
+      _commitRSVP(item.payload, true);
+      props.deleteProperty(k);
+      written++;
+    } catch (e) {
+      if (/already been received/i.test(String(e && e.message))) { props.deleteProperty(k); continue; }
+      item.attempts = (Number(item.attempts) || 0) + 1;
+      item.lastError = String(e && e.message || e);
+      if (item.attempts >= 10) {
+        let dead = [];
+        try { dead = JSON.parse(props.getProperty(PENDING_RSVP_DEAD_KEY) || '[]'); } catch (x) {}
+        dead.push(item);
+        props.setProperty(PENDING_RSVP_DEAD_KEY, JSON.stringify(dead.slice(-100)));
+        props.deleteProperty(k);
+        Logger.log('processPendingRSVPs: gave up on a held reply after 10 tries: ' + item.lastError);
+      } else {
+        props.setProperty(k, JSON.stringify(item));
+      }
+    }
+  }
+  if (written) Logger.log('processPendingRSVPs: wrote ' + written + ' held repl' + (written === 1 ? 'y' : 'ies') + '.');
+  return written;
+}
+
+// Check and tidy a reply's events against the guest's invitation, in place:
+// drops events they aren't invited to (0 seats), keeps reserved-seat events
+// to the names on the list (no swaps), and clamps seat counts. Throws a
+// guest-friendly error if nothing valid is left. Shared by the instant
+// acceptance step and the background write, so both apply the same rules.
+function _checkRSVPEvents(events, guestRecord) {
+  if (!guestRecord) return;
+  // Events set to 0 seats aren't on this invitation — drop them so no
+  // Yes/No row is recorded for them.
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (!_eventAllocation(guestRecord, events[i].id).invited) events.splice(i, 1);
+  }
+  if (events.length === 0) throw userError('No valid events in submission.');
+  events.forEach(ev => {
+    if (!ev.attending) {
+      ev.names = [];
+      return;
+    }
+    // Reserved seats: only names on the invitation list are accepted
+    // (no swaps). Store the canonical spelling from the list, and the
+    // seat count is simply how many were ticked.
+    const alloc = _eventAllocation(guestRecord, ev.id);
+    const reserved = alloc.names;
+    if (reserved.length) {
+      const byKey = {};
+      reserved.forEach(n => { byKey[normaliseName(n)] = n; });
+      const picked = [];
+      (Array.isArray(ev.names) ? ev.names : []).forEach(n => {
+        const canon = byKey[normaliseName(String(n || ''))];
+        if (canon && picked.indexOf(canon) === -1) picked.push(canon);
+      });
+      if (!picked.length) {
+        throw userError('Please tick who from your invitation is attending ' + (ev.name || 'this event') + '.');
+      }
+      ev.names = picked;
+      ev.guests = picked.length;
+      return;
+    }
+    const maxGuests = alloc.guests;
+    const effectiveMax = maxGuests === 0 ? 1 : maxGuests;
+    ev.guests = Math.min(Math.max(0, Number(ev.guests) || 0), effectiveMax);
+    ev.names = (Array.isArray(ev.names) ? ev.names : [])
+      .slice(0, ev.guests)
+      .map(n => String(n || '').replace(/\|/g, '').trim().slice(0, 100));
+  });
+}
+
+function _commitRSVP(payload, fromHold) {
+  // Check deadline (a reply accepted before the deadline is still written
+  // if the background write happens just after it)
+  if (RSVP_DEADLINE && !fromHold) {
     const now      = new Date();
     const deadline = new Date(RSVP_DEADLINE);
     if (now >= deadline) {
@@ -1855,7 +2030,7 @@ function submitRSVP(payload) {
     // strict:true so a sheet-read hiccup surfaces as a "try again" error
     // instead of silently returning null (which would let a duplicate row
     // through).
-    const existing = getExistingRSVP(normCode, payload.submissionName, true);
+    const existing = getExistingRSVP(normCode, payload.submissionName, true, true);
     if (existing) {
       throw userError(
         'An RSVP has already been received for this name and invitation code. ' +
@@ -1876,46 +2051,7 @@ function submitRSVP(payload) {
     ) || guestsForValidation.find(g =>
       String(g.invitation_code || '').toUpperCase().trim() === invitationCode
     );
-    if (guestRecord) {
-      // Events set to 0 seats aren't on this invitation — drop them so no
-      // Yes/No row is recorded for them.
-      for (let i = events.length - 1; i >= 0; i--) {
-        if (!_eventAllocation(guestRecord, events[i].id).invited) events.splice(i, 1);
-      }
-      if (events.length === 0) throw userError('No valid events in submission.');
-      events.forEach(ev => {
-        if (!ev.attending) {
-          ev.names = [];
-          return;
-        }
-        // Reserved seats: only names on the invitation list are accepted
-        // (no swaps). Store the canonical spelling from the list, and the
-        // seat count is simply how many were ticked.
-        const alloc = _eventAllocation(guestRecord, ev.id);
-        const reserved = alloc.names;
-        if (reserved.length) {
-          const byKey = {};
-          reserved.forEach(n => { byKey[normaliseName(n)] = n; });
-          const picked = [];
-          (Array.isArray(ev.names) ? ev.names : []).forEach(n => {
-            const canon = byKey[normaliseName(String(n || ''))];
-            if (canon && picked.indexOf(canon) === -1) picked.push(canon);
-          });
-          if (!picked.length) {
-            throw userError('Please tick who from your invitation is attending ' + (ev.name || 'this event') + '.');
-          }
-          ev.names = picked;
-          ev.guests = picked.length;
-          return;
-        }
-        const maxGuests = alloc.guests;
-        const effectiveMax = maxGuests === 0 ? 1 : maxGuests;
-        ev.guests = Math.min(Math.max(0, Number(ev.guests) || 0), effectiveMax);
-        ev.names = (Array.isArray(ev.names) ? ev.names : [])
-          .slice(0, ev.guests)
-          .map(n => String(n || '').replace(/\|/g, '').trim().slice(0, 100));
-      });
-    }
+    _checkRSVPEvents(events, guestRecord);
 
     // RSVPs_by_event (tall) — build all N event rows then flush in one write
     const byEventSheet = getSheet(TABS.rsvpByEvent);
@@ -2071,6 +2207,7 @@ function submitRSVP(payload) {
     }
   }
 
+  try { bumpAdminCacheVersion(); } catch (e) {}   // the sheet changed
   return { submitted: true };
 }
 
@@ -2142,6 +2279,8 @@ function _enqueueNotification(item) {
 // finds INFLIGHT non-empty and pushes it back onto the front of the queue.
 // Items that have already failed once are moved to DEAD rather than looping.
 function processNotificationQueue() {
+  // Held replies first, so their emails go out in this same run.
+  try { processPendingRSVPs(); } catch (e) { Logger.log('processPendingRSVPs failed: ' + e.message); }
   const MAX_PER_RUN = 80;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return;
@@ -2610,9 +2749,10 @@ function resetForLaunch() {
       counts.push(name + ': ' + Math.max(0, last - 1) + ' row(s)');
       if (last >= 2) sh.getRange(2, 1, last - 1, sh.getMaxColumns()).clearContent();
     });
-    [NOTIFICATION_QUEUE_KEY, NOTIFICATION_INFLIGHT_KEY, NOTIFICATION_DEAD_KEY].forEach(function(k) {
+    [NOTIFICATION_QUEUE_KEY, NOTIFICATION_INFLIGHT_KEY, NOTIFICATION_DEAD_KEY, PENDING_RSVP_DEAD_KEY].forEach(function(k) {
       props.deleteProperty(k);
     });
+    _clearPendingRSVPs();
     bumpAdminCacheVersion();
   } finally {
     lock.releaseLock();
