@@ -2456,6 +2456,46 @@ function sendGuestConfirmationEmail(payload, guestEmail) {
   }
 }
 
+// ── diagnoseSpeed ─────────────────────────────────────────
+// Run from the Apps Script editor when the site feels slow, then open
+// View → Logs (or the Execution log). Times every step a guest sign-in
+// does against the real spreadsheet, and reports each tab's size — tabs
+// that have grown huge (thousands of empty-but-formatted rows/columns) or
+// carry lots of formatting rules make every read slow. Changes nothing.
+// Pass a real name + code to time a full sign-in for that guest.
+function diagnoseSpeed(name, code) {
+  const out = [];
+  const t = function(label, fn) {
+    const s0 = Date.now();
+    let r, err = '';
+    try { r = fn(); } catch (e) { err = ' ERROR: ' + e.message; }
+    out.push(label + ': ' + (Date.now() - s0) + ' ms' + err);
+    return r;
+  };
+  t('open spreadsheet', function() { return _spreadsheet(); });
+  [TABS.events, TABS.guests, TABS.rsvpByFamily, TABS.rsvpByEvent].forEach(function(tab) {
+    const sh = t('open tab ' + tab, function() { return getSheet(tab); });
+    if (!sh) return;
+    let cf = '?';
+    try { cf = sh.getConditionalFormatRules().length; } catch (e) {}
+    out.push('  ' + tab + ': ' + sh.getLastRow() + ' rows used of ' + sh.getMaxRows() +
+      ', ' + sh.getLastColumn() + ' cols used of ' + sh.getMaxColumns() + ', ' + cf + ' conditional-format rule(s)');
+    t('  read all of ' + tab, function() { return sh.getDataRange().getValues().length; });
+  });
+  t('events (as the site reads them)', function() { _eventsCache = null; return getEvents().length; });
+  t('guest list, fresh read', function() { _guestsCache = null; bumpAdminCacheVersion(); return getGuestsCached().length; });
+  t('guest list, from cache', function() { _guestsCache = null; return getGuestsCached().length; });
+  t('notification trigger check', function() { return _notificationTriggerInstalled(); });
+  if (name && code) t('full sign-in for ' + name, function() { return !!validateGuest(String(code), String(name), ''); });
+  const msg = 'diagnoseSpeed\n' + out.join('\n');
+  Logger.log(msg);
+  return msg;
+}
+// Convenience: edit the name/code here and run this from the dropdown.
+function diagnoseSpeedForTestGuest() {
+  return diagnoseSpeed('Neeval & Sonia', 'GVMSTU');
+}
+
 // ── removeLuncheon ────────────────────────────────────────
 // Run once from the Apps Script editor after the Luncheon was dropped:
 // deletes the Luncheon row from the Events tab and the Lu_guests /
