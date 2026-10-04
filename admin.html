@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261003160016"/>
+<meta name="app-build" content="20261004080335"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -2027,6 +2027,24 @@ function _refreshMessagesIfOpen() {
   if (t && t.classList.contains('active')) loadMessagesTab();
 }
 
+// Google lets a free account send ~100 emails a day. Guest confirmations
+// beyond that wait (they're not lost) — tell the admin once per session.
+function _showEmailStatus(st) {
+  if (!st) return;
+  var msg = '';
+  if (st.heldConfirmations > 0) {
+    msg = st.heldConfirmations + ' guest confirmation email' + (st.heldConfirmations === 1 ? ' is' : 's are') +
+      ' waiting: Google’s daily email limit was reached. They’ll go out automatically when it resets (within 24 hours). Replies themselves are all saved.';
+  } else if (typeof st.remainingToday === 'number' && st.remainingToday < 15) {
+    msg = 'Only ' + st.remainingToday + ' emails left today under Google’s daily limit. Any more confirmations will wait until tomorrow — replies are still saved.';
+  }
+  if (!msg) return;
+  var key = 'wa:emailWarned:' + msg.length + ':' + (st.heldConfirmations || 0);
+  if (_ssGet(key)) return;
+  _ssSet(key, '1');
+  showToast(msg, 'info', 12000);
+}
+
 function loadGuests() {
   document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
   // Single bootstrap round-trip: one doPost returns guests + rsvps + codes
@@ -2042,6 +2060,7 @@ function loadGuests() {
     allSubmittedCodes  = new Set(data.submittedCodes || []);
     setDuplicates(data.duplicates);
     allDeletedGuests   = _canonGuests(data.deletedGuests);
+    _showEmailStatus(data.emailStatus);
     _applyPendingMarks();
     _scheduleMarkFlush(1000);
     refreshStats();

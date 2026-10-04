@@ -2252,94 +2252,201 @@ function _readJsonProp(props, key) {
 // acquired — the caller must then send inline. Never writes the queue
 // property without holding the lock: an unguarded read-modify-write here
 // would drop a concurrent guest's confirmation.
+// ── RSVP emails: one stored item each, hourly digest, daily-limit aware ──
+// A free Gmail account can email ~100 recipients a day from Apps Script.
+// One alert per reply (× every NOTIFICATION_EMAIL address) plus a guest
+// confirmation would run out after a few dozen replies and the rest would
+// fail. So:
+//   • each reply is stored as its own Script Property (NOTIFY|…) — the old
+//     single JSON queue overflowed the 9 KB-per-property limit at ~8 items;
+//   • the couple get ONE digest email listing new replies, at most every
+//     RSVP_DIGEST_EVERY_MIN minutes (default 60) during RSVP_DIGEST_HOURS
+//     (default 8-21, Kenya time), and only when there's something new;
+//   • guest confirmations go out while today's allowance lasts; the rest
+//     wait (never lost) and go out once the allowance resets.
+const NOTIFY_PREFIX = 'NOTIFY|';
+const DIGEST_PREFIX = 'DIGEST|';
+const DIGEST_LAST_KEY = 'RSVP_DIGEST_LAST';
+const EMAIL_DEAD_KEY = 'RSVP_EMAIL_DEAD';
+const DIGEST_TZ = 'Africa/Nairobi';
+
+function _compactPayload(p) {
+  return {
+    submissionName: String(p.submissionName || '').slice(0, 120),
+    invitationCode: String(p.invitationCode || '').toUpperCase().trim(),
+    submittedAt: p.submittedAt || new Date().toISOString(),
+    events: (p.events || []).map(function(ev) {
+      return { id: ev.id, name: ev.name, attending: !!ev.attending, guests: ev.attending ? Number(ev.guests) || 0 : 0,
+        names: ev.attending ? (ev.names || []).filter(Boolean).slice(0, 30) : [], notes: String(ev.notes || '').slice(0, 300) };
+    }),
+  };
+}
+function _uniqueKey(prefix) {
+  return prefix + Date.now() + '|' + Math.random().toString(36).slice(2, 8);
+}
+function _keysWithPrefix(all, prefix) {
+  return Object.keys(all).filter(function(k) { return k.indexOf(prefix) === 0; }).sort();
+}
+
 function _enqueueNotification(item) {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(3000)) return false;
   try {
-    const props = PropertiesService.getScriptProperties();
-    let queue = _readJsonProp(props, NOTIFICATION_QUEUE_KEY);
-    queue.push({ payload: item.payload, guestEmail: item.guestEmail, at: new Date().toISOString(), attempts: 0 });
-    // Cap the queue so a malformed payload can't grow it unbounded.
-    if (queue.length > 2000) queue = queue.slice(-2000);
-    props.setProperty(NOTIFICATION_QUEUE_KEY, JSON.stringify(queue));
+    PropertiesService.getScriptProperties().setProperty(_uniqueKey(NOTIFY_PREFIX),
+      JSON.stringify({ p: _compactPayload(item.payload), e: item.guestEmail || '', a: 0 }));
     return true;
   } catch (e) {
     Logger.log('_enqueueNotification failed: ' + e.message);
     return false;
+  }
+}
+
+function _remainingEmailQuota() {
+  try { return MailApp.getRemainingDailyQuota(); } catch (e) { return 0; }
+}
+function _notificationRecipientCount() {
+  return NOTIFICATION_EMAIL ? NOTIFICATION_EMAIL.split(',').filter(Boolean).length : 0;
+}
+function _digestSettings() {
+  const props = PropertiesService.getScriptProperties();
+  const hours = String(props.getProperty('RSVP_DIGEST_HOURS') || '8-21').split('-').map(Number);
+  const every = Number(props.getProperty('RSVP_DIGEST_EVERY_MIN')) || 60;
+  return { from: isNaN(hours[0]) ? 8 : hours[0], to: isNaN(hours[1]) ? 21 : hours[1], everyMin: every };
+}
+
+// Old single-property queues (from before this change) → one item each.
+function _migrateLegacyEmailQueue(props) {
+  ['RSVP_EMAIL_QUEUE', 'RSVP_EMAIL_INFLIGHT'].forEach(function(key) {
+    const raw = props.getProperty(key);
+    if (!raw) return;
+    let list = [];
+    try { list = JSON.parse(raw) || []; } catch (e) {}
+    list.forEach(function(it) {
+      if (it && it.payload) _enqueueNotification({ payload: it.payload, guestEmail: it.guestEmail });
+    });
+    props.deleteProperty(key);
+  });
+}
+
+// Time-driven trigger handler (every minute).
+function processNotificationQueue() {
+  // Held replies first, so their emails are queued in this same run.
+  try { processPendingRSVPs(); } catch (e) { Logger.log('processPendingRSVPs failed: ' + e.message); }
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    _migrateLegacyEmailQueue(props);
+    const started = Date.now();
+    const recipients = _notificationRecipientCount();
+    let quota = _remainingEmailQuota();
+    const all = props.getProperties();
+
+    // 1. Each new reply: add a digest line, then send the guest's
+    //    confirmation if today's allowance allows (keeping enough back for
+    //    the next digest).
+    _keysWithPrefix(all, NOTIFY_PREFIX).forEach(function(k) {
+      if (Date.now() - started > 4 * 60 * 1000) return;
+      let item;
+      try { item = JSON.parse(all[k]); } catch (e) { props.deleteProperty(k); return; }
+      if (!item.d) {
+        if (recipients) props.setProperty(_uniqueKey(DIGEST_PREFIX), JSON.stringify(item.p));
+        item.d = 1;
+      }
+      if (!item.e || !GUEST_EMAIL_ENABLED) { props.deleteProperty(k); return; }
+      if (quota <= recipients) { props.setProperty(k, JSON.stringify(item)); return; }   // wait for tomorrow
+      try {
+        sendGuestConfirmationEmail(item.p, item.e);
+        quota--;
+        props.deleteProperty(k);
+      } catch (e) {
+        item.a = (Number(item.a) || 0) + 1;
+        if (item.a >= 3) {
+          let dead = [];
+          try { dead = JSON.parse(props.getProperty(EMAIL_DEAD_KEY) || '[]'); } catch (x) {}
+          dead.push({ code: item.p.invitationCode, email: item.e, error: String(e.message || e) });
+          props.setProperty(EMAIL_DEAD_KEY, JSON.stringify(dead.slice(-50)));
+          props.deleteProperty(k);
+          Logger.log('Guest confirmation gave up after 3 tries: ' + e.message);
+        } else {
+          props.setProperty(k, JSON.stringify(item));
+        }
+      }
+    });
+
+    // 2. The couple's digest.
+    _maybeSendDigest(props, recipients, quota);
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
 }
 
-// Time-driven trigger handler. Drains up to N items per run so a big backlog
-// still respects the 6-min execution ceiling.
-//
-// Crash safety: the claimed batch is persisted to INFLIGHT before the lock
-// is released. If this run dies mid-send (timeout, quota), the next run
-// finds INFLIGHT non-empty and pushes it back onto the front of the queue.
-// Items that have already failed once are moved to DEAD rather than looping.
-function processNotificationQueue() {
-  // Held replies first, so their emails go out in this same run.
-  try { processPendingRSVPs(); } catch (e) { Logger.log('processPendingRSVPs failed: ' + e.message); }
-  const MAX_PER_RUN = 80;
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return;
-  let batch;
-  const props = PropertiesService.getScriptProperties();
+function _maybeSendDigest(props, recipients, quota, force) {
+  if (!recipients) return false;
+  const all = props.getProperties();
+  const keys = _keysWithPrefix(all, DIGEST_PREFIX);
+  if (!keys.length) return false;
+  const cfg = _digestSettings();
+  const hour = Number(Utilities.formatDate(new Date(), DIGEST_TZ, 'H'));
+  const last = Number(props.getProperty(DIGEST_LAST_KEY)) || 0;
+  const due = Date.now() - last >= cfg.everyMin * 60 * 1000;
+  const inHours = hour >= cfg.from && hour <= cfg.to;
+  if (!force && (!inHours || (!due && keys.length < 40))) return false;   // a big pile goes out early
+  if (quota < recipients) return false;
+  const entries = keys.slice(0, 80).map(function(k) { try { return JSON.parse(all[k]); } catch (e) { return null; } }).filter(Boolean);
+  sendRSVPDigest(entries);
+  keys.slice(0, 80).forEach(function(k) { props.deleteProperty(k); });
+  props.setProperty(DIGEST_LAST_KEY, String(Date.now()));
+  return true;
+}
+
+// One email listing every reply since the last digest.
+function sendRSVPDigest(entries) {
+  if (!NOTIFICATION_EMAIL || !entries.length) return;
+  const relByCode = {};
   try {
-    let queue = _readJsonProp(props, NOTIFICATION_QUEUE_KEY);
-
-    // Recover anything a previous run claimed but never finished.
-    const orphaned = _readJsonProp(props, NOTIFICATION_INFLIGHT_KEY);
-    if (orphaned.length) {
-      const dead = [];
-      const retry = [];
-      orphaned.forEach(function(it) {
-        it.attempts = (Number(it.attempts) || 0) + 1;
-        if (it.attempts >= 2) dead.push(it); else retry.push(it);
-      });
-      if (dead.length) {
-        const existingDead = _readJsonProp(props, NOTIFICATION_DEAD_KEY);
-        props.setProperty(NOTIFICATION_DEAD_KEY, JSON.stringify(existingDead.concat(dead).slice(-500)));
-        Logger.log('processNotificationQueue: dead-lettered ' + dead.length + ' item(s) after repeated failure.');
+    (getGuestsCached() || []).forEach(function(g) {
+      relByCode[String(g.invitation_code || '').toUpperCase().trim()] = _canonRel(g.relationship);
+    });
+  } catch (e) {}
+  let yes = 0, no = 0, people = 0;
+  const blocks = entries.map(function(p) {
+    const lines = (p.events || []).map(function(ev) {
+      if (ev.attending) {
+        yes++; people += Number(ev.guests) || 0;
+        return '    ' + ev.name + ': YES — ' + (ev.guests || 0) + (ev.names && ev.names.length ? ' (' + ev.names.join(', ') + ')' : '') +
+          (ev.notes ? '\n      Note: ' + ev.notes : '');
       }
-      queue = retry.concat(queue);
-    }
+      no++;
+      return '    ' + ev.name + ': No' + (ev.notes ? '\n      Note: ' + ev.notes : '');
+    }).join('\n');
+    let when = '';
+    try { when = Utilities.formatDate(new Date(p.submittedAt), DIGEST_TZ, 'EEE d MMM, HH:mm'); } catch (e) {}
+    const rel = relByCode[p.invitationCode] || '';
+    return '• ' + p.submissionName + (rel ? ' — ' + rel : '') + ' · ' + p.invitationCode + (when ? ' · ' + when : '') + '\n' + lines;
+  });
+  const n = entries.length;
+  const subject = n + ' new RSVP' + (n === 1 ? '' : 's') + ' — Jaini & Shanay';
+  const body = n + ' new repl' + (n === 1 ? 'y' : 'ies') + ' since the last update.\n\n' +
+    blocks.join('\n\n') + '\n\n' +
+    'Open the admin for the full picture: ' + WEDDING_SITE_URL.replace(/\/?$/, '/') + 'admin.html';
+  MailApp.sendEmail(NOTIFICATION_EMAIL, subject.replace(/[\r\n]/g, ''), body);
+}
 
-    if (queue.length === 0) {
-      props.deleteProperty(NOTIFICATION_INFLIGHT_KEY);
-      return;
-    }
-    batch = queue.slice(0, MAX_PER_RUN);
-    const rest = queue.slice(MAX_PER_RUN);
-    // Claim: write the remainder back AND persist the claimed batch, so a
-    // crash between here and the end of the send loop loses nothing.
-    props.setProperty(NOTIFICATION_QUEUE_KEY, JSON.stringify(rest));
-    props.setProperty(NOTIFICATION_INFLIGHT_KEY, JSON.stringify(batch));
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
+// Run from the editor to send the digest right now (ignores the hours).
+function sendRSVPDigestNow() {
+  const props = PropertiesService.getScriptProperties();
+  const sent = _maybeSendDigest(props, _notificationRecipientCount(), _remainingEmailQuota(), true);
+  Logger.log(sent ? 'Digest sent.' : 'Nothing to send (or no email allowance left today).');
+  return sent;
+}
 
-  // Send outside the lock so a slow MailApp doesn't block concurrent
-  // guest submits. Items are removed from INFLIGHT as they complete; a
-  // crash leaves only the unsent tail for the next run to recover.
-  const remaining = batch.slice();
-  for (let i = 0; i < batch.length; i++) {
-    const item = batch[i];
-    try { sendRSVPNotification(item.payload); }
-    catch (e) { Logger.log('Deferred admin notification failed: ' + e.message); }
-    if (item.guestEmail) {
-      try { sendGuestConfirmationEmail(item.payload, item.guestEmail); }
-      catch (e) { Logger.log('Deferred guest confirmation failed: ' + e.message); }
-    }
-    remaining.shift();
-    // Checkpoint every 10 sends so the recovery window is small without
-    // paying a ScriptProperties write per email.
-    if (i % 10 === 9) {
-      try { props.setProperty(NOTIFICATION_INFLIGHT_KEY, JSON.stringify(remaining)); } catch (e) {}
-    }
-  }
-  try { props.deleteProperty(NOTIFICATION_INFLIGHT_KEY); } catch (e) {}
+// For the admin: how emails are doing today.
+function getEmailStatus() {
+  const all = PropertiesService.getScriptProperties().getProperties();
+  let held = 0;
+  _keysWithPrefix(all, NOTIFY_PREFIX).forEach(function(k) {
+    try { const it = JSON.parse(all[k]); if (it.e && it.d) held++; } catch (e) {}
+  });
+  return { remainingToday: _remainingEmailQuota(), heldConfirmations: held, digestWaiting: _keysWithPrefix(all, DIGEST_PREFIX).length };
 }
 
 // Run once from the Apps Script editor to install a time-driven trigger that
@@ -2749,10 +2856,13 @@ function resetForLaunch() {
       counts.push(name + ': ' + Math.max(0, last - 1) + ' row(s)');
       if (last >= 2) sh.getRange(2, 1, last - 1, sh.getMaxColumns()).clearContent();
     });
-    [NOTIFICATION_QUEUE_KEY, NOTIFICATION_INFLIGHT_KEY, NOTIFICATION_DEAD_KEY, PENDING_RSVP_DEAD_KEY].forEach(function(k) {
+    [NOTIFICATION_QUEUE_KEY, NOTIFICATION_INFLIGHT_KEY, NOTIFICATION_DEAD_KEY, PENDING_RSVP_DEAD_KEY, DIGEST_LAST_KEY].forEach(function(k) {
       props.deleteProperty(k);
     });
     _clearPendingRSVPs();
+    Object.keys(props.getProperties()).forEach(function(k) {   // waiting emails + digest lines
+      if (k.indexOf(NOTIFY_PREFIX) === 0 || k.indexOf(DIGEST_PREFIX) === 0) props.deleteProperty(k);
+    });
     bumpAdminCacheVersion();
   } finally {
     lock.releaseLock();
@@ -2848,6 +2958,7 @@ function _getBootstrap() {
     submittedCodes: safe(function() { return _getSubmittedCodes(rsvpsActive); }) || [],
     duplicates:     safe(function() { return _getDuplicates(rsvpsActive); })     || [],
     deletedGuests:  deleted,
+    emailStatus:    safe(function() { return getEmailStatus(); }),
   };
 }
 
