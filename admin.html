@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261004083535"/>
+<meta name="app-build" content="20261004085919"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -4953,10 +4953,19 @@ function msgScopeGuests(mode, rel) {
 //   done    invite: already sent · chase: not used
 //   skipped skipped this session
 //   noPhone can't WhatsApp (add a number, or email if we have one)
+// A guest with no seats for any event has nothing to RSVP to — never put
+// them in the sending queue; they're listed under "No events" until seats
+// are assigned (then they join the queue by themselves).
+function _msgxHasEvents(g) {
+  return String(g.events || '').split(',').some(function(s) { return s.trim(); });
+}
 function _msgxBuckets(mode, rel) {
   var skips = getMsgSkips(mode, rel);
-  var b = { all: _msgxInGroup(rel), scope: msgScopeGuests(mode, rel), todo: [], done: [], skipped: [], noPhone: [], skips: skips };
+  var all = _msgxInGroup(rel);
+  var b = { all: all, invitable: all.filter(_msgxHasEvents), scope: msgScopeGuests(mode, rel),
+    todo: [], done: [], skipped: [], noPhone: [], noEvents: all.filter(function(g) { return !_msgxHasEvents(g); }), skips: skips };
   b.scope.forEach(function(g) {
+    if (!_msgxHasEvents(g)) return;
     if (mode === 'invite' && sanitiseValue(g.invite_sent_at)) { b.done.push(g); return; }
     if (!normalizePhoneForWhatsApp(g.phone)) { b.noPhone.push(g); return; }
     if (skips.has(g.id)) { b.skipped.push(g); return; }
@@ -5045,8 +5054,8 @@ function _msgxRenderGroups() {
 
 function _msgxGroupCard(rel, isAll) {
   var b = _msgxBuckets(msgMode, rel);
-  var total = b.all.length;
-  if (!total && !isAll) return '';
+  var total = b.invitable.length;
+  if (!b.all.length && !isAll) return '';
   var line, meta, pct, done;
   if (msgMode === 'invite') {
     var left = b.todo.length + b.skipped.length;   // still to send on WhatsApp
@@ -5054,12 +5063,13 @@ function _msgxGroupCard(rel, isAll) {
     line = done ? '✓ All invites sent'
       : left ? '<b>' + left + '</b> invite' + (left === 1 ? '' : 's') + ' to send'
       : 'Only guests without a phone left';
-    meta = b.done.length + ' of ' + total + ' sent' + (b.noPhone.length ? ' · ' + b.noPhone.length + ' without a phone' : '');
+    meta = b.done.length + ' of ' + total + ' sent' + (b.noPhone.length ? ' · ' + b.noPhone.length + ' without a phone' : '') +
+      (b.noEvents.length ? ' · ' + b.noEvents.length + ' with no events' : '');
     pct = total ? Math.round(b.done.length / total * 100) : 0;
   } else {
-    var replied = b.all.filter(_msgxReplied).length;
-    done = total > 0 && b.scope.length === 0;
-    line = done ? (replied === total ? '✓ Everyone has replied' : '✓ Nobody to remind yet') : '<b>' + b.scope.length + '</b> still to reply';
+    var replied = b.invitable.filter(_msgxReplied).length;
+    done = total > 0 && b.scope.filter(_msgxHasEvents).length === 0;
+    line = done ? (replied === total ? '✓ Everyone has replied' : '✓ Nobody to remind yet') : '<b>' + b.scope.filter(_msgxHasEvents).length + '</b> still to reply';
     meta = replied + ' of ' + total + ' replied';
     pct = total ? Math.round(replied / total * 100) : 0;
   }
@@ -5099,14 +5109,14 @@ function _msgxRenderList() {
   var rel = _msgx.group || '';
   var chase = msgMode === 'chase';
   var b = _msgxBuckets(msgMode, rel);
-  var total = b.all.length;
+  var total = b.invitable.length;
   var label = _msgxGroupLabel(rel);
   var sentToday = 0;
   if (!chase) {
     var inGroup = new Set(b.all.map(function(g) { return g.id; }));
     sentToday = _readSentToday().ids.filter(function(id) { return inGroup.has(id); }).length;
   }
-  var replied = chase ? b.all.filter(_msgxReplied).length : 0;
+  var replied = chase ? b.invitable.filter(_msgxReplied).length : 0;
   var pct = chase
     ? (total ? Math.round(replied / total * 100) : 0)
     : (total ? Math.round(b.done.length / total * 100) : 0);
@@ -5133,6 +5143,7 @@ function _msgxRenderList() {
   if (!chase) tabs.push({ id: 'done', label: 'Sent · ' + b.done.length });
   if (b.skipped.length || _msgx.tab === 'skipped') tabs.push({ id: 'skipped', label: 'Skipped · ' + b.skipped.length });
   if (b.noPhone.length || _msgx.tab === 'noPhone') tabs.push({ id: 'noPhone', label: 'No phone · ' + b.noPhone.length });
+  if (b.noEvents.length || _msgx.tab === 'noEvents') tabs.push({ id: 'noEvents', label: 'No events · ' + b.noEvents.length });
   if (!tabs.some(function(t) { return t.id === _msgx.tab; })) _msgx.tab = 'todo';
   document.getElementById('msgx-seg').innerHTML = tabs.map(function(t) {
     return '<button type="button" role="tab" class="' + (t.id === _msgx.tab ? 'active' : '') + '" onclick="msgxTab(\'' + t.id + '\')">' + escapeAttr(t.label) + '</button>';
@@ -5145,7 +5156,8 @@ function _msgxRenderList() {
   if (!rows.length) {
     var empty = q ? 'No guests match “' + escapeAttr(_msgx.q) + '”.'
       : _msgx.tab === 'todo' ? (b.skipped.length ? 'Nothing left except the skipped guests.' : (chase ? 'Nobody left to remind. 🎉' : 'Everyone in this group has their invite. 🎉'))
-      : _msgx.tab === 'done' ? 'No invites sent yet.' : 'Nobody here.';
+      : _msgx.tab === 'done' ? 'No invites sent yet.'
+      : _msgx.tab === 'noEvents' ? 'Everyone in this group has at least one event.' : 'Nobody here.';
     host.innerHTML = '<div class="msgx-empty">' + empty + '</div>';
     return;
   }
@@ -5168,6 +5180,12 @@ function _msgxRow(g) {
     return '<div class="msgx-row" style="cursor:default;">' +
       '<div class="msgx-row__body"><div class="msgx-row__name">' + name + '</div><div class="msgx-row__meta">' + phone + ' ' + code + '</div></div>' +
       '<button type="button" class="msgx-row__btn" onclick="msgxUnskip(\'' + id + '\')">Put back</button></div>';
+  }
+  if (_msgx.tab === 'noEvents') {
+    var section = sanitiseValue(g.notes) ? ' · ' + escapeAttr(String(sanitiseValue(g.notes)).slice(0, 40)) : '';
+    return '<div class="msgx-row" style="cursor:default;">' +
+      '<div class="msgx-row__body"><div class="msgx-row__name">' + name + '</div><div class="msgx-row__meta">No events assigned' + section + ' ' + code + '</div></div>' +
+      '<button type="button" class="msgx-row__btn" onclick="openEditGuest(\'' + id + '\')">Assign seats</button></div>';
   }
   if (_msgx.tab === 'noPhone') {
     var emailBtn = g.email ? '<button type="button" class="msgx-row__btn" onclick="msgxOpen(\'' + id + '\')">&#9993; Email</button> ' : '';
