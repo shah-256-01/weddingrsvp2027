@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261003160016"/>
+<meta name="app-build" content="20261004083322"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -536,7 +536,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <div class="ornament-diamond"></div>
       <div class="ornament-line" style="width:50px"></div>
     </div>
-    <p class="guest-hero-sub">You are cordially invited to join us in our celebrations. Please <em>respond</em> to each event below.</p>
+    <p class="guest-hero-sub" id="guest-hero-sub">You are cordially invited to join us in our celebrations. Please <em>respond</em> to each event below.</p>
   </div>
   <div class="welcome-banner hidden" id="welcome-banner">
     <div class="welcome-banner-inner">
@@ -553,7 +553,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
           <div class="welcome-step-num">II</div>
           <div class="welcome-step-text">
             <strong>Say yes or no</strong>
-            <span>For each event, or “Yes to everything”</span>
+            <span>One event at a time</span>
           </div>
         </div>
         <div class="welcome-step-divider">&bull;</div>
@@ -1434,11 +1434,22 @@ async function submitEntry() {
 /* ══════════════════════════════════════════════
    GUEST RSVP PAGE
 ══════════════════════════════════════════════ */
+// Before replying, guests see the three steps and "please respond…".
+// Once their reply is in (just sent, or signing in again later) those
+// instructions are gone and the welcome line thanks them instead.
+function _setRepliedMode(replied) {
+  var banner = document.getElementById('welcome-banner');
+  if (banner) banner.classList.toggle('hidden', !!replied);
+  var sub = document.getElementById('guest-hero-sub');
+  if (sub) sub.innerHTML = replied
+    ? 'Thank you — we’ve received your reply.'
+    : 'You are cordially invited to join us in our celebrations. Please <em>respond</em> to each event below.';
+}
+
 function loadGuestPage() {
   showPage('guest');
   document.getElementById('display-code').textContent = currentGuest.firstName || currentGuest.familyName;
-  var banner = document.getElementById('welcome-banner');
-  if (banner) banner.classList.remove('hidden');
+  _setRepliedMode(false);
   var fullName = [currentGuest.firstName, currentGuest.lastName].filter(Boolean).join(' ').trim()
     || currentGuest.familyName || 'Guest';
   document.getElementById('guest-family-greeting').textContent = fullName;
@@ -1690,6 +1701,7 @@ function _leaveSteps() {
 
 function showAlreadySubmittedScreen(existingRSVP) {
   _leaveSteps();
+  _setRepliedMode(true);
   // Hide all RSVP form sections
   ['events-section', 'rsvp-summary', 'submit-section', 'success-screen'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -2692,6 +2704,7 @@ async function submitRSVP() {
     });
     document.getElementById('success-screen').classList.remove('hidden');
     _leaveSteps();
+    _setRepliedMode(true);
     updateRsvpBar();
     showCalendarButtons();
     if (currentGuest && currentGuest.isOverseas) {
