@@ -1518,9 +1518,19 @@ function bulkAddGuests(payload) {
   const sheet = getSheet(TABS.guests);
   const results = { added: 0, skipped: 0, errors: [] };
 
+  // An upload carries a batchId. If the admin's page gave up waiting and the
+  // same upload is sent again, the stored result is returned instead of
+  // adding everyone a second time.
+  const batchId = String((payload && payload.batchId) || '').replace(/[^\w-]/g, '').slice(0, 64);
+  const doneKey = batchId ? 'import_done_' + batchId : '';
+  const cache = CacheService.getScriptCache();
   const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
+  lock.waitLock(60000);
   try {
+    if (doneKey) {
+      const prev = cache.get(doneKey);
+      if (prev) { const r = JSON.parse(prev); r.alreadyDone = true; return r; }
+    }
     // Header bootstrap + read happen inside the lock so two concurrent
     // first-ever imports can't both append a header row.
     if (sheet.getLastRow() < 1) {
@@ -1591,6 +1601,7 @@ function bulkAddGuests(payload) {
         startRow += slice.length;
       }
     }
+    if (doneKey) { try { cache.put(doneKey, JSON.stringify(results), 21600); } catch (e) {} }
   } finally {
     lock.releaseLock();
   }
@@ -2389,8 +2400,16 @@ function processNotificationQueue() {
   try { processPendingRSVPs(); } catch (e) { Logger.log('processPendingRSVPs failed: ' + e.message); }
   // Have the admin's guest list ready before anyone opens it.
   try { warmAdminCache(); } catch (e) { Logger.log('warmAdminCache failed: ' + e.message); }
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return;
+  // Sending emails can take minutes. It used to hold the script lock the
+  // whole time, so admin saves and CSV uploads (which need that lock) timed
+  // out. The email queue only touches its own Script Properties, so a
+  // lighter "already running" marker is enough to stop two runs overlapping.
+  const cache = CacheService.getScriptCache();
+  const RUN_KEY = 'notify_queue_running';
+  const running = Number(cache.get(RUN_KEY) || 0);
+  if (running && Date.now() - running < 5 * 60 * 1000) return;
+  const runMark = String(Date.now());
+  cache.put(RUN_KEY, runMark, 360);
   try {
     const props = PropertiesService.getScriptProperties();
     _migrateLegacyEmailQueue(props);
@@ -2434,7 +2453,7 @@ function processNotificationQueue() {
     // 2. The couple's digest.
     _maybeSendDigest(props, recipients, quota);
   } finally {
-    try { lock.releaseLock(); } catch (e) {}
+    try { if (cache.get(RUN_KEY) === runMark) cache.remove(RUN_KEY); } catch (e) {}
   }
 }
 

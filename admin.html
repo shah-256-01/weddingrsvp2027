@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005173500"/>
+<meta name="app-build" content="20261005175154"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1122,6 +1122,9 @@ function _isRemembered() { return !!_rememberedPin(); }
   // 30s abort: without it a hung Apps Script request left "Saving…" latched
   // forever (the failure handler never fired, so _guestSaving never reset).
   var ADMIN_FETCH_TIMEOUT_MS = 30000;
+  // Bulk writes can wait behind other changes and take longer; Apps Script
+  // itself allows up to 6 minutes.
+  var LONG_CALL_TIMEOUT_MS = { bulkAddGuests: 150000, bulkUpdate: 90000, bulkDelete: 90000, bulkMarkInviteSent: 90000 };
   function invoke(method, arg, state) {
     var body;
     if (method === 'checkPin') {
@@ -1130,7 +1133,8 @@ function _isRemembered() { return !!_rememberedPin(); }
       body = { action: method, payload: (arg == null ? {} : arg), pin: getPin() };
     }
     var controller = (typeof AbortController === 'function') ? new AbortController() : null;
-    var timer = controller ? setTimeout(function() { controller.abort(); }, ADMIN_FETCH_TIMEOUT_MS) : null;
+    var timeoutMs = LONG_CALL_TIMEOUT_MS[method] || ADMIN_FETCH_TIMEOUT_MS;
+    var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
     var opts = {
       method: 'POST',
       credentials: 'omit',
@@ -1154,7 +1158,7 @@ function _isRemembered() { return !!_rememberedPin(); }
     }).catch(function(err) {
       if (timer) clearTimeout(timer);
       if (err && err.name === 'AbortError') {
-        err = new Error('The server took too long to respond (>' + (ADMIN_FETCH_TIMEOUT_MS / 1000) + 's). Please try again.');
+        err = new Error('The server took too long to respond (>' + (timeoutMs / 1000) + 's). Please try again.');
       }
       if (state.failure) state.failure(err);
       else console.warn('Admin call error:', method, err);
@@ -4049,6 +4053,7 @@ function handleCSVFile(file) {
   reader.onload = function(e) {
     var text = e.target.result;
     parsedCSVRows = parseCSV(text);
+    _csvBatchId = '';   // a new file is a new upload
     if (!parsedCSVRows.length) {
       document.getElementById('csv-results').innerHTML =
         '<div class="upload-results upload-error">No valid rows found in CSV.</div>';
@@ -4247,8 +4252,12 @@ function renderCSVPreview(rows) {
   document.getElementById('csv-preview').innerHTML = html;
 }
 
-function uploadCSV() {
+// One id per chosen file: sending the same upload again (after a timeout)
+// returns the first result instead of adding the guests twice.
+var _csvBatchId = '';
+function uploadCSV(isRetry) {
   if (!parsedCSVRows.length) { showToast('No rows to upload.', 'info'); return; }
+  if (!_csvBatchId) _csvBatchId = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   // If the admin picked a bulk relationship, apply it to every row before
   // upload (overrides whatever was in the CSV `relationship` column).
@@ -4265,13 +4274,13 @@ function uploadCSV() {
   }
 
   var btn = document.querySelector('#csv-upload-actions .btn-primary');
-  btn.textContent = 'Uploading...'; btn.disabled = true;
+  btn.textContent = isRetry ? 'Still uploading — checking…' : 'Uploading… (can take a minute)'; btn.disabled = true;
   google.script.run
     .withSuccessHandler(function(result) {
       btn.textContent = 'Upload Guests'; btn.disabled = false;
       var r = result || {};
       var html = '<div class="upload-results upload-success">' +
-        '<strong>' + (r.added || 0) + '</strong> guests added';
+        '<strong>' + (r.added || 0) + '</strong> guests added' + (r.alreadyDone ? ' (this upload had already gone through — nothing was added twice)' : '');
       if (r.skipped) html += ', <strong>' + r.skipped + '</strong> skipped';
       html += '.</div>';
       if (r.errors && r.errors.length) {
@@ -4283,15 +4292,21 @@ function uploadCSV() {
       loadGuests();
     })
     .withFailureHandler(function(err) {
+      var m = String(err && err.message || '');
+      // A slow or dropped reply: ask again with the same id — the server
+      // either finishes, or hands back the result of the first attempt.
+      if (!isRetry && /took too long|failed to fetch|load failed|network|HTTP 5/i.test(m)) { uploadCSV(true); return; }
       btn.textContent = 'Upload Guests'; btn.disabled = false;
       document.getElementById('csv-results').innerHTML =
-        '<div class="upload-results upload-error">Upload failed: ' + escapeAttr(err.message || 'Unknown error') + '</div>';
+        '<div class="upload-results upload-error">Upload failed: ' + escapeAttr(m || 'Unknown error') +
+        '<br>It’s safe to tap <strong>Upload Guests</strong> again — guests from this file that already saved won’t be added twice.</div>';
     })
-    .bulkAddGuests({ guests: rowsToUpload });
+    .bulkAddGuests({ guests: rowsToUpload, batchId: _csvBatchId });
 }
 
 function clearCSV() {
   parsedCSVRows = [];
+  _csvBatchId = '';
   document.getElementById('csv-preview').innerHTML = '';
   document.getElementById('csv-preview').classList.add('hidden');
   document.getElementById('csv-upload-actions').classList.add('hidden');
