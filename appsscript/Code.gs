@@ -58,8 +58,10 @@ const TABS = {
   rsvpByEvent:  'RSVPs_by_event',
 };
 
-// The Luncheon (Lu) was dropped; removeLuncheon() tidies it out of the sheet.
-const EVENT_IDS = ['Lg','MS','Ma','MG','We','BT'];
+// Lu (Luncheon): bride's family only, same day as the Mandvo. Invited like
+// any other event — only guests given Luncheon seats see it. addLuncheon()
+// sets up its Events row and Lu_guests column.
+const EVENT_IDS = ['Lg','MS','Ma','Lu','MG','We','BT'];
 
 // ── Routing ──────────────────────────────────────────────
 function doGet(e) {
@@ -588,6 +590,7 @@ const EVENT_DETAIL_DEFAULTS = {
   Ma: { date: 'Sunday 27 December 2026', time: 'See invitation', venue: 'Thika / Nairobi',
         time_brides: '10:30 AM', venue_brides: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika',
         time_grooms: '10:00 AM', venue_grooms: 'Oshwal Centre, Nairobi' },
+  Lu: { date: 'Sunday 27 December 2026', time: 'After the Mandvo', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika' },
   MG: { date: 'Sunday 27 December 2026', time: '6:45 PM', venue: 'Oshwal Centre, Ring Road, Westlands, Nairobi' },
   We: { date: 'Monday 28 December 2026', time: '8:30 AM', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika' },
   BT: { date: 'Tuesday 29 December 2026', time: '6:30 PM', venue: 'Sarit Centre, Expo Hall, Nairobi', seating: 'TRUE' },
@@ -2801,43 +2804,62 @@ function diagnoseSpeedForTestGuest() {
   return msg;
 }
 
-// ── removeLuncheon ────────────────────────────────────────
-// Run once from the Apps Script editor after the Luncheon was dropped:
-// deletes the Luncheon row from the Events tab and the Lu_guests /
-// Lu_names / Lu_table columns from the Guests tab. Everything else is left
-// alone. (The site already ignores the Luncheon without this — it just
-// tidies the sheet.) Safe to re-run.
-function removeLuncheon() {
+// ── addLuncheon ───────────────────────────────────────────
+// Run once from the Apps Script editor to bring the Luncheon back:
+//   - adds the Luncheon row to the Events tab (Sunday 27 December, after
+//     the Mandvo, Aurora Bustani — edit time/venue there if they differ)
+//     or switches an existing one back on
+//   - adds the Lu_guests column to the Guests tab
+// Then give Bride's Family guests Luncheon seats in the admin (Edit guest →
+// tick Luncheon) or type them into Lu_guests. Safe to re-run.
+function addLuncheon() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
-  let rows = 0;
-  const cols = [];
+  let eventMsg = 'Luncheon already on the Events tab';
+  let colMsg = 'Lu_guests column already there';
   try {
     const ev = getSheet(TABS.events);
-    if (ev.getLastRow() >= 2) {
-      const h = ev.getRange(1, 1, 1, ev.getLastColumn()).getValues()[0];
-      const idI = h.indexOf('id');
-      if (idI > -1) {
-        const ids = ev.getRange(2, idI + 1, ev.getLastRow() - 1, 1).getValues();
-        for (let i = ids.length - 1; i >= 0; i--) {          // bottom-up so row numbers stay valid
-          if (String(ids[i][0]).trim() === 'Lu') { ev.deleteRow(i + 2); rows++; }
-        }
+    const h = ev.getRange(1, 1, 1, ev.getLastColumn()).getValues()[0];
+    const idI = h.indexOf('id'), actI = h.indexOf('active');
+    if (idI < 0) throw new Error('Events tab has no id column');
+    const n = Math.max(ev.getLastRow() - 1, 0);
+    const ids = n ? ev.getRange(2, idI + 1, n, 1).getValues().map(function(r) { return String(r[0]).trim(); }) : [];
+    const at = ids.indexOf('Lu');
+    if (at > -1) {
+      if (actI > -1 && String(ev.getRange(at + 2, actI + 1).getValue()).toUpperCase() !== 'TRUE') {
+        ev.getRange(at + 2, actI + 1).setValue('TRUE');
+        eventMsg = 'switched the Luncheon back on';
       }
+    } else {
+      const d = EVENT_DETAIL_DEFAULTS.Lu;
+      const row = h.map(function(col) {
+        switch (String(col).trim()) {
+          case 'id':      return 'Lu';
+          case 'name':    return 'Luncheon';
+          case 'date':    return d.date;
+          case 'time':    return d.time;
+          case 'venue':   return d.venue;
+          case 'icon':    return '🍽️';
+          case 'active':  return 'TRUE';
+          case 'seating': return 'FALSE';
+          default:        return '';
+        }
+      });
+      ev.appendRow(row);
+      ev.getRange(ev.getLastRow(), 1, 1, row.length).setNumberFormat('@');
+      eventMsg = 'added the Luncheon to the Events tab';
     }
     const g = getSheet(TABS.guests);
     const gh = g.getRange(1, 1, 1, g.getLastColumn()).getValues()[0];
-    for (let c = gh.length - 1; c >= 0; c--) {               // right-to-left for the same reason
-      if (['Lu_guests', 'Lu_names', 'Lu_table'].indexOf(String(gh[c]).trim()) > -1) {
-        cols.push(gh[c]);
-        g.deleteColumn(c + 1);
-      }
+    if (gh.indexOf('Lu_guests') < 0) {
+      _ensureGuestColumn(g, gh, 'Lu_guests');
+      colMsg = 'added the Lu_guests column to the Guests tab';
     }
-    bumpAdminCacheVersion();
+    bumpAdminCacheVersion();   // also refreshes the events cache
   } finally {
     lock.releaseLock();
   }
-  const msg = 'removeLuncheon: removed ' + rows + ' Events row(s) and ' + cols.length + ' Guests column(s)' +
-    (cols.length ? ' [' + cols.join(', ') + ']' : '') + '.';
+  const msg = 'addLuncheon: ' + eventMsg + '; ' + colMsg + '.';
   Logger.log(msg);
   return msg;
 }
@@ -3315,6 +3337,7 @@ function setupSheet() {
       ['Lg','Lagnotri',         'TBC','TBC','TBC','🪔','TRUE','FALSE'],
       ['MS','Mehendi & Sangeet','TBC','TBC','TBC','🌿','TRUE','FALSE'],
       ['Ma','Mandvo',           'TBC','TBC','TBC','🎶','TRUE','FALSE'],
+      ['Lu','Luncheon',         'TBC','TBC','TBC','🍽️','TRUE','FALSE'],
       ['MG','Meet & Greet',     'TBC','TBC','TBC','🥂','TRUE','FALSE'],
       ['We','Wedding',          'TBC','TBC','TBC','💍','TRUE','FALSE'],
       ['BT','Black Tie',        'TBC','TBC','TBC','🎩','TRUE','FALSE'],
@@ -3511,6 +3534,7 @@ function _templateRebuildEventsTab(ss, log) {
       ['Lg', 'Lagnotri',          'TBC', 'TBC', 'TBC', '🪔', 'TRUE', 'FALSE'],
       ['MS', 'Mehendi & Sangeet', 'TBC', 'TBC', 'TBC', '🌿', 'TRUE', 'FALSE'],
       ['Ma', 'Mandvo',            'TBC', 'TBC', 'TBC', '🍛', 'TRUE', 'FALSE'],
+      ['Lu', 'Luncheon',          'TBC', 'TBC', 'TBC', '🍽️', 'TRUE', 'FALSE'],
       ['MG', 'Meet & Greet',      'TBC', 'TBC', 'TBC', '🥂', 'TRUE', 'FALSE'],
       ['We', 'Wedding',           'TBC', 'TBC', 'TBC', '💍', 'TRUE', 'FALSE'],
       ['BT', 'Black Tie',         'TBC', 'TBC', 'TBC', '🎩', 'TRUE', 'FALSE'],

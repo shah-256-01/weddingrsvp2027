@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261005155536"/>
+<meta name="app-build" content="20261005172352"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -862,6 +862,7 @@ const INVITE_IMAGES = {
     brides: 'invitations/mandvo-brides.jpg',
     grooms: 'invitations/mandvo-grooms.jpg',
   },
+  Lu: 'invitations/luncheon.jpg',
   MG: 'invitations/meet-greet.jpg',
   We: 'invitations/wedding-day.jpg',
   BT: 'invitations/black-tie.jpg',
@@ -1057,7 +1058,7 @@ async function fetchEvents() {
 
 // Bumped when event details change shape or old saved copies must go
 // (v2: dates/times/venues filled in, per-side columns added).
-var EVENTS_CACHE_KEY = 'jainishanay_events_v2';
+var EVENTS_CACHE_KEY = 'jainishanay_events_v3';   // v3: Luncheon back
 try { localStorage.removeItem('jainishanay_events_v1'); } catch (e) {}
 function loadCachedEvents() {
   try {
@@ -1133,9 +1134,9 @@ let currentCode = '', currentEventIds = [], eventRSVPs = {};
 // if it can't be reached). The live Events tab always wins once it loads,
 // so editing the sheet is enough — but update this too if dates or venues
 // change, so a guest on a bad connection never sees stale details.
-// The events the site shows. Anything else (e.g. the dropped Luncheon) is
+// The events the site shows. Anything else (e.g. an old or unknown Events row) is
 // ignored even if an older server or a saved copy still sends it.
-var SUPPORTED_EVENT_IDS = ['Lg', 'MS', 'Ma', 'MG', 'We', 'BT'];
+var SUPPORTED_EVENT_IDS = ['Lg', 'MS', 'Ma', 'Lu', 'MG', 'We', 'BT'];
 
 var FALLBACK_EVENTS = [
   { id: 'Lg', name: 'Lagnotri', date: 'Saturday 26 December 2026', time: 'See invitation', venue: 'Thika / Nairobi', icon: '🪔', active: 'TRUE', seating: 'FALSE',
@@ -1143,6 +1144,7 @@ var FALLBACK_EVENTS = [
   { id: 'MS', name: 'Mehendi & Sangeet', date: 'Saturday 26 December 2026', time: '4:00 PM', venue: 'Thika Gymkhana', icon: '🌿', active: 'TRUE', seating: 'FALSE' },
   { id: 'Ma', name: 'Mandvo', date: 'Sunday 27 December 2026', time: 'See invitation', venue: 'Thika / Nairobi', icon: '🎶', active: 'TRUE', seating: 'FALSE',
     time_brides: '10:30 AM', venue_brides: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika', time_grooms: '10:00 AM', venue_grooms: 'Oshwal Centre, Nairobi' },
+  { id: 'Lu', name: 'Luncheon', date: 'Sunday 27 December 2026', time: 'After the Mandvo', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika', icon: '🍽️', active: 'TRUE', seating: 'FALSE' },
   { id: 'MG', name: 'Meet & Greet', date: 'Sunday 27 December 2026', time: '6:45 PM', venue: 'Oshwal Centre, Ring Road, Westlands, Nairobi', icon: '🥂', active: 'TRUE', seating: 'FALSE' },
   { id: 'We', name: 'Wedding', date: 'Monday 28 December 2026', time: '8:30 AM', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika', icon: '💍', active: 'TRUE', seating: 'FALSE' },
   { id: 'BT', name: 'Black Tie', date: 'Tuesday 29 December 2026', time: '6:30 PM', venue: 'Sarit Centre, Expo Hall, Nairobi', icon: '🎩', active: 'TRUE', seating: 'TRUE' },
