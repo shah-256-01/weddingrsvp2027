@@ -58,10 +58,10 @@ const TABS = {
   rsvpByEvent:  'RSVPs_by_event',
 };
 
-// Lu (Luncheon): bride's side, same day as the Mandvo. Every bride's-side
-// guest invited to the Mandvo gets the same Luncheon seats automatically
-// (see _applyLuncheonRuleToRow). addLuncheon() sets up its Events row and
-// Lu_guests column and applies the rule to everyone.
+// Lu (Luncheon): bride's side, same day as the Mandvo. Guests invited to the
+// Mandvo don't get a separate Luncheon card — it's part of their Mandvo — so
+// only lunch-only guests see it (see _luncheonNotSeparate). addLuncheon()
+// sets up its Events row and Lu_guests column.
 const EVENT_IDS = ['Lg','MS','Ma','Lu','MG','We','BT'];
 
 // ── Routing ──────────────────────────────────────────────
@@ -409,6 +409,9 @@ function _parseReservedNames(v) {
 // One event's allocation for a guest row (object keyed by header).
 // Returns { invited, guests, names }.
 function _eventAllocation(row, id) {
+  // The Luncheon is part of the Mandvo for anyone invited to the Mandvo, and
+  // never for the groom's side — so it only counts for lunch-only guests.
+  if (id === LUNCHEON_ID && _luncheonNotSeparate(row)) return { invited: false, guests: 0, names: [] };
   const rawStr = String(row[id + '_guests'] == null ? '' : row[id + '_guests']).trim();
   const isNum = rawStr === '' || !isNaN(Number(rawStr));
   let names = isNum ? [] : _parseReservedNames(rawStr);
@@ -527,30 +530,30 @@ function repairGuestSheet() {
 }
 
 // ── Luncheon rule ────────────────────────────────────────
-// The Luncheon (Lu) follows the Mandvo (Ma) on the same day, for the
-// BRIDE'S SIDE only:
-//   - Bride's-side guest invited to the Mandvo → Luncheon gets exactly the
-//     same seat cell (count or reserved names). Enforced on every write so
-//     the two can't drift apart.
-//   - Bride's-side guest NOT at the Mandvo → Luncheon left as the admin set
-//     it (lunch-only invitations are allowed).
+// The Luncheon (Lu) is on the same day as the Mandvo (Ma):
+//   - Guest invited to the Mandvo → no separate Luncheon invitation (it's
+//     part of the Mandvo); any Luncheon seats are ignored and cleared.
+//   - Bride's-side guest NOT at the Mandvo → Luncheon as the admin set it
+//     (lunch-only invitations).
 //   - Groom's-side guest → never invited to the Luncheon; cell cleared.
-//   - Relationship blank/unknown → left untouched (don't guess a side).
 const LUNCHEON_ID = 'Lu';
 const MANDVO_ID   = 'Ma';
+// True when a Luncheon seat cell must not count as its own invitation.
+// `row` is a guest object keyed by header.
+function _luncheonNotSeparate(row) {
+  if (_eventAllocation(row, MANDVO_ID).invited) return true;
+  return _relKey(row.relationship || '').indexOf('groom') === 0;
+}
+// Same rule on a raw sheet row: clear the Luncheon cell where it doesn't apply.
 function _applyLuncheonRuleToRow(row, headers) {
-  const relI = headers.indexOf('relationship');
   const luG = headers.indexOf(LUNCHEON_ID + '_guests');
-  const maG = headers.indexOf(MANDVO_ID + '_guests');
-  if (relI < 0 || luG < 0) return;
-  const rel = _relKey(row[relI]);
-  const side = rel.indexOf('bride') === 0 ? 'bride' : rel.indexOf('groom') === 0 ? 'groom' : '';
-  if (side === 'groom') {
-    row[luG] = '';
-  } else if (side === 'bride' && maG > -1) {
-    const ma = {}; ma[MANDVO_ID + '_guests'] = row[maG];
-    if (_eventAllocation(ma, MANDVO_ID).invited) row[luG] = row[maG];
-  }
+  if (luG < 0) return;
+  const obj = {};
+  ['relationship', MANDVO_ID + '_guests', MANDVO_ID + '_names'].forEach(function(h) {
+    const i = headers.indexOf(h);
+    if (i > -1) obj[h] = row[i];
+  });
+  if (_luncheonNotSeparate(obj)) row[luG] = '';
 }
 
 // Bring one raw sheet row (array aligned with `headers`) into canonical
@@ -2844,9 +2847,9 @@ function diagnoseSpeedForTestGuest() {
 //     12:30 PM, Aurora Bustani — from the invitation)
 //     or switches an existing one back on
 //   - adds the Lu_guests column to the Guests tab
-//   - gives every bride's-side Mandvo guest the same Luncheon seats (and
-//     keeps them in step from then on); lunch-only invites can be added in
-//     the admin. Safe to re-run.
+//   - clears Luncheon seats for Mandvo guests and the groom's side (the
+//     Luncheon is part of the Mandvo); lunch-only guests keep theirs.
+//     Safe to re-run.
 function addLuncheon() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -2900,9 +2903,9 @@ function addLuncheon() {
       _ensureGuestColumn(g, gh, 'Lu_guests');
       colMsg = 'added the Lu_guests column to the Guests tab';
     }
-    // Bride's-side Mandvo guests → same Luncheon seats; groom's side cleared.
+    // Mandvo guests and the groom's side don't get a separate Luncheon.
     const changed = _canonGuestSheet(g, null);
-    colMsg += '; Luncheon seats set/updated for ' + changed + ' guest(s)';
+    colMsg += '; tidied the Luncheon seats of ' + changed + ' guest(s)';
     bumpAdminCacheVersion();   // also refreshes the events cache
   } finally {
     lock.releaseLock();
