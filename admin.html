@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005181314"/>
+<meta name="app-build" content="20261005181947"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -556,6 +556,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       </select>
     </div>
 
+    <div id="extra-filter-banner" class="hidden" role="status" style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;background:var(--wine);color:#fff;padding:.6rem .85rem;margin:0 0 .9rem;font-size:.88rem;">
+      <span style="flex:1;min-width:0;">Showing only: <strong id="extra-filter-label"></strong></span>
+      <button type="button" class="btn btn-sm" style="background:#fff;color:var(--wine);" onclick="clearExtraGuestFilter()">&#10005; Clear</button>
+    </div>
     <div id="guest-view-container">
       <div class="skeleton-loader"></div>
     </div>
@@ -2176,8 +2180,12 @@ function renderMissingInfoCard() {
   var host = document.getElementById('missing-info-chips');
   if (!card || !host) return;
   var noRel   = 0, noPhone = 0, noEmail = 0, notInvited = 0;
-  // Follows the Guests filters, like the number cards above it.
-  var list = (_guestFiltersActive() && Array.isArray(filteredGuests)) ? filteredGuests : allGuests;
+  // Follows the Guests filters, like the number cards above it — but not the
+  // chip's own filter, so the counts don't change when you tap one.
+  var savedExtra = _extraGuestFilter;
+  _extraGuestFilter = null;
+  var list = _guestFiltersActive() ? rebuildFilteredGuests() : allGuests;
+  _extraGuestFilter = savedExtra;
   list.forEach(function(g) {
     if (!g.relationship) noRel++;
     if (!normalizePhoneForWhatsApp(g.phone)) noPhone++;
@@ -2188,8 +2196,10 @@ function renderMissingInfoCard() {
   function chip(label, count, filterFn) {
     if (count === 0) return;
     var handlerName = '_missingChip_' + filterFn;
-    chips.push('<button class="btn btn-secondary btn-sm" onclick="' + handlerName + '()" style="font-size:.72rem;">'
-      + escapeAttr(label) + ' <strong>' + count + '</strong></button>');
+    var on = _extraGuestFilterKey === filterFn;
+    chips.push('<button class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-secondary') + '" onclick="' + handlerName + '()" style="font-size:.72rem;"' +
+      (on ? ' aria-pressed="true" title="Tap again to clear"' : '') + '>'
+      + (on ? '&#10003; ' : '') + escapeAttr(label) + ' <strong>' + count + '</strong>' + (on ? ' &#10005;' : '') + '</button>');
   }
   chip('Missing relationship',  noRel,      'noRel');
   chip('Missing phone',         noPhone,    'noPhone');
@@ -2207,25 +2217,39 @@ function renderMissingInfoCard() {
 // virtual "special filter" via the search box for the ad-hoc ones since
 // there's no dedicated select for them; standard filters use their own
 // selects.
-function _missingApplyExtra(fn, label) {
-  // Show a toast with a Clear button in case the admin can't figure out
-  // how to get back — search + this extra filter combined can hide a lot.
+// A "Needs attention" chip filters the list. While it's on, a banner above
+// the list says so with a Clear button, the chip stays highlighted, and
+// tapping the chip again turns it off.
+function _missingApplyExtra(fn, label, key) {
+  if (_extraGuestFilterKey === key) { clearExtraGuestFilter(); return; }
   _extraGuestFilter = fn;
   _extraGuestFilterLabel = label;
+  _extraGuestFilterKey = key || '';
   clearBulkSelection();
+  if (currentView === 'groups' || currentView === 'event') setGuestView('list');
   applyFilters();
-  showActionToast('Filtered: ' + label, 'Clear', function(dismiss) {
-    _extraGuestFilter = null; _extraGuestFilterLabel = '';
-    applyFilters();
-    dismiss();
-  }, 10000);
+  var banner = document.getElementById('extra-filter-banner');
+  if (banner) try { banner.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
 }
-function _missingChip_noRel()      { _missingApplyExtra(function(g) { return !g.relationship; },                       'guests missing relationship'); }
-function _missingChip_noPhone()    { _missingApplyExtra(function(g) { return !normalizePhoneForWhatsApp(g.phone); },    'guests missing phone'); }
-function _missingChip_noEmail()    { _missingApplyExtra(function(g) { return !g.email; },                              'guests missing email'); }
-function _missingChip_notInvited() { _missingApplyExtra(function(g) { return !g.invite_sent_at; },                     'guests not yet invited'); }
+function clearExtraGuestFilter() {
+  _extraGuestFilter = null; _extraGuestFilterLabel = ''; _extraGuestFilterKey = '';
+  applyFilters();
+}
+function _renderExtraFilterBanner() {
+  var banner = document.getElementById('extra-filter-banner');
+  if (!banner) return;
+  if (!_extraGuestFilter) { banner.classList.add('hidden'); banner.style.display = 'none'; return; }
+  banner.classList.remove('hidden'); banner.style.display = 'flex';
+  document.getElementById('extra-filter-label').textContent =
+    _extraGuestFilterLabel + ' (' + (Array.isArray(filteredGuests) ? filteredGuests.length : 0) + ')';
+}
+function _missingChip_noRel()      { _missingApplyExtra(function(g) { return !g.relationship; },                       'guests missing relationship', 'noRel'); }
+function _missingChip_noPhone()    { _missingApplyExtra(function(g) { return !normalizePhoneForWhatsApp(g.phone); },    'guests missing phone', 'noPhone'); }
+function _missingChip_noEmail()    { _missingApplyExtra(function(g) { return !g.email; },                              'guests missing email', 'noEmail'); }
+function _missingChip_notInvited() { _missingApplyExtra(function(g) { return !g.invite_sent_at; },                     'guests not yet invited', 'notInvited'); }
 var _extraGuestFilter = null;
 var _extraGuestFilterLabel = '';
+var _extraGuestFilterKey = '';
 
 // Days-to-deadline pill in the admin nav so urgency is always visible.
 // Deadline source of truth: messageConfig.settings.inviteDeadline (or the
@@ -2554,6 +2578,7 @@ function renderGuestView() {
 
 function renderCurrentView() {
   _renderGuestStatCards();
+  _renderExtraFilterBanner();
   var container = document.getElementById('guest-view-container');
   if (currentView === 'event') { renderEventView(filteredGuests, allStats); return; }
   if (currentView === 'groups') { renderGroupsView(filteredGuests, container); return; }
@@ -3127,7 +3152,7 @@ function clearAllFilters() {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
-  _extraGuestFilter = null; _extraGuestFilterLabel = '';
+  _extraGuestFilter = null; _extraGuestFilterLabel = ''; _extraGuestFilterKey = '';
   applyFilters();
 }
 
