@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005162205"/>
+<meta name="app-build" content="20261005162548"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -2356,7 +2356,8 @@ function loadGuests(opts) {
     _runAfterGuestsLoaded();
     if (showedSaved) {
       // Keep the saved list on screen; the next background sync tries again.
-      _setListStatus('Couldn’t refresh — showing the list from ' + _bootCacheAge() + '.');
+      var why = String(err && err.message || '').slice(0, 140);
+      _setListStatus('Couldn’t refresh — showing the list from ' + _bootCacheAge() + '.' + (why ? ' (' + why + ')' : ''));
       _lastGuestsLoadAt = Date.now() - SYNC_EVERY_MS + 15000;
       return;
     }
@@ -2729,9 +2730,12 @@ function renderRSVPStatusView(guests, container) {
 // ── By Event View ─────────────────────────────
 function renderEventView(guests, stats) {
   var container = document.getElementById('guest-view-container');
-  var perEvent = (stats && stats.perEvent) || [];
+  // Event tabs come from the events list; the numbers are worked out here
+  // from the (filtered) guests and their replies — not the server summary,
+  // which ignored the filters and lagged behind.
+  var perEvent = (allEvents || []).map(function(ev) { return { id: ev.id }; });
   if (!perEvent.length) {
-    container.innerHTML = '<div class="empty-state">No event data available. Stats are still loading.</div>';
+    container.innerHTML = '<div class="empty-state">Loading events…</div>';
     return;
   }
 
@@ -2744,7 +2748,18 @@ function renderEventView(guests, stats) {
   container.innerHTML = '<div class="event-filter-bar">' + eventTabs + '</div><div id="event-view-content"></div>';
   _eventViewGuests = guests;
   _eventViewStats = stats;
-  selectEventFilter(perEvent[0].id);
+  var keep = _eventViewCurrentId && perEvent.some(function(e) { return e.id === _eventViewCurrentId; });
+  selectEventFilter(keep ? _eventViewCurrentId : perEvent[0].id, keep);
+}
+// Latest live reply per invitation code.
+function _latestReplyByCode() {
+  var map = {};
+  activeRSVPs().forEach(function(r) {
+    var c = String(r.invitation_code || '').toUpperCase().trim();
+    if (!c) return;
+    if (!map[c] || new Date(r.timestamp || 0) > new Date(map[c].timestamp || 0)) map[c] = r;
+  });
+  return map;
 }
 
 // Paginated: the By-Event table used to build all invited guests (up to 700)
@@ -2766,7 +2781,6 @@ function selectEventFilter(eventId, keepPage) {
   if (activeBtn) activeBtn.classList.add('active');
 
   var evtConfig = eventsById[eventId] || {};
-  var evtStats = (_eventViewStats.perEvent || []).find(function(e) { return e.id === eventId; }) || {};
   // Only the Black Tie has a table plan (single BT_table column in the sheet).
   var seatingEnabled = eventId === 'BT';
 
@@ -2777,13 +2791,20 @@ function selectEventFilter(eventId, keepPage) {
   // Single pass: compute the seating stats while walking every invited
   // guest, but only build row HTML for the visible page.
   var shown = Math.min(_eventViewShown, invitedGuests.length);
+  var replies = _latestReplyByCode();
+  var evtStats = { invitedGuests: invitedGuests.length, invitedHeadcount: 0, attendingGuests: 0, pending: 0, declined: 0 };
   var attendingCount = 0, assignedCount = 0;
   var tableSet = {};
   var rowParts = [];
   for (var i = 0; i < invitedGuests.length; i++) {
     var g = invitedGuests[i];
-    var status = getRSVPStatus(g);
-    var isAttending = status.label === 'Submitted';
+    var reply = replies[String(g.invitation_code || '').toUpperCase().trim()];
+    var ans = reply ? String(reply[eventId + ' Attending'] || '') : '';
+    var isAttending = ans === 'Yes';
+    evtStats.invitedHeadcount += Number(g[eventId + '_guests']) || 0;
+    if (!reply) evtStats.pending++;
+    else if (ans === 'Yes') evtStats.attendingGuests += Number(reply[eventId + ' Guests']) || 0;
+    else if (ans === 'No') evtStats.declined++;
     var currentTable = seatingEnabled ? (sanitiseValue(g[eventId + '_table']) || '') : '';
     if (seatingEnabled && isAttending) {
       attendingCount++;
@@ -2892,9 +2913,12 @@ function saveTableAssignment(input) {
 
 function exportSeatingCSV(eventId) {
   var evtConfig = eventsById[eventId] || {};
+  // Only guests whose reply says Yes to this event.
+  var replies = _latestReplyByCode();
   var invitedGuests = allGuests.filter(function(g) {
+    var r = replies[String(g.invitation_code || '').toUpperCase().trim()];
     return String(g.events || '').split(',').map(function(s) { return s.trim(); }).indexOf(eventId) > -1 &&
-      getRSVPStatus(g).label === 'Submitted';
+      !!r && String(r[eventId + ' Attending'] || '') === 'Yes';
   });
 
   invitedGuests.sort(function(a, b) {
