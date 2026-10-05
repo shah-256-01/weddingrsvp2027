@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261005062822"/>
+<meta name="app-build" content="20261005155536"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -295,6 +295,15 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .summary-row.clickable{cursor:pointer;}
 .summary-row.clickable:hover .summary-name{color:var(--wine);}
 .summary-hint{font-size:var(--ui-xs);color:var(--muted);margin:-.4rem 0 .8rem;}
+/* Review page: the reply isn't sent until they tap Send — say so loudly */
+.send-alert{display:flex;gap:.7rem;align-items:flex-start;background:#fbefe9;border:1.5px solid var(--wine);padding:.8rem .95rem;margin:0 0 1.1rem;font-size:var(--ui-sm);line-height:1.45;color:var(--ink);}
+.send-alert__icon{font-size:1.35rem;line-height:1;color:var(--wine);}
+.send-alert strong{display:block;color:var(--wine);font-size:var(--ui);margin-bottom:.15rem;}
+.rsvp-bar.review .rsvp-bar__text{display:none;}
+.rsvp-bar.review .rsvp-bar__btn{flex:1;}
+#submit-btn.pulse{animation:sendPulse 1.5s ease-in-out 4;}
+@keyframes sendPulse{0%,100%{box-shadow:0 0 0 0 rgba(122,30,50,.5)}50%{box-shadow:0 0 0 12px rgba(122,30,50,0)}}
+.rsvp-bar__btn.send{font-weight:600;letter-spacing:.06em;}
 .rsvp-bar__back{flex-shrink:0;min-height:46px;padding:0 .9rem;border:1px solid var(--rule);background:#fff;color:var(--ink);font-family:var(--sans);font-size:var(--ui-sm);cursor:pointer;}
 .rsvp-bar__btn.waiting{opacity:.55;}
 .rsvp-bar__text.nudge{color:var(--red);}
@@ -354,7 +363,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 }
 .submit-section{max-width:900px;margin:0 auto;padding:0 1.5rem 5rem;text-align:center;}
 .submit-note{font-size:var(--ui);color:var(--muted);margin-bottom:1.4rem;line-height:1.7;}
-#submit-btn{width:100%;max-width:400px;min-height:56px;font-size:var(--ui);letter-spacing:.11em;justify-content:center;}
+#submit-btn{width:100%;max-width:400px;min-height:60px;font-size:1.1rem;font-weight:600;color:#fff;letter-spacing:.12em;justify-content:center;}
 .success-screen{min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:3rem 1.5rem;background:radial-gradient(ellipse 80% 70% at 50% 0%,var(--blush) 0%,transparent 70%),var(--cream);}
 .already-seal{width:74px;height:74px;border-radius:50%;border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;margin:0 auto 1.4rem;background:var(--cream);position:relative;}
 .already-seal::before{content:'';position:absolute;inset:6px;border:1px dashed var(--gold);opacity:.5;border-radius:50%;}
@@ -661,8 +670,12 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
   </div>
   <div class="rsvp-summary" id="rsvp-summary">
     <div class="summary-card">
-      <div class="summary-title">Your reply</div>
-      <div class="summary-hint">Tap any event to change your answer, then send.</div>
+      <div class="send-alert" role="note">
+        <span class="send-alert__icon" aria-hidden="true">&#9993;</span>
+        <span><strong>Almost done — your reply hasn’t been sent yet</strong>Check your answers below, then tap <b>SEND MY REPLY</b> at the bottom.</span>
+      </div>
+      <div class="summary-title">Your answers</div>
+      <div class="summary-hint">Tap any event to change your answer.</div>
       <div id="summary-rows"></div>
     </div>
   </div>
@@ -673,7 +686,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
   </div>
   <div class="submit-section" id="submit-section">
     <p class="submit-note">Please confirm by 30th October 2026</p>
-    <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">Send my reply</button>
+    <button class="btn btn-primary" id="submit-btn" onclick="submitRSVP()">SEND MY REPLY &#9993;</button>
     <span class="family-name-error hidden" id="submit-error" style="margin-top:.6rem;text-align:center;"></span>
   </div>
   <div class="success-screen hidden" id="success-screen">
@@ -2210,6 +2223,8 @@ function goToStep(n) {
   // Wake the server (it sleeps after a few idle minutes) while the guest
   // checks their answers, so "Send my reply" answers quickly.
   if (isReview) { try { fetchEvents().catch(function() {}); } catch (e) {} }
+  var sendBtn = document.getElementById('submit-btn');
+  if (sendBtn) { sendBtn.classList.remove('pulse'); if (isReview) { void sendBtn.offsetWidth; sendBtn.classList.add('pulse'); } }
   var target = isReview ? document.getElementById('rsvp-summary') : evSec;
   if (target) target.scrollIntoView({ block: 'start' });
 }
@@ -2301,23 +2316,36 @@ function updateRsvpBar() {
   var back = document.getElementById('rsvp-bar-back');
   text.classList.remove('nudge');
   if (_step === N + 1) {
-    text.innerHTML = '<strong>Your reply</strong><small>Check it, then tap “Send my reply”</small>';
-    btn.classList.add('step-hide');
+    // Send lives in the bar too, so it's on screen however far they scroll.
+    var sb = document.getElementById('submit-btn');
+    // The big Send button is on screen — one Send button is enough.
+    if (_submitInView) { bar.classList.remove('show'); return; }
+    bar.classList.add('review');
+    text.innerHTML = '';
+    btn.classList.remove('step-hide', 'waiting', 'done');
+    btn.classList.add('send');
+    btn.textContent = sb && sb.disabled ? 'Sending…' : 'SEND MY REPLY ✉';
+    btn.disabled = !!(sb && sb.disabled);
     back.textContent = '← Back';
   } else {
     var id = currentEventIds[_step - 1];
     var evt = eventFor(id) || {};
     var ready = !_stepBlocker(id);
     text.innerHTML = '<strong>' + _step + ' of ' + N + '</strong><small>' + escapeHtml(evt.name || '') + '</small>';
-    btn.classList.remove('step-hide');
-    btn.textContent = _returnToReview ? 'Back to review ✓' : (_step === N ? 'Review my reply →' : 'Next →');
+    bar.classList.remove('review');
+    btn.classList.remove('step-hide', 'send');
+    btn.disabled = false;
+    btn.textContent = _returnToReview ? 'Back to review ✓' : (_step === N ? 'Review & send →' : 'Next →');
     btn.classList.toggle('done', ready);
     btn.classList.toggle('waiting', !ready);
     back.textContent = _returnToReview ? '← Review' : '← Back';
   }
   bar.classList.add('show');
 }
-function rsvpBarAction() { stepNext(); }
+function rsvpBarAction() {
+  if (_step === currentEventIds.length + 1) { submitRSVP(); return; }
+  stepNext();
+}
 (function() {
   if (typeof IntersectionObserver !== 'function') return;
   var start = function() {
@@ -2330,6 +2358,16 @@ function rsvpBarAction() { stepNext(); }
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
+
+// Answered but not sent: warn before they close the page or go back.
+window.addEventListener('beforeunload', function(e) {
+  if (!_rsvpFlowActive()) return;
+  var sb = document.getElementById('submit-btn');
+  var answered = currentEventIds.some(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending !== null; });
+  if (!answered || (sb && sb.disabled)) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 function updateProgress() {
   var total     = currentEventIds.length;
@@ -2588,6 +2626,7 @@ async function submitRSVP() {
   var btn = document.getElementById('submit-btn');
   btn.textContent = 'Sending\u2026';
   btn.disabled    = true;
+  updateRsvpBar();
 
   var submitterName = [currentGuest.firstName, currentGuest.lastName].filter(Boolean).join(' ').trim()
     || currentGuest.familyName || '';
@@ -2703,8 +2742,9 @@ async function submitRSVP() {
     }
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
   } else {
-    btn.textContent = 'Send my reply';
+    btn.textContent = 'SEND MY REPLY \u2709';
     btn.disabled = false;
+    updateRsvpBar();
     var errEl = document.getElementById('submit-error');
     errEl.innerHTML = rejected
       ? '<strong style="color:var(--red);">' + escapeHtml(rejected) + '</strong>'
