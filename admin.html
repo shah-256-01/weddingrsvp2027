@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005172352"/>
+<meta name="app-build" content="20261005172556"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -674,7 +674,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div class="admin-card-title">How it works</div>
       <div style="font-size:.78rem;color:var(--ink);line-height:1.7;">
         <p style="margin-bottom:.6rem;"><strong>7 Events:</strong> Lg (Lagnotri), MS (Mehendi &amp; Sangeet), Ma (Mandvo), Lu (Luncheon), MG (Meet &amp; Greet), We (Wedding), BT (Black Tie).</p>
-        <p style="margin-bottom:.6rem;"><strong>Luncheon</strong> is for the bride&#8217;s family, on the same day as the Mandvo. Only guests you give Luncheon seats to are invited.</p>
+        <p style="margin-bottom:.6rem;"><strong>Luncheon</strong> is for the bride&#8217;s side, on the same day as the Mandvo. Any bride&#8217;s-side guest invited to the Mandvo is automatically invited to the Luncheon with the same seats and names. You can also invite bride&#8217;s-side guests to the Luncheon alone.</p>
         <p style="margin-bottom:.6rem;"><strong>Invitation codes</strong> are unique 6-character codes generated automatically for each guest (never reuse or guess them).</p>
         <p style="margin-bottom:.6rem;"><strong>Seats per event</strong> are set on each guest &mdash; a guest can only RSVP up to their allocation.</p>
         <p>Full step-by-step workflows are on the <a href="#" onclick="switchTab('help', document.querySelector('.admin-tab[data-tab=help]')); return false;" style="color:var(--wine);font-weight:600;">&#128214; Help</a> tab &mdash; or tap <strong>Teach me</strong> at the top.</p>
@@ -1256,7 +1256,22 @@ function _canonGuests(list) {
 // server's _eventAllocation. Older rows with a separate names column are
 // read the same way.
 var ALL_EVENT_IDS = ['Lg', 'MS', 'Ma', 'Lu', 'MG', 'We', 'BT'];
+// Mirrors the server's Luncheon rule so a save shows the right result at
+// once: bride's-side guests at the Mandvo get the same Luncheon seats;
+// groom's side never has the Luncheon.
+function _applyLuncheonRule(g) {
+  var rel = canonRel(g.relationship || '').toLowerCase();
+  if (rel.indexOf('groom') === 0) { g.Lu_guests = ''; g.Lu_names = ''; return; }
+  if (rel.indexOf('bride') !== 0) return;
+  var ma = String(g.Ma_guests == null ? '' : g.Ma_guests).trim();
+  var maNames = _splitNames(g.Ma_names);
+  if (maNames.length || (ma !== '' && (isNaN(Number(ma)) || Number(ma) > 0))) {
+    g.Lu_guests = g.Ma_guests;
+    g.Lu_names = g.Ma_names || '';
+  }
+}
 function _canonAllocations(g) {
+  _applyLuncheonRule(g);
   var invited = [];
   ALL_EVENT_IDS.forEach(function(id) {
     var raw = String(g[id + '_guests'] == null ? '' : g[id + '_guests']).trim();

@@ -58,9 +58,10 @@ const TABS = {
   rsvpByEvent:  'RSVPs_by_event',
 };
 
-// Lu (Luncheon): bride's family only, same day as the Mandvo. Invited like
-// any other event — only guests given Luncheon seats see it. addLuncheon()
-// sets up its Events row and Lu_guests column.
+// Lu (Luncheon): bride's side, same day as the Mandvo. Every bride's-side
+// guest invited to the Mandvo gets the same Luncheon seats automatically
+// (see _applyLuncheonRuleToRow). addLuncheon() sets up its Events row and
+// Lu_guests column and applies the rule to everyone.
 const EVENT_IDS = ['Lg','MS','Ma','Lu','MG','We','BT'];
 
 // ── Routing ──────────────────────────────────────────────
@@ -525,6 +526,33 @@ function repairGuestSheet() {
   }
 }
 
+// ── Luncheon rule ────────────────────────────────────────
+// The Luncheon (Lu) follows the Mandvo (Ma) on the same day, for the
+// BRIDE'S SIDE only:
+//   - Bride's-side guest invited to the Mandvo → Luncheon gets exactly the
+//     same seat cell (count or reserved names). Enforced on every write so
+//     the two can't drift apart.
+//   - Bride's-side guest NOT at the Mandvo → Luncheon left as the admin set
+//     it (lunch-only invitations are allowed).
+//   - Groom's-side guest → never invited to the Luncheon; cell cleared.
+//   - Relationship blank/unknown → left untouched (don't guess a side).
+const LUNCHEON_ID = 'Lu';
+const MANDVO_ID   = 'Ma';
+function _applyLuncheonRuleToRow(row, headers) {
+  const relI = headers.indexOf('relationship');
+  const luG = headers.indexOf(LUNCHEON_ID + '_guests');
+  const maG = headers.indexOf(MANDVO_ID + '_guests');
+  if (relI < 0 || luG < 0) return;
+  const rel = _relKey(row[relI]);
+  const side = rel.indexOf('bride') === 0 ? 'bride' : rel.indexOf('groom') === 0 ? 'groom' : '';
+  if (side === 'groom') {
+    row[luG] = '';
+  } else if (side === 'bride' && maG > -1) {
+    const ma = {}; ma[MANDVO_ID + '_guests'] = row[maG];
+    if (_eventAllocation(ma, MANDVO_ID).invited) row[luG] = row[maG];
+  }
+}
+
 // Bring one raw sheet row (array aligned with `headers`) into canonical
 // shape, in place:
 //   1. legacy `{id}_names` → folded into `{id}_guests` ("Name, Name"), then
@@ -544,6 +572,7 @@ function _canonGuestRow(row, headers) {
     }
     row[n] = '';
   });
+  _applyLuncheonRuleToRow(row, headers);
   const evI = headers.indexOf('events');
   if (evI > -1) {
     const obj = {};
@@ -1701,6 +1730,11 @@ function bulkUpdate(payload) {
       range.setValues(patched);
       updated += Object.keys(resolved.rows).length;
     });
+    // Changing relationship can move a guest onto or off the bride's side,
+    // which changes their Luncheon invitation.
+    if (fieldKeys.indexOf('relationship') > -1) {
+      _canonGuestSheet(sheet, new Set(Object.keys(resolved.rows)));
+    }
     return { updated: Object.keys(resolved.rows).length, fieldCount: fieldKeys.length, missing: resolved.missing };
   } finally { lock.releaseLock(); }
 }
@@ -2810,8 +2844,9 @@ function diagnoseSpeedForTestGuest() {
 //     the Mandvo, Aurora Bustani — edit time/venue there if they differ)
 //     or switches an existing one back on
 //   - adds the Lu_guests column to the Guests tab
-// Then give Bride's Family guests Luncheon seats in the admin (Edit guest →
-// tick Luncheon) or type them into Lu_guests. Safe to re-run.
+//   - gives every bride's-side Mandvo guest the same Luncheon seats (and
+//     keeps them in step from then on); lunch-only invites can be added in
+//     the admin. Safe to re-run.
 function addLuncheon() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -2855,6 +2890,9 @@ function addLuncheon() {
       _ensureGuestColumn(g, gh, 'Lu_guests');
       colMsg = 'added the Lu_guests column to the Guests tab';
     }
+    // Bride's-side Mandvo guests → same Luncheon seats; groom's side cleared.
+    const changed = _canonGuestSheet(g, null);
+    colMsg += '; Luncheon seats set/updated for ' + changed + ' guest(s)';
     bumpAdminCacheVersion();   // also refreshes the events cache
   } finally {
     lock.releaseLock();
