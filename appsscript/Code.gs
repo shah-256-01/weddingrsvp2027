@@ -2948,7 +2948,10 @@ function getBootstrap() {
   // Cached with the chunked helper because at 700 guests + 700 RSVPs the
   // JSON payload is well over the 100 KB single-key cache limit. The cache
   // is keyed by the admin cache version so any mutation invalidates it.
-  const data = cachedReadChunked('bootstrap', _getBootstrap, ADMIN_CACHE_TTL_SEC);
+  // 5 min: every write through the app (admin edits, replies, contact
+  // updates) bumps the cache version, so this only delays hand edits made
+  // directly in the sheet. At 30 s most admin opens paid for a cold read.
+  const data = cachedReadChunked('bootstrap', _getBootstrap, 300);
   // "Invite sent" changes constantly while invites go out and doesn't bump
   // the cache, so overlay it fresh from the sheet (two small column reads)
   // — every admin device sees other people's sends on its next refresh.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005154001"/>
+<meta name="app-build" content="20261005155025"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1592,9 +1592,19 @@ function checkLogin() {
   }
   document.getElementById('pin-error').textContent = '';
   _setSigningIn(true);
+  // Start loading the guest list with this PIN alongside the check, so a
+  // correct PIN lands on the list one round trip sooner.
+  try { sessionStorage.setItem(ADMIN_PIN_KEY, pin); } catch (e) {}
+  _bootPrefetch = gasAsync('getBootstrap');
+  _bootPrefetch.catch(function() {});
+  var dropPrefetch = function() {
+    _bootPrefetch = null;
+    try { sessionStorage.removeItem(ADMIN_PIN_KEY); } catch (e) {}
+  };
   google.script.run
     .withSuccessHandler(function(ok) {
       _setSigningIn(false);
+      if (!ok) dropPrefetch();
       if (ok) {
         try { sessionStorage.setItem(ADMIN_PIN_KEY, pin); } catch (e) {}
         var rem = document.getElementById('remember-me');
@@ -1606,6 +1616,7 @@ function checkLogin() {
     })
     .withFailureHandler(function(err) {
       _setSigningIn(false);
+      dropPrefetch();
       if (_isWrongPinError(err)) { try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {} }
       document.getElementById('pin-error').textContent = _signInErrorText(err, 'tap Enter again');
     })
@@ -1620,7 +1631,15 @@ function checkLogin() {
 (function() {
   var storedPin = '';
   try { storedPin = sessionStorage.getItem(ADMIN_PIN_KEY) || _rememberedPin(); } catch (e) {}
-  if (!storedPin) return;
+  if (!storedPin) {
+    try {
+      if (sessionStorage.getItem('wa:pinChanged')) {
+        sessionStorage.removeItem('wa:pinChanged');
+        document.getElementById('pin-error').textContent = 'The PIN has changed — please enter the new one.';
+      }
+    } catch (e) {}
+    return;
+  }
   var checking = document.getElementById('login-checking');
   var form = document.getElementById('login-form');
   function showForm(msg) {
@@ -1628,6 +1647,34 @@ function checkLogin() {
     if (form) form.classList.remove('hidden');
     document.getElementById('pin-error').textContent = msg || '';
   }
+  // Fetch the guest list alongside the PIN check rather than after it —
+  // saves a whole round trip to Google on every open.
+  _bootPrefetch = gasAsync('getBootstrap');
+  _bootPrefetch.catch(function() {});
+
+  // This phone has signed in before and has the list saved: open straight
+  // onto it and check the PIN in the background. Only a wrong PIN (e.g. it
+  // was changed) signs out; a slow connection just leaves the saved list up.
+  if (_readBootCache()) {
+    var openNow = function() {
+      try { sessionStorage.setItem(ADMIN_PIN_KEY, storedPin); } catch (e) {}
+      loadDashboard();
+    };
+    // Wait for the rest of the page's script to be defined first.
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', openNow);
+    else setTimeout(openNow, 0);
+    var signOut = function() {
+      _forgetPin(); _clearBootCache();
+      try { sessionStorage.setItem('wa:pinChanged', '1'); } catch (e) {}
+      location.reload();
+    };
+    google.script.run
+      .withSuccessHandler(function(ok) { if (!ok) signOut(); })
+      .withFailureHandler(function(err) { if (_isWrongPinError(err)) signOut(); })
+      .checkPin(storedPin);
+    return;
+  }
+
   if (checking) checking.classList.remove('hidden');
   if (form) form.classList.add('hidden');
   var attempt = function(n) {
@@ -1638,17 +1685,18 @@ function checkLogin() {
           showForm('');
           loadDashboard();
         } else {
-          _forgetPin();
+          _forgetPin(); _bootPrefetch = null; _clearBootCache();
           showForm('The PIN has changed — please enter the new one.');
         }
       })
       .withFailureHandler(function(err) {
         if (_isWrongPinError(err)) {
-          _forgetPin();
+          _forgetPin(); _bootPrefetch = null; _clearBootCache();
           showForm('The PIN has changed — please enter the new one.');
           return;
         }
         if (n < 2) { setTimeout(function() { attempt(n + 1); }, 1500); return; }
+        _bootPrefetch = null;
         document.getElementById('pin-input').value = storedPin;
         showForm(_signInErrorText(err, 'tap Enter'));
       })
@@ -2166,35 +2214,98 @@ function _showEmailStatus(st) {
   showToast(msg, 'info', 12000);
 }
 
+// ── Saved copy of the guest list (this phone only) ──
+// The last guest list is kept on the device so the Guests tab can show
+// instantly while the fresh one loads. Cleared on Log out. (Key is a
+// literal: the auto-login above reads it before this part of the script runs.)
+var _bootPrefetch;   // set by the auto-login above (runs before this line)
+function _readBootCache() {
+  try {
+    var v = JSON.parse(localStorage.getItem('wa:bootCache') || 'null');
+    if (v && v.data && Array.isArray(v.data.guests) && Date.now() - v.at < 14 * 864e5) return v;
+  } catch (e) {}
+  return null;
+}
+function _writeBootCache(data) {
+  if (!_isRemembered() && !sessionStorage.getItem(ADMIN_PIN_KEY)) return;
+  try { localStorage.setItem('wa:bootCache', JSON.stringify({ at: Date.now(), data: data })); }
+  catch (e) { try { localStorage.removeItem('wa:bootCache'); } catch (e2) {} }
+}
+function _clearBootCache() { try { localStorage.removeItem('wa:bootCache'); } catch (e) {} }
+function _bootCacheAge() {
+  var v = _readBootCache();
+  if (!v) return 'earlier';
+  var m = Math.round((Date.now() - v.at) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' day(s) ago';
+}
+function _setListStatus(text) {
+  var el = document.getElementById('guest-list-status');
+  if (!el) {
+    var host = document.getElementById('guest-view-container');
+    if (!host || !host.parentNode) return;
+    el = document.createElement('div');
+    el.id = 'guest-list-status';
+    el.style.cssText = 'font-size:.8rem;color:var(--muted,#6b5a51);padding:4px 2px;';
+    host.parentNode.insertBefore(el, host);
+  }
+  el.textContent = text || '';
+  el.style.display = text ? '' : 'none';
+}
+function _applyBootstrap(data, silent) {
+  // Events come along in the same payload — one less round-trip on boot.
+  var eventsInPayload = Array.isArray(data.events) && data.events.length > 0;
+  if (eventsInPayload) { setAllEvents(data.events); afterEventsLoaded(); }
+  allGuests          = _canonGuests(data.guests);
+  allRSVPs           = data.rsvps          || [];
+  allSubmittedCodes  = new Set(data.submittedCodes || []);
+  setDuplicates(data.duplicates);
+  allDeletedGuests   = _canonGuests(data.deletedGuests);
+  _showEmailStatus(data.emailStatus);
+  _applyPendingMarks();
+  _applyPendingGuestEdits();
+  _scheduleMarkFlush(1000);
+  refreshStats();
+  renderGuestView();
+  _refreshMessagesIfOpen();
+  if (silent) _refreshOpenTabAfterSync();
+}
+
 // opts.silent: background refresh — no "Loading…" placeholder, and the
 // current screen is redrawn in place afterwards.
 var _lastGuestsLoadAt = 0;
 function loadGuests(opts) {
   var silent = !!(opts && opts.silent);
-  if (!silent) document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
+  if (!silent && !(allGuests.length || _readBootCache())) document.getElementById('guest-view-container').innerHTML = '<div class="empty-state">Loading guests...</div>';
   _lastGuestsLoadAt = Date.now();
   // Single bootstrap round-trip: one doPost returns guests + rsvps + codes
   // + duplicates + deleted in one payload. Falls back to the legacy 5-call
   // fan-out if the server hasn't been redeployed with getBootstrap yet.
-  gasAsync('getBootstrap').then(function(data) {
+  // First load on this phone: show the list saved from last time straight
+  // away, then swap in the fresh copy when it arrives.
+  var showedSaved = false;
+  if (!silent && !allGuests.length) {
+    var saved = _readBootCache();
+    if (saved) {
+      _applyBootstrap(saved.data, false);
+      _setListStatus('Updating…');
+      showedSaved = true;
+    }
+  }
+  var req = _bootPrefetch || gasAsync('getBootstrap');
+  _bootPrefetch = null;
+  req.then(function(data) {
     if (!data || typeof data !== 'object') throw new Error('Empty bootstrap');
-    // Events come along in the same payload now — one less round-trip on boot.
-    var eventsInPayload = Array.isArray(data.events) && data.events.length > 0;
-    if (eventsInPayload) { setAllEvents(data.events); afterEventsLoaded(); }
-    allGuests          = _canonGuests(data.guests);
-    allRSVPs           = data.rsvps          || [];
-    allSubmittedCodes  = new Set(data.submittedCodes || []);
-    setDuplicates(data.duplicates);
-    allDeletedGuests   = _canonGuests(data.deletedGuests);
-    _showEmailStatus(data.emailStatus);
-    _applyPendingMarks();
-    _applyPendingGuestEdits();
-    _scheduleMarkFlush(1000);
-    refreshStats();
-    renderGuestView();
-    _refreshMessagesIfOpen();
-    if (silent) _refreshOpenTabAfterSync();
-  }).catch(function() {
+    _applyBootstrap(data, silent || showedSaved);
+    _writeBootCache(data);
+    _setListStatus('');
+  }).catch(function(err) {
+    if (showedSaved) {
+      // Keep the saved list on screen; the next background sync tries again.
+      _setListStatus('Couldn’t refresh — showing the list from ' + _bootCacheAge() + '.');
+      _lastGuestsLoadAt = Date.now() - SYNC_EVERY_MS + 15000;
+      return;
+    }
+    if (_isWrongPinError(err)) return;
     if (silent) return;   // a failed background refresh just waits for the next one
     // Fallback path for old deployments — parallel fan-out, render when all done.
     Promise.all([
@@ -2801,6 +2912,7 @@ function adminLogout() {
   clearSessionTimers();
   hideSessionWarning();
   _forgetPin();
+  _clearBootCache();
   document.getElementById('admin-dashboard').classList.add('hidden');
   document.getElementById('admin-login-screen').classList.remove('hidden');
   document.getElementById('pin-input').value = '';
