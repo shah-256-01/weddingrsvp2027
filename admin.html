@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005064511"/>
+<meta name="app-build" content="20261005152715"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1568,6 +1568,21 @@ function _setSigningIn(on) {
     _signInTimers.push(setTimeout(function() { prog.textContent = 'The server is waking up — this can take up to 30 seconds. Please keep this page open.'; }, 12000));
   }
 }
+// The server answers a wrong PIN with an error ("Unauthorized."), which
+// arrives through the failure handler just like a dropped connection — so
+// tell the two apart instead of blaming the connection for a typo.
+function _isWrongPinError(err) {
+  return /unauthori[sz]ed/i.test(String(err && err.message || ''));
+}
+function _signInErrorText(err, retryHint) {
+  var m = String(err && err.message || '');
+  if (_isWrongPinError(err)) return 'Incorrect PIN. Please try again.';
+  if (/too many|took too long|busy/i.test(m)) return m;
+  if (!m || /failed to fetch|load failed|network|HTTP \d/i.test(m)) {
+    return 'Couldn’t reach the server. Check your connection and ' + retryHint + '.';
+  }
+  return 'Sign-in failed: ' + m;
+}
 function checkLogin() {
   if (_signingIn) return;
   var pin = document.getElementById('pin-input').value.trim();
@@ -1591,9 +1606,8 @@ function checkLogin() {
     })
     .withFailureHandler(function(err) {
       _setSigningIn(false);
-      var m = String(err && err.message || '');
-      document.getElementById('pin-error').textContent = /too many/i.test(m) ? m
-        : 'Couldn’t reach the server. Check your connection and tap Enter again.';
+      if (_isWrongPinError(err)) { try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {} }
+      document.getElementById('pin-error').textContent = _signInErrorText(err, 'tap Enter again');
     })
     .checkPin(pin);
 }
@@ -1628,10 +1642,15 @@ function checkLogin() {
           showForm('The PIN has changed — please enter the new one.');
         }
       })
-      .withFailureHandler(function() {
+      .withFailureHandler(function(err) {
+        if (_isWrongPinError(err)) {
+          _forgetPin();
+          showForm('The PIN has changed — please enter the new one.');
+          return;
+        }
         if (n < 2) { setTimeout(function() { attempt(n + 1); }, 1500); return; }
         document.getElementById('pin-input').value = storedPin;
-        showForm('Couldn’t reach the server. Check your connection and tap Enter.');
+        showForm(_signInErrorText(err, 'tap Enter'));
       })
       .checkPin(storedPin);
   };
