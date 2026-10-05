@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005175154"/>
+<meta name="app-build" content="20261005175903"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -517,6 +517,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <button class="view-btn" onclick="setGuestView('grouped')" id="vbtn-grouped">&#8862; Cards</button>
         <button class="view-btn" onclick="setGuestView('rsvp-status')" id="vbtn-rsvp-status">&#10003; RSVP Status</button>
         <button class="view-btn" onclick="setGuestView('event')" id="vbtn-event">&#128197; By Event</button>
+        <button class="view-btn" onclick="setGuestView('groups')" id="vbtn-groups">&#128101; Groups</button>
       </div>
       <button class="btn btn-secondary btn-sm" onclick="exportGuestListCSV()">&#8595; Export CSV</button>
       <button class="btn btn-primary btn-sm" onclick="openAddGuest()">+ Add Guest</button>
@@ -1869,7 +1870,7 @@ function loadDashboard() {
   // looking at last time in this browser tab.
   restoreGuestFilters();
   var savedView = _ssGet(_SS_KEYS.view);
-  if (savedView && ['list','grouped','rsvp-status','event'].indexOf(savedView) > -1) {
+  if (savedView && ['list','grouped','rsvp-status','event','groups'].indexOf(savedView) > -1) {
     currentView = savedView;
     document.querySelectorAll('.view-btn').forEach(function(b) { b.classList.remove('active'); });
     var vb = document.querySelector('.view-btn[onclick*="' + savedView + '"]');
@@ -2021,6 +2022,17 @@ function _guestFiltersActive() {
 // The cards follow the Guests filters: with a filter on they count just the
 // matching invites ("12 of 469"). "People coming" counts each person once —
 // the most seats a reply accepted at any one event — not seats × events.
+// How many people an invite covers: the most seats it has at any one event
+// (a couple invited to six events is 2 people, not 12).
+function _invitePeople(g) {
+  var most = 0;
+  ALL_EVENT_IDS.forEach(function(id) {
+    var raw = String(g[id + '_guests'] == null ? '' : g[id + '_guests']).trim();
+    var n = (raw === '' || !isNaN(Number(raw))) ? (Number(raw) || 0) : _splitNames(raw).length;
+    if (n > most) most = n;
+  });
+  return most;
+}
 function _renderGuestStatCards() {
   var el = document.getElementById('guest-stats');
   if (!el) return;
@@ -2044,6 +2056,7 @@ function _renderGuestStatCards() {
   };
   el.innerHTML =
     card(list.length + (filtering ? '<span style="font-size:.55em;color:var(--muted);"> of ' + allGuests.length + '</span>' : ''), filtering ? 'Invites (filtered)' : 'Invites') +
+    card(list.reduce(function(t, g) { return t + _invitePeople(g); }, 0), 'People invited') +
     card(replied, 'Replied') +
     card(Math.max(0, list.length - replied), 'Pending') +
     card(coming, 'People coming') +
@@ -2484,10 +2497,64 @@ function renderCurrentView() {
   _renderGuestStatCards();
   var container = document.getElementById('guest-view-container');
   if (currentView === 'event') { renderEventView(filteredGuests, allStats); return; }
+  if (currentView === 'groups') { renderGroupsView(filteredGuests, container); return; }
   if (currentView === 'rsvp-status') { renderRSVPStatusView(filteredGuests, container); return; }
   if (!filteredGuests.length) { container.innerHTML = _emptyGuestsWithClearBtn(); return; }
   if (currentView === 'list') renderTableView(filteredGuests, container);
   else if (currentView === 'grouped') renderGroupedView(filteredGuests, container);
+}
+
+// ── Groups View ────────────────────────────
+// One row per group with its totals. Follows the other filters (e.g. pick a
+// relationship first). Tap a row to open that group's guest list.
+function renderGroupsView(guests, container) {
+  var replies = _latestReplyByCode();
+  var by = {};
+  guests.forEach(function(g) {
+    var k = guestGroup(g) || '';
+    var b = by[k] || (by[k] = { invites: 0, people: 0, replied: 0, coming: 0 });
+    b.invites++;
+    b.people += _invitePeople(g);
+    var r = replies[String(g.invitation_code || '').toUpperCase().trim()];
+    if (r) {
+      b.replied++;
+      var most = 0;
+      ALL_EVENT_IDS.forEach(function(id) { if (r[id + ' Attending'] === 'Yes') most = Math.max(most, Number(r[id + ' Guests']) || 0); });
+      b.coming += most;
+    }
+  });
+  var keys = Object.keys(by).sort(function(a, b) { return by[b].people - by[a].people || a.localeCompare(b); });
+  if (!keys.length) { container.innerHTML = _emptyGuestsWithClearBtn(); return; }
+  var tot = { invites: 0, people: 0, replied: 0, coming: 0 };
+  var rows = keys.map(function(k) {
+    var b = by[k];
+    ['invites', 'people', 'replied', 'coming'].forEach(function(f) { tot[f] += b[f]; });
+    var val = k || '__none__';
+    return '<tr class="groups-row" style="cursor:pointer;" onclick="openGroupFromSummary(\'' + escapeAttr(val).replace(/'/g, '&#39;') + '\')">' +
+      '<td><strong>' + escapeAttr(k || '(No group)') + '</strong></td>' +
+      '<td style="text-align:center;">' + b.invites + '</td>' +
+      '<td style="text-align:center;"><strong>' + b.people + '</strong></td>' +
+      '<td style="text-align:center;">' + b.replied + '</td>' +
+      '<td style="text-align:center;color:var(--green);">' + b.coming + '</td></tr>';
+  }).join('');
+  container.innerHTML =
+    '<div class="admin-card"><div class="admin-card-title">Totals by group</div>' +
+    '<div style="font-size:.78rem;color:var(--muted);margin:-.3rem 0 .7rem;">People invited = the most seats an invite has at any one event. Tap a group to see its guests.</div>' +
+    '<div class="guest-table-wrap"><table class="guest-table"><thead><tr>' +
+    '<th>Group</th><th style="text-align:center;">Invites</th><th style="text-align:center;">People invited</th>' +
+    '<th style="text-align:center;">Replied</th><th style="text-align:center;">Coming</th></tr></thead><tbody>' + rows +
+    '<tr style="border-top:2px solid var(--border);"><td><strong>Total</strong></td>' +
+    '<td style="text-align:center;"><strong>' + tot.invites + '</strong></td>' +
+    '<td style="text-align:center;"><strong>' + tot.people + '</strong></td>' +
+    '<td style="text-align:center;"><strong>' + tot.replied + '</strong></td>' +
+    '<td style="text-align:center;color:var(--green);"><strong>' + tot.coming + '</strong></td></tr>' +
+    '</tbody></table></div></div>';
+}
+function openGroupFromSummary(val) {
+  var sel = document.getElementById('filter-group');
+  if (sel) sel.value = val;
+  setGuestView('list');
+  applyFilters();
 }
 
 // ── Table View ─────────────────────────────
