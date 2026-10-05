@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005175903"/>
+<meta name="app-build" content="20261005180312"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -46,6 +46,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .btn-ghost:hover{color:var(--wine);}
 .btn-danger{background:var(--red);color:#fde;}
 .btn-danger:hover{background:#6b1515;}
+#delete-confirm-go:disabled{opacity:.35;cursor:not-allowed;background:var(--red);}
 .btn-icon{padding:0;width:40px;height:40px;min-height:40px;justify-content:center;font-size:16px;}
 .admin-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);}
 .admin-login-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:2.4rem;width:100%;max-width:330px;text-align:center;}
@@ -1075,6 +1076,26 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 </div>
 
 <!-- ████  VIEW GUEST/RSVP MODAL  ████ -->
+<div class="modal-overlay hidden" id="delete-confirm-overlay" onclick="if(event.target===this)closeDeleteConfirm()">
+  <div class="modal" style="max-width:440px;" role="alertdialog" aria-labelledby="delete-confirm-title">
+    <div class="modal-header">
+      <span class="modal-title" id="delete-confirm-title">Delete guest?</span>
+      <button class="modal-close" onclick="closeDeleteConfirm()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="delete-confirm-text" style="font-size:.9rem;line-height:1.55;margin-bottom:.8rem;"></p>
+      <div id="delete-confirm-names" style="font-size:.85rem;max-height:160px;overflow-y:auto;background:var(--gold-pale);padding:.55rem .75rem;margin-bottom:.9rem;"></div>
+      <label style="display:flex;gap:.6rem;align-items:flex-start;font-size:.88rem;cursor:pointer;">
+        <input type="checkbox" id="delete-confirm-check" style="width:20px;height:20px;flex-shrink:0;accent-color:var(--red);" onchange="document.getElementById('delete-confirm-go').disabled=!this.checked"/>
+        <span id="delete-confirm-label">Yes, I&#8217;m sure I want to delete this guest</span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeDeleteConfirm()">Cancel</button>
+      <button class="btn btn-danger btn-sm" id="delete-confirm-go" disabled onclick="_runDeleteConfirm()">Delete</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay hidden" id="view-modal-overlay" onclick="if(event.target===this)closeViewModal()">
   <div class="modal" id="view-modal">
     <div class="modal-header">
@@ -1400,14 +1421,52 @@ function _bulkOnError(err) {
   showToast('Bulk action failed: ' + (err && err.message || 'unknown'), 'error');
 }
 
+// ── Delete confirmation ─────────────────────
+// Deleting needs a tick in "Yes, I'm sure" before the Delete button works.
+var _deleteConfirmAction = null;
+function confirmDelete(names, onConfirm) {
+  var n = names.length;
+  document.getElementById('delete-confirm-title').textContent = n === 1 ? 'Delete guest?' : 'Delete ' + n + ' guests?';
+  document.getElementById('delete-confirm-text').textContent = (n === 1 ? 'This guest' : 'These ' + n + ' guests') +
+    ' will be removed from the guest list and can no longer sign in to RSVP. Any reply they sent is set aside. You can restore them later from the Deleted section.';
+  document.getElementById('delete-confirm-names').innerHTML = names.slice(0, 50).map(function(x) { return '&bull; ' + escapeAttr(x); }).join('<br>') +
+    (n > 50 ? '<br>&hellip; and ' + (n - 50) + ' more' : '');
+  document.getElementById('delete-confirm-label').textContent = n === 1
+    ? 'Yes, I’m sure I want to delete this guest' : 'Yes, I’m sure I want to delete these ' + n + ' guests';
+  var chk = document.getElementById('delete-confirm-check');
+  chk.checked = false;
+  var go = document.getElementById('delete-confirm-go');
+  go.disabled = true;
+  go.textContent = n === 1 ? 'Delete' : 'Delete ' + n;
+  _deleteConfirmAction = onConfirm;
+  document.getElementById('delete-confirm-overlay').classList.remove('hidden');
+}
+function closeDeleteConfirm() {
+  document.getElementById('delete-confirm-overlay').classList.add('hidden');
+  _deleteConfirmAction = null;
+}
+function _runDeleteConfirm() {
+  if (!document.getElementById('delete-confirm-check').checked) return;
+  var fn = _deleteConfirmAction;
+  closeDeleteConfirm();
+  if (fn) fn();
+}
+function _guestDisplayName(g) {
+  return g ? ((g.first_name || '') + ' ' + (g.last_name || '')).trim() || 'Guest' : 'Guest';
+}
+
 function bulkDeleteSelected() {
   var n = _bulkCount();
   if (n === 0) return;
-  if (!confirm('Delete ' + n + ' guest(s)? They can be restored later from the Deleted section.')) return;
+  var ids = _bulkIds();
+  var names = ids.map(function(id) { return _guestDisplayName(allGuests.find(function(g) { return g.id === id; })); });
+  confirmDelete(names, function() { _bulkDeleteNow(ids); });
+}
+function _bulkDeleteNow(ids) {
   google.script.run
     .withSuccessHandler(function(r) { _bulkAfterServer((r && r.deleted) + ' guest(s) deleted.'); })
     .withFailureHandler(_bulkOnError)
-    .bulkDelete({ ids: _bulkIds() });
+    .bulkDelete({ ids: ids });
 }
 function bulkApplyRelationship() {
   var sel = document.getElementById('bulk-rel-select');
@@ -3619,10 +3678,12 @@ window.addEventListener('beforeunload', function(e) {
 });
 
 function removeGuest(id) {
-  // No confirm dialog — the action is reversible via the Undo toast and
-  // the row can also be restored from the Deleted section indefinitely.
+  // Ask first (tick to confirm); Undo and the Deleted section still work after.
   var guest = allGuests.find(function(g) { return g.id === id; });
-  var name = guest ? ((guest.first_name || '') + ' ' + (guest.last_name || '')).trim() : 'Guest';
+  var name = _guestDisplayName(guest);
+  confirmDelete([name], function() { _removeGuestNow(id, name); });
+}
+function _removeGuestNow(id, name) {
   google.script.run
     .withSuccessHandler(function() {
       // Drop the id from the bulk selection — otherwise the bar shows an
