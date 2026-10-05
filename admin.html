@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005155025"/>
+<meta name="app-build" content="20261005160800"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1870,11 +1870,16 @@ function loadDashboard() {
   setTimeout(function() {
     if (!Array.isArray(allEvents) || allEvents.length === 0) loadEvents();
   }, 6000);
-  loadMessageConfigFromServer();
-  // Background populate of allStats.perEvent for the By-Event view. Header
-  // stats are computed client-side from the bootstrap payload, so this is
-  // never on the critical path.
-  loadStats();
+  // Message settings and the By-Event stats wait until the guest list is in,
+  // so they don't compete with it on Google's side (both are slow reads).
+  try {
+    var localCfg = JSON.parse(localStorage.getItem(MSG_LOCAL_KEY) || 'null');
+    if (localCfg && localCfg.templates && localCfg.templates.length) { messageConfig = localCfg; _canonRelDefaults(messageConfig); }
+  } catch (e) {}
+  _afterGuestsLoaded(function() {
+    loadMessageConfigFromServer();
+    loadStats();
+  });
 
   // Reopen the last-active tab if it isn't the default Guests tab. A
   // `#sender=...` URL hash forces Messages so a shared sender link lands
@@ -2251,6 +2256,18 @@ function _setListStatus(text) {
   el.textContent = text || '';
   el.style.display = text ? '' : 'none';
 }
+var _afterLoadQueue = [], _guestsLoadedOnce = false;
+function _afterGuestsLoaded(fn) {
+  if (_guestsLoadedOnce) { fn(); return; }
+  _afterLoadQueue.push(fn);
+  // Don't hold them up forever if the list is slow or fails.
+  setTimeout(_runAfterGuestsLoaded, 15000);
+}
+function _runAfterGuestsLoaded() {
+  _guestsLoadedOnce = true;
+  var q = _afterLoadQueue; _afterLoadQueue = [];
+  q.forEach(function(fn) { try { fn(); } catch (e) {} });
+}
 function _applyBootstrap(data, silent) {
   // Events come along in the same payload — one less round-trip on boot.
   var eventsInPayload = Array.isArray(data.events) && data.events.length > 0;
@@ -2298,7 +2315,9 @@ function loadGuests(opts) {
     _applyBootstrap(data, silent || showedSaved);
     _writeBootCache(data);
     _setListStatus('');
+    _runAfterGuestsLoaded();
   }).catch(function(err) {
+    _runAfterGuestsLoaded();
     if (showedSaved) {
       // Keep the saved list on screen; the next background sync tries again.
       _setListStatus('Couldn’t refresh — showing the list from ' + _bootCacheAge() + '.');

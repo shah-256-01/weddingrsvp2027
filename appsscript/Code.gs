@@ -738,19 +738,20 @@ function cachedReadChunked(keyPrefix, fn, ttlSec) {
 
   const val = fn();
 
-  try {
-    const json = JSON.stringify(val);
-    const slices = {};
-    let idx = 0;
-    for (let pos = 0; pos < json.length; pos += CACHE_CHUNK_BYTES) {
-      slices[base + '_' + idx] = json.slice(pos, pos + CACHE_CHUNK_BYTES);
-      idx++;
-    }
-    slices[base + '_meta'] = JSON.stringify({ count: idx, len: json.length });
-    cache.putAll(slices, ttlSec || ADMIN_CACHE_TTL_SEC);
-  } catch (e) { /* cache write is optional */ }
+  try { _putChunked(cache, base, val, ttlSec || ADMIN_CACHE_TTL_SEC); } catch (e) { /* cache write is optional */ }
 
   return val;
+}
+function _putChunked(cache, base, val, ttlSec) {
+  const json = JSON.stringify(val);
+  const slices = {};
+  let idx = 0;
+  for (let pos = 0; pos < json.length; pos += CACHE_CHUNK_BYTES) {
+    slices[base + '_' + idx] = json.slice(pos, pos + CACHE_CHUNK_BYTES);
+    idx++;
+  }
+  slices[base + '_meta'] = JSON.stringify({ count: idx, len: json.length });
+  cache.putAll(slices, ttlSec);
 }
 
 // Prevent Google Sheets formula injection — prefix dangerous leading chars
@@ -1811,6 +1812,7 @@ function markInviteSent(guestId, clear) {
     if (rowNum === -1) throw new Error('Guest not found: ' + guestId);
     const ts = clear ? '' : new Date().toISOString();
     sheet.getRange(rowNum, sentCol + 1).setValue(ts);
+    _patchCachedBootstrapSent(guestId, ts);
     return { ok: true, guestId, invite_sent_at: ts };
   } finally {
     lock.releaseLock();
@@ -2345,6 +2347,8 @@ function _migrateLegacyEmailQueue(props) {
 function processNotificationQueue() {
   // Held replies first, so their emails are queued in this same run.
   try { processPendingRSVPs(); } catch (e) { Logger.log('processPendingRSVPs failed: ' + e.message); }
+  // Have the admin's guest list ready before anyone opens it.
+  try { warmAdminCache(); } catch (e) { Logger.log('warmAdminCache failed: ' + e.message); }
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return;
   try {
@@ -2944,22 +2948,92 @@ function getRSVPsByFamily() {
 // single doPost round-trip. Each piece is wrapped in try/catch so a single
 // sheet read failing doesn't tank the whole boot — the client will fall back
 // to empty state for the missing piece rather than erroring out.
+// Speed: a warm admin load must not touch the spreadsheet at all.
+//   - The ready-made payload is cached (chunked — at 700 guests it's well
+//     over the 100 KB per-key limit), keyed by the admin cache version so
+//     any write through the app replaces it.
+//   - "Invite sent" changes constantly while invites go out and doesn't bump
+//     the version: markInviteSent patches the cached payload in place
+//     instead (_patchCachedBootstrapSent), so it stays correct without the
+//     column re-reads every load used to do.
+//   - The every-minute trigger rebuilds it after a change (warmAdminCache),
+//     so the admin rarely pays for a cold build.
+// 15 min TTL: only edits typed straight into the sheet wait for it.
+const BOOTSTRAP_TTL_SEC = 900;
+const SENT_MARK_AT_KEY = 'sent_mark_at';
 function getBootstrap() {
-  // Cached with the chunked helper because at 700 guests + 700 RSVPs the
-  // JSON payload is well over the 100 KB single-key cache limit. The cache
-  // is keyed by the admin cache version so any mutation invalidates it.
-  // 5 min: every write through the app (admin edits, replies, contact
-  // updates) bumps the cache version, so this only delays hand edits made
-  // directly in the sheet. At 30 s most admin opens paid for a cold read.
-  const data = cachedReadChunked('bootstrap', _getBootstrap, 300);
-  // "Invite sent" changes constantly while invites go out and doesn't bump
-  // the cache, so overlay it fresh from the sheet (two small column reads)
-  // — every admin device sees other people's sends on its next refresh.
+  return cachedReadChunked('bootstrap', _buildBootstrap, BOOTSTRAP_TTL_SEC);
+}
+function _buildBootstrap() {
+  const started = Date.now();
+  const data = _getBootstrap();
+  // The guest rows came from the guest cache, which "sent" marks don't
+  // refresh — overlay that column from the sheet once, here, at build time.
   try {
-    _withFreshInviteSent(data.guests);
-    _withFreshInviteSent(data.deletedGuests);
+    _withFreshInviteSent(data.guests.concat(data.deletedGuests));
   } catch (e) { /* best-effort */ }
+  // A mark that landed while we were building may be missing from what we
+  // read; re-read the column so the cached copy can't go out stale.
+  try {
+    const lastMark = Number(CacheService.getScriptCache().get(SENT_MARK_AT_KEY) || 0);
+    if (lastMark >= started) _withFreshInviteSent(data.guests.concat(data.deletedGuests));
+  } catch (e) {}
   return data;
+}
+// Called by markInviteSent (inside its lock) after writing the cell.
+function _patchCachedBootstrapSent(guestId, value) {
+  const cache = CacheService.getScriptCache();
+  try { cache.put(SENT_MARK_AT_KEY, String(Date.now()), 21600); } catch (e) {}
+  try {
+    const base = 'bootstrap_v' + _adminCacheVersion();
+    const meta = JSON.parse(cache.get(base + '_meta') || 'null');
+    if (!meta || !meta.count) return;   // nothing cached — next build reads the sheet
+    const keys = [];
+    for (let i = 0; i < meta.count; i++) keys.push(base + '_' + i);
+    const parts = cache.getAll(keys);
+    let joined = '';
+    for (let i = 0; i < keys.length; i++) {
+      if (parts[keys[i]] == null) { cache.remove(base + '_meta'); return; }
+      joined += parts[keys[i]];
+    }
+    if (joined.length !== Number(meta.len)) { cache.remove(base + '_meta'); return; }
+    const data = JSON.parse(joined);
+    let hit = false;
+    [data.guests || [], data.deletedGuests || []].forEach(function(list) {
+      list.forEach(function(g) { if (g && String(g.id) === String(guestId)) { g.invite_sent_at = value; hit = true; } });
+    });
+    if (!hit) return;
+    _putChunked(cache, base, data, BOOTSTRAP_TTL_SEC);
+  } catch (e) {
+    // If the patch can't be made, drop the cached copy rather than serve it stale.
+    try { bumpAdminCacheVersion(); } catch (x) {}
+  }
+}
+// Run by the every-minute trigger: rebuild the admin payload if a change
+// (or the TTL) has emptied it, so opening the admin finds it ready.
+function warmAdminCache() {
+  const cache = CacheService.getScriptCache();
+  if (cache.get('bootstrap_v' + _adminCacheVersion() + '_meta')) return false;
+  getBootstrap();
+  return true;
+}
+// Run from the editor if the admin still feels slow: times a cold build and
+// a warm read of the admin payload.
+function diagnoseAdminLoad() {
+  const out = [];
+  let t0 = Date.now();
+  bumpAdminCacheVersion();
+  const cold = getBootstrap();
+  out.push('cold build (reads the sheet): ' + (Date.now() - t0) + ' ms');
+  t0 = Date.now();
+  getBootstrap();
+  out.push('warm read (cached): ' + (Date.now() - t0) + ' ms');
+  out.push('payload: ' + (cold.guests || []).length + ' guests, ' + (cold.rsvps || []).length + ' replies, ' +
+    Math.round(JSON.stringify(cold).length / 1024) + ' KB');
+  out.push('trigger installed: ' + _notificationTriggerInstalled());
+  const msg = 'diagnoseAdminLoad\n' + out.join('\n');
+  Logger.log(msg);
+  return msg;
 }
 
 // Patch invite_sent_at on guest objects from the sheet, reading only the
