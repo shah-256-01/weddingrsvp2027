@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005161754"/>
+<meta name="app-build" content="20261005162205"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1994,16 +1994,46 @@ function refreshStats() {
   var s = computeClientStats();
   // Preserve any server-only fields (e.g. perEvent) the by-event view uses.
   allStats = Object.assign({}, allStats, s);
-  var dupCls = s.duplicates > 0 ? ' danger' : '';
-  el.innerHTML =
-    '<div class="stat-card"><div class="stat-num">' + s.totalGuests     + '</div><div class="stat-lbl">Total Guests</div></div>' +
-    '<div class="stat-card"><div class="stat-num">' + s.rsvpd           + '</div><div class="stat-lbl">RSVPd</div></div>' +
-    '<div class="stat-card"><div class="stat-num">' + s.pending         + '</div><div class="stat-lbl">Pending</div></div>' +
-    '<div class="stat-card"><div class="stat-num">' + s.confirmedGuests + '</div><div class="stat-lbl">Guests Confirmed</div></div>' +
-    '<div class="stat-card"><div class="stat-num' + dupCls + '">' + s.duplicates + '</div><div class="stat-lbl">Duplicates</div></div>';
-  renderMissingInfoCard();
+  _renderGuestStatCards();
   renderDeadlineChip();
   renderRecentActivity();
+}
+function _guestFiltersActive() {
+  var v = function(id) { return ((document.getElementById(id) || {}).value || '').trim(); };
+  return !!(v('guest-search') || v('filter-relationship') || v('filter-group') || v('filter-rsvp') ||
+    v('filter-overseas') || _extraGuestFilter);
+}
+// The cards follow the Guests filters: with a filter on they count just the
+// matching invites ("12 of 469"). "People coming" counts each person once —
+// the most seats a reply accepted at any one event — not seats × events.
+function _renderGuestStatCards() {
+  var el = document.getElementById('guest-stats');
+  if (!el) return;
+  var filtering = _guestFiltersActive() && Array.isArray(filteredGuests);
+  var list = filtering ? filteredGuests : allGuests;
+  var codes = new Set(list.map(function(g) { return String(g.invitation_code || '').toUpperCase().trim(); }));
+  var replied = 0;
+  list.forEach(function(g) { if (allSubmittedCodes && allSubmittedCodes.has(String(g.invitation_code || ''))) replied++; });
+  var coming = 0;
+  activeRSVPs().forEach(function(r) {
+    if (!codes.has(String(r.invitation_code || '').toUpperCase().trim())) return;
+    var most = 0;
+    (allEvents || []).forEach(function(ev) {
+      if (String(r[ev.id + ' Attending'] || '').toLowerCase() === 'yes') most = Math.max(most, Number(r[ev.id + ' Guests']) || 0);
+    });
+    coming += most;
+  });
+  var dups = (allDuplicates || []).length;
+  var card = function(num, lbl, cls) {
+    return '<div class="stat-card"><div class="stat-num' + (cls || '') + '">' + num + '</div><div class="stat-lbl">' + lbl + '</div></div>';
+  };
+  el.innerHTML =
+    card(list.length + (filtering ? '<span style="font-size:.55em;color:var(--muted);"> of ' + allGuests.length + '</span>' : ''), filtering ? 'Invites (filtered)' : 'Invites') +
+    card(replied, 'Replied') +
+    card(Math.max(0, list.length - replied), 'Pending') +
+    card(coming, 'People coming') +
+    card(dups, 'Duplicates', dups > 0 ? ' danger' : '');
+  renderMissingInfoCard();
 }
 
 // Recent activity: 5 most recent RSVPs by timestamp. Purely informational,
@@ -2059,7 +2089,9 @@ function renderMissingInfoCard() {
   var host = document.getElementById('missing-info-chips');
   if (!card || !host) return;
   var noRel   = 0, noPhone = 0, noEmail = 0, notInvited = 0;
-  allGuests.forEach(function(g) {
+  // Follows the Guests filters, like the number cards above it.
+  var list = (_guestFiltersActive() && Array.isArray(filteredGuests)) ? filteredGuests : allGuests;
+  list.forEach(function(g) {
     if (!g.relationship) noRel++;
     if (!normalizePhoneForWhatsApp(g.phone)) noPhone++;
     if (!g.email) noEmail++;
@@ -2390,7 +2422,7 @@ function rebuildFilteredGuests() {
       }
       if (g._search.indexOf(q) === -1) return false;
     }
-    if (relFilter && g.relationship !== relFilter) return false;
+    if (relFilter && canonRel(g.relationship || '') !== canonRel(relFilter)) return false;
     if (groupFilter === '__none__' ? guestGroup(g) : (groupFilter && guestGroup(g) !== groupFilter)) return false;
     if (rsvpFilter === 'submitted' && !allSubmittedCodes.has(g.invitation_code)) return false;
     if (rsvpFilter === 'pending'   &&  allSubmittedCodes.has(g.invitation_code)) return false;
@@ -2433,6 +2465,7 @@ function renderGuestView() {
 }
 
 function renderCurrentView() {
+  _renderGuestStatCards();
   var container = document.getElementById('guest-view-container');
   if (currentView === 'event') { renderEventView(filteredGuests, allStats); return; }
   if (currentView === 'rsvp-status') { renderRSVPStatusView(filteredGuests, container); return; }
@@ -2912,7 +2945,8 @@ function _emptyGuestsWithClearBtn() {
   var r  = (document.getElementById('filter-relationship')|| {}).value || '';
   var s  = (document.getElementById('filter-rsvp')        || {}).value || '';
   var o  = (document.getElementById('filter-overseas')    || {}).value || '';
-  var anyFilter = q || r || s || o;
+  var gr = (document.getElementById('filter-group')       || {}).value || '';
+  var anyFilter = q || r || s || o || gr || _extraGuestFilter;
   return '<div class="empty-state">No guests found.' +
     (anyFilter
       ? ' <button class="btn btn-secondary btn-sm" onclick="clearAllFilters()" style="margin-left:.6rem;">Clear filters</button>'
@@ -2921,7 +2955,7 @@ function _emptyGuestsWithClearBtn() {
 }
 
 function clearAllFilters() {
-  var ids = ['guest-search','filter-relationship','filter-rsvp','filter-overseas'];
+  var ids = ['guest-search','filter-relationship','filter-group','filter-rsvp','filter-overseas'];
   ids.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
