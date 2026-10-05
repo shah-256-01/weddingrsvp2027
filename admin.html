@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261004093532"/>
+<meta name="app-build" content="20261005064511"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -469,7 +469,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <input type="checkbox" id="remember-me" checked style="width:18px;height:18px;accent-color:var(--gold);"/>
           Keep me signed in on this phone
         </label>
-        <button class="btn btn-primary" style="width:100%;" onclick="submitPin()">Enter</button>
+        <button class="btn btn-primary" id="pin-submit" style="width:100%;" onclick="submitPin()">Enter</button>
+        <div id="pin-progress" class="hidden" style="color:rgba(255,255,255,.75);font-size:.8rem;margin-top:.7rem;text-align:center;line-height:1.5;" aria-live="polite"></div>
       </div>
     </div>
   </div>
@@ -1549,15 +1550,36 @@ function showLoadError(containerId, msg, retryFn) {
 }
 
 // ── PIN Authentication ─────────────────────
+// Sign-in can take a few seconds (longer if the server is waking up), so
+// show it's happening: button says "Signing in…", inputs lock, and a
+// progress line appears if it's slow. Everything resets on an error.
+var _signingIn = false, _signInTimers = [];
+function _setSigningIn(on) {
+  _signingIn = on;
+  var btn = document.getElementById('pin-submit');
+  var input = document.getElementById('pin-input');
+  var prog = document.getElementById('pin-progress');
+  _signInTimers.forEach(clearTimeout); _signInTimers = [];
+  if (btn) { btn.disabled = on; btn.textContent = on ? 'Signing in…' : 'Enter'; btn.style.opacity = on ? .75 : 1; }
+  if (input) input.disabled = on;
+  if (prog) { prog.textContent = ''; prog.classList.add('hidden'); }
+  if (on && prog) {
+    _signInTimers.push(setTimeout(function() { prog.textContent = 'Still signing you in…'; prog.classList.remove('hidden'); }, 5000));
+    _signInTimers.push(setTimeout(function() { prog.textContent = 'The server is waking up — this can take up to 30 seconds. Please keep this page open.'; }, 12000));
+  }
+}
 function checkLogin() {
+  if (_signingIn) return;
   var pin = document.getElementById('pin-input').value.trim();
   if (!pin) {
     document.getElementById('pin-error').textContent = 'Please enter the PIN.';
     return;
   }
   document.getElementById('pin-error').textContent = '';
+  _setSigningIn(true);
   google.script.run
     .withSuccessHandler(function(ok) {
+      _setSigningIn(false);
       if (ok) {
         try { sessionStorage.setItem(ADMIN_PIN_KEY, pin); } catch (e) {}
         var rem = document.getElementById('remember-me');
@@ -1568,7 +1590,10 @@ function checkLogin() {
       }
     })
     .withFailureHandler(function(err) {
-      document.getElementById('pin-error').textContent = 'Error checking PIN. Please retry.';
+      _setSigningIn(false);
+      var m = String(err && err.message || '');
+      document.getElementById('pin-error').textContent = /too many/i.test(m) ? m
+        : 'Couldn’t reach the server. Check your connection and tap Enter again.';
     })
     .checkPin(pin);
 }
