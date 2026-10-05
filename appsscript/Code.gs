@@ -619,7 +619,7 @@ const EVENT_DETAIL_DEFAULTS = {
   Ma: { date: 'Sunday 27 December 2026', time: 'See invitation', venue: 'Thika / Nairobi',
         time_brides: '10:30 AM', venue_brides: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika',
         time_grooms: '10:00 AM', venue_grooms: 'Oshwal Centre, Nairobi' },
-  Lu: { date: 'Sunday 27 December 2026', time: 'After the Mandvo', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika' },
+  Lu: { date: 'Sunday 27 December 2026', time: '12:30 PM', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika' },
   MG: { date: 'Sunday 27 December 2026', time: '6:45 PM', venue: 'Oshwal Centre, Ring Road, Westlands, Nairobi' },
   We: { date: 'Monday 28 December 2026', time: '8:30 AM', venue: 'Aurora Bustani, Gate No. 5, Mangu Road, Thika' },
   BT: { date: 'Tuesday 29 December 2026', time: '6:30 PM', venue: 'Sarit Centre, Expo Hall, Nairobi', seating: 'TRUE' },
@@ -2840,8 +2840,8 @@ function diagnoseSpeedForTestGuest() {
 
 // ── addLuncheon ───────────────────────────────────────────
 // Run once from the Apps Script editor to bring the Luncheon back:
-//   - adds the Luncheon row to the Events tab (Sunday 27 December, after
-//     the Mandvo, Aurora Bustani — edit time/venue there if they differ)
+//   - adds the Luncheon row to the Events tab (Sunday 27 December 2026,
+//     12:30 PM, Aurora Bustani — from the invitation)
 //     or switches an existing one back on
 //   - adds the Lu_guests column to the Guests tab
 //   - gives every bride's-side Mandvo guest the same Luncheon seats (and
@@ -2864,6 +2864,16 @@ function addLuncheon() {
       if (actI > -1 && String(ev.getRange(at + 2, actI + 1).getValue()).toUpperCase() !== 'TRUE') {
         ev.getRange(at + 2, actI + 1).setValue('TRUE');
         eventMsg = 'switched the Luncheon back on';
+      }
+      // Time from the invitation, unless one has been typed in already.
+      const timeI = h.indexOf('time');
+      if (timeI > -1) {
+        const cell = ev.getRange(at + 2, timeI + 1);
+        const cur = String(cell.getValue()).trim();
+        if (!cur || /^(tbc|after the mandvo)$/i.test(cur)) {
+          cell.setNumberFormat('@').setValue(EVENT_DETAIL_DEFAULTS.Lu.time);
+          eventMsg += ' (time set to ' + EVENT_DETAIL_DEFAULTS.Lu.time + ')';
+        }
       }
     } else {
       const d = EVENT_DETAIL_DEFAULTS.Lu;
