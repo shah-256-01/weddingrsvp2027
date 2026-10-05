@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005152715"/>
+<meta name="app-build" content="20261005154001"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1766,6 +1766,7 @@ function _goToBuild(build) {
 }
 function _adminBusy() {
   if (typeof _guestSaving !== 'undefined' && _guestSaving) return true;
+  if (typeof _pendingGuestSaveCount === 'function' && _pendingGuestSaveCount()) return true;
   if (document.querySelector('.modal-overlay:not(.hidden)')) return true;
   if (typeof _msgx !== 'undefined' && _msgx.step === 'send') return true;
   return false;
@@ -2187,6 +2188,7 @@ function loadGuests(opts) {
     allDeletedGuests   = _canonGuests(data.deletedGuests);
     _showEmailStatus(data.emailStatus);
     _applyPendingMarks();
+    _applyPendingGuestEdits();
     _scheduleMarkFlush(1000);
     refreshStats();
     renderGuestView();
@@ -3200,65 +3202,26 @@ function saveGuest() {
     }
   });
 
-  _guestSaving = true;
-  var btn = document.getElementById('save-guest-btn');
-  btn.textContent = 'Saving...'; btn.disabled = true;
-
   var guestId = document.getElementById('m-id').value;
   if (guestId) {
     payload.id = guestId;
     // Send the rev we opened the form with; server rejects if the row moved.
     if (editingGuestRev) payload._rev = editingGuestRev;
-    google.script.run
-      .withSuccessHandler(function(res) {
-        _guestSaving = false;
-        btn.textContent = 'Save Guest'; btn.disabled = false;
-        closeGuestModal();
-        // Optimistic UI: merge payload into local guest and rerender
-        // immediately. _rev is taken from the server response (post-write),
-        // NOT from the payload (that's the pre-write rev we sent up).
-        var newRev = (res && res._rev) ? String(res._rev) : '';
-        for (var i = 0; i < allGuests.length; i++) {
-          if (allGuests[i].id === guestId) {
-            for (var k in payload) {
-              if (!Object.prototype.hasOwnProperty.call(payload, k)) continue;
-              if (k === '_rev') continue;
-              allGuests[i][k] = payload[k];
-            }
-            // The server derives fields on save (events from the seat
-            // cells) — take its word, then fold names back into our shape.
-            ['events'].concat(ALL_EVENT_IDS.map(function(id) { return id + '_guests'; })).forEach(function(f) {
-              if (res && res[f] !== undefined) allGuests[i][f] = res[f];
-            });
-            _canonAllocations(allGuests[i]);
-            if (newRev) allGuests[i]._rev = newRev;
-            delete allGuests[i]._search;   // any patched field could affect the searchable string
-            break;
-          }
-        }
-        if (newRev) editingGuestRev = newRev;
-        _invalidateGuestIdx();
-        try { renderGuestView(); refreshStats(); } catch (e) {}
-        showToast('Guest updated', 'success');
-      })
-      .withFailureHandler(function(err) {
-        _guestSaving = false;
-        btn.textContent = 'Save Guest'; btn.disabled = false;
-        var msg = (err && err.message) || 'Failed to update guest';
-        if (/^STALE:/.test(msg)) {
-          // Someone else saved this guest while the form was open. Don't
-          // silently overwrite — offer a Reload that refetches and closes.
-          showActionToast(msg.replace(/^STALE:\s*/, ''), 'Reload', function(dismiss) {
-            closeGuestModal();
-            loadGuests();
-            dismiss();
-          }, 12000);
-          return;
-        }
-        showToast(msg, 'error');
-      })
-      .updateGuest(payload);
-  } else {
+    // Edits show straight away and go to the sheet in the background —
+    // waiting on Google for every save made editing feel slow.
+    _applyGuestEditLocally(guestId, payload);
+    closeGuestModal();
+    _invalidateGuestIdx();
+    try { renderGuestView(); refreshStats(); } catch (e) {}
+    showToast('Guest updated', 'success', 1800);
+    _queueGuestSave(guestId, payload);
+    return;
+  }
+
+  _guestSaving = true;
+  var btn = document.getElementById('save-guest-btn');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  {
     google.script.run
       .withSuccessHandler(function(newGuest) {
         _guestSaving = false;
@@ -3284,6 +3247,101 @@ function saveGuest() {
       .addGuest(payload);
   }
 }
+
+// ── Background guest saves ─────────────────
+// One save in flight per guest; a second edit made meanwhile waits and is
+// sent next with the rev the first save produced. Dropped connections retry
+// (without the rev — the lost attempt may already have written). While
+// anything is unsaved, background refreshes are held off and re-applied
+// edits survive a reload of the list.
+var _guestSaves = {};   // id -> { payload, sending, next, tries }
+var _guestSaveRevs = {};   // id -> { from: rev sent, to: rev returned }
+function _pendingGuestSaveCount() { return Object.keys(_guestSaves).length; }
+function _applyGuestEditLocally(id, payload) {
+  var g = allGuests.find(function(x) { return x.id === id; });
+  if (!g) return null;
+  for (var k in payload) {
+    if (!Object.prototype.hasOwnProperty.call(payload, k) || k === '_rev') continue;
+    g[k] = payload[k];
+  }
+  _canonAllocations(g);
+  delete g._search;   // any patched field could affect the searchable string
+  return g;
+}
+function _applyPendingGuestEdits() {
+  Object.keys(_guestSaves).forEach(function(id) {
+    var s = _guestSaves[id];
+    _applyGuestEditLocally(id, s.next || s.payload);
+  });
+}
+function _queueGuestSave(id, payload) {
+  var s = _guestSaves[id];
+  if (s && s.sending) { s.next = payload; return; }
+  _guestSaves[id] = { payload: payload, sending: false, next: null, tries: 0 };
+  _sendGuestSave(id);
+}
+function _guestSaveName(id) {
+  var g = allGuests.find(function(x) { return x.id === id; });
+  return g ? ((g.first_name || '') + ' ' + (g.last_name || '')).trim() : 'a guest';
+}
+function _sendGuestSave(id) {
+  var s = _guestSaves[id];
+  if (!s) return;
+  var p = s.payload;
+  // Edited again after an earlier save came back: carry its new rev forward.
+  var r = _guestSaveRevs[id];
+  if (p._rev && r && p._rev === r.from) p._rev = r.to;
+  s.sending = true;
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var newRev = (res && res._rev) ? String(res._rev) : '';
+      if (newRev) _guestSaveRevs[id] = { from: p._rev || '', to: newRev };
+      var g = allGuests.find(function(x) { return x.id === id; });
+      if (s.next) {
+        var nx = s.next;
+        if (newRev && (!nx._rev || nx._rev === p._rev)) nx._rev = newRev;
+        _guestSaves[id] = { payload: nx, sending: false, next: null, tries: 0 };
+        if (g && newRev) g._rev = newRev;
+        _sendGuestSave(id);
+        return;
+      }
+      delete _guestSaves[id];
+      if (g) {
+        // The server derives fields on save (events from the seat cells).
+        ['events'].concat(ALL_EVENT_IDS.map(function(x) { return x + '_guests'; })).forEach(function(f) {
+          if (res && res[f] !== undefined) g[f] = res[f];
+        });
+        _canonAllocations(g);
+        if (newRev) g._rev = newRev;
+      }
+      if (newRev && editingGuestId === id) editingGuestRev = newRev;
+    })
+    .withFailureHandler(function(err) {
+      s.sending = false;
+      var msg = (err && err.message) || 'Failed to update guest';
+      var network = /failed to fetch|load failed|network|took too long|HTTP \d|busy/i.test(msg);
+      if (network && s.tries < 3) {
+        s.tries++;
+        if (s.next) { s.payload = s.next; s.next = null; }
+        delete s.payload._rev;
+        setTimeout(function() { _sendGuestSave(id); }, 2000 * Math.pow(2, s.tries - 1));
+        return;
+      }
+      delete _guestSaves[id];
+      var name = _guestSaveName(id);
+      var text = /^STALE:/.test(msg)
+        ? 'Your changes to ' + name + ' weren’t saved — someone else updated this guest first.'
+        : 'Your changes to ' + name + ' weren’t saved: ' + msg;
+      // Reload shows what's really in the sheet, so nothing looks saved that isn't.
+      showActionToast(text, 'Reload', function(dismiss) { loadGuests(); dismiss(); }, 20000);
+    })
+    .updateGuest(p);
+}
+window.addEventListener('beforeunload', function(e) {
+  if (!_pendingGuestSaveCount()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 function removeGuest(id) {
   // No confirm dialog — the action is reversible via the Undo toast and
