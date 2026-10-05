@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005160800"/>
+<meta name="app-build" content="20261005161754"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -618,6 +618,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <select id="rsvp-relationship-filter" onchange="applyRSVPFilters()">
         <option value="">All relationships</option>
       </select>
+      <select id="rsvp-group-filter" onchange="applyRSVPFilters()">
+        <option value="">All groups</option>
+      </select>
       <select id="rsvp-sort" onchange="applyRSVPFilters()">
         <option value="newest">Newest first</option>
         <option value="oldest">Oldest first</option>
@@ -640,6 +643,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 
     <!-- Event breakdown (reflects current filter) -->
     <div style="margin-bottom:1.2rem;">
+      <div id="rsvp-filter-summary" style="font-size:.85rem;color:var(--muted);margin:0 0 .6rem;"></div>
       <div class="rsvp-breakdown" id="rsvp-event-breakdown">
         <div class="skeleton-loader"></div>
       </div>
@@ -4234,37 +4238,33 @@ function clearCSV() {
 // ── RSVPs tab state ───────────────────────────────────────
 var rsvpFilters = { search: '', eventId: '', response: '', relationship: '', sort: 'newest' };
 var rsvpView = 'submissions';
-var _rsvpFilterOptionsPopulated = false;
 
 function loadRSVPsTab() {
   populateRSVPFilterOptions();
   renderRSVPsTab();
 }
 
+// Rebuilt every time the tab renders (keeping the current choice), so
+// relationships and groups imported after the tab was first opened appear.
 function populateRSVPFilterOptions() {
-  if (_rsvpFilterOptionsPopulated) return;
-  _rsvpFilterOptionsPopulated = true;
-
-  var evSel = document.getElementById('rsvp-event-filter');
-  if (evSel && allEvents.length) {
-    evSel.innerHTML = '<option value="">All events</option>' +
-      allEvents.map(function(ev) {
-        return '<option value="' + escapeAttr(ev.id) + '">' + escapeAttr(ev.icon) + ' ' + escapeAttr(ev.name) + '</option>';
-      }).join('');
+  function fill(sel, allLabel, items) {
+    if (!sel) return;
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">' + allLabel + '</option>' + items.map(function(it) {
+      return '<option value="' + escapeAttr(it[0]) + '">' + escapeAttr(it[1]) + '</option>';
+    }).join('');
+    if (cur && items.some(function(it) { return it[0] === cur; })) sel.value = cur;
   }
-
-  var relSel = document.getElementById('rsvp-relationship-filter');
-  if (relSel) {
-    var rels = {};
-    allGuests.forEach(function(g) {
-      var r = (g.relationship || '').trim();
-      if (r) rels[r] = true;
-    });
-    relSel.innerHTML = '<option value="">All relationships</option>' +
-      Object.keys(rels).sort().map(function(r) {
-        return '<option value="' + escapeAttr(r) + '">' + escapeAttr(r) + '</option>';
-      }).join('');
+  if (allEvents.length) {
+    fill(document.getElementById('rsvp-event-filter'), 'All events',
+      allEvents.map(function(ev) { return [ev.id, ((ev.icon || '') + ' ' + ev.name).trim()]; }));
   }
+  var rels = {};
+  allGuests.forEach(function(g) { var r = canonRel(g.relationship || ''); if (r) rels[r] = true; });
+  fill(document.getElementById('rsvp-relationship-filter'), 'All relationships',
+    Object.keys(rels).sort().map(function(r) { return [r, r]; }));
+  fill(document.getElementById('rsvp-group-filter'), 'All groups',
+    allGroupNames().map(function(gname) { return [gname, gname]; }));
 }
 
 function applyRSVPFilters() {
@@ -4272,6 +4272,7 @@ function applyRSVPFilters() {
   rsvpFilters.eventId      = document.getElementById('rsvp-event-filter').value;
   rsvpFilters.response     = document.getElementById('rsvp-response-filter').value;
   rsvpFilters.relationship = document.getElementById('rsvp-relationship-filter').value;
+  rsvpFilters.group        = (document.getElementById('rsvp-group-filter') || {}).value || '';
   rsvpFilters.sort         = document.getElementById('rsvp-sort').value;
   renderRSVPsTab();
 }
@@ -4281,6 +4282,7 @@ function clearRSVPFilters() {
   document.getElementById('rsvp-event-filter').value = '';
   document.getElementById('rsvp-response-filter').value = '';
   document.getElementById('rsvp-relationship-filter').value = '';
+  var grpSel = document.getElementById('rsvp-group-filter'); if (grpSel) grpSel.value = '';
   document.getElementById('rsvp-sort').value = 'newest';
   applyRSVPFilters();
 }
@@ -4352,8 +4354,12 @@ function getFilteredRSVPs() {
     if (rsvpFilters.relationship) {
       var code = String(r.invitation_code || '').toUpperCase().trim();
       var family = byCode[code] || [];
-      var hasRel = family.some(function(g) { return g.relationship === rsvpFilters.relationship; });
+      var hasRel = family.some(function(g) { return canonRel(g.relationship || '') === rsvpFilters.relationship; });
       if (!hasRel) return false;
+    }
+    if (rsvpFilters.group) {
+      var fam = byCode[String(r.invitation_code || '').toUpperCase().trim()] || [];
+      if (!fam.some(function(g) { return guestGroup(g) === rsvpFilters.group; })) return false;
     }
 
     return true;
@@ -4375,7 +4381,9 @@ function renderRSVPsTab() {
     return;
   }
 
+  populateRSVPFilterOptions();
   var filtered = getFilteredRSVPs();
+  _renderRSVPFilterSummary(filtered);
   renderRSVPEventBreakdown(filtered);
 
   // Reset the shared "Show more" counter whenever the view or the filtered
@@ -4413,6 +4421,25 @@ function renderRSVPsTab() {
   }
 }
 
+// "Showing 12 of 140 replies · 31 people coming" — changes with every filter.
+function _renderRSVPFilterSummary(filtered) {
+  var el = document.getElementById('rsvp-filter-summary');
+  if (!el) return;
+  var total = activeRSVPs().length;
+  var ids = rsvpFilters.eventId ? [rsvpFilters.eventId] : (allEvents || []).map(function(e) { return e.id; });
+  var coming = 0;
+  filtered.forEach(function(r) {
+    var most = 0;
+    ids.forEach(function(id) { if (r[id + ' Attending'] === 'Yes') most = Math.max(most, Number(r[id + ' Guests']) || 0); });
+    coming += most;
+  });
+  var any = rsvpFilters.search || rsvpFilters.eventId || rsvpFilters.response || rsvpFilters.relationship || rsvpFilters.group;
+  var ev = rsvpFilters.eventId ? (eventsById[rsvpFilters.eventId] || {}).name : '';
+  el.innerHTML = (any ? 'Showing <strong>' + filtered.length + '</strong> of ' + total + ' replies'
+                      : '<strong>' + total + '</strong> replies') +
+    ' · <strong>' + coming + '</strong> ' + (coming === 1 ? 'person' : 'people') + ' coming' +
+    (ev ? ' to ' + escapeAttr(ev) : ' to at least one event');
+}
 function renderRSVPEventBreakdown(filtered) {
   var breakdownEl = document.getElementById('rsvp-event-breakdown');
   if (!filtered.length) {
@@ -4431,7 +4458,11 @@ function renderRSVPEventBreakdown(filtered) {
       else if (att === 'No') { acc[ev.id].no++; }
     }
   });
-  breakdownEl.innerHTML = allEvents.map(function(ev) {
+  // Filtering by one event shows just that event's numbers.
+  var shownEvents = rsvpFilters.eventId
+    ? allEvents.filter(function(ev) { return ev.id === rsvpFilters.eventId; })
+    : allEvents;
+  breakdownEl.innerHTML = shownEvents.map(function(ev) {
     var yes = acc[ev.id].yes, no = acc[ev.id].no, totalGuests = acc[ev.id].guests;
     return '<div class="event-rsvp-card">' +
       '<div class="event-rsvp-header"><span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
