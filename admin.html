@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005180312"/>
+<meta name="app-build" content="20261005181314"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -2589,7 +2589,9 @@ function renderGroupsView(guests, container) {
     var b = by[k];
     ['invites', 'people', 'replied', 'coming'].forEach(function(f) { tot[f] += b[f]; });
     var val = k || '__none__';
-    return '<tr class="groups-row" style="cursor:pointer;" onclick="openGroupFromSummary(\'' + escapeAttr(val).replace(/'/g, '&#39;') + '\')">' +
+    // The name rides in a data attribute: a group like "Bejul's Family" broke
+    // when written into the onclick's quoted string.
+    return '<tr class="groups-row" style="cursor:pointer;" data-group="' + escapeAttr(val) + '" onclick="openGroupFromSummary(this.dataset.group)">' +
       '<td><strong>' + escapeAttr(k || '(No group)') + '</strong></td>' +
       '<td style="text-align:center;">' + b.invites + '</td>' +
       '<td style="text-align:center;"><strong>' + b.people + '</strong></td>' +
@@ -5617,7 +5619,7 @@ function _msgxGroupCard(rel, isAll) {
     meta = replied + ' of ' + total + ' replied';
     pct = total ? Math.round(replied / total * 100) : 0;
   }
-  return '<button type="button" class="msgx-group' + (done ? ' msgx-group--done' : '') + (isAll ? ' msgx-group--all' : '') + '" onclick="msgxPickGroup(\'' + escapeAttr(rel).replace(/'/g, "\\'") + '\')">' +
+  return '<button type="button" class="msgx-group' + (done ? ' msgx-group--done' : '') + (isAll ? ' msgx-group--all' : '') + '" data-val="' + escapeAttr(rel) + '" onclick="msgxPickGroup(this.dataset.val)">' +
     '<div class="msgx-group__body">' +
       '<div class="msgx-group__name">' + escapeAttr(_msgxGroupLabel(rel)) + '</div>' +
       '<div class="msgx-group__line">' + line + '</div>' +
@@ -5758,7 +5760,7 @@ function _msgxRenderSubs(rel) {
   host.classList.remove('hidden');
   if (_msgx.sub && _msgx.sub !== '__none__' && !counts[_msgx.sub]) _msgx.sub = '';
   var chip = function(val, label, n) {
-    return '<button type="button" class="' + (_msgx.sub === val ? 'active' : '') + '" onclick="msgxSub(\'' + escapeAttr(val).replace(/'/g, "\\'") + '\')">' +
+    return '<button type="button" class="' + (_msgx.sub === val ? 'active' : '') + '" data-val="' + escapeAttr(val) + '" onclick="msgxSub(this.dataset.val)">' +
       escapeAttr(label) + (n != null ? ' · ' + n : '') + '</button>';
   };
   host.innerHTML = chip('', 'All groups', everyone.length) +
