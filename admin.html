@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261013151806"/>
+<meta name="app-build" content="20261013162208"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -46,6 +46,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .btn-ghost:hover{color:var(--wine);}
 .btn-danger{background:var(--red);color:#fde;}
 .btn-danger:hover{background:#6b1515;}
+/* Record-reply Yes/No: unmistakable when picked */
+.rr-choice .rr-btn{min-width:70px;min-height:38px;border:1px solid var(--border,#d9cfc4);background:#fff;color:var(--ink);font-size:.8rem;letter-spacing:.08em;cursor:pointer;}
+.rr-choice .rr-btn.on-yes{background:var(--green);border-color:var(--green);color:#fff;}
+.rr-choice .rr-btn.on-no{background:var(--red);border-color:var(--red);color:#fff;}
 #delete-confirm-go:disabled{opacity:.35;cursor:not-allowed;background:var(--red);}
 .btn-icon{padding:0;width:40px;height:40px;min-height:40px;justify-content:center;font-size:16px;}
 .admin-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);}
@@ -1151,7 +1155,7 @@ function _isRemembered() { return !!_rememberedPin(); }
   var ADMIN_FETCH_TIMEOUT_MS = 30000;
   // Bulk writes can wait behind other changes and take longer; Apps Script
   // itself allows up to 6 minutes.
-  var LONG_CALL_TIMEOUT_MS = { bulkAddGuests: 150000, bulkUpdate: 90000, bulkDelete: 90000, bulkMarkInviteSent: 90000 };
+  var LONG_CALL_TIMEOUT_MS = { bulkAddGuests: 150000, bulkUpdate: 90000, bulkDelete: 90000, bulkMarkInviteSent: 90000, adminRecordRSVP: 90000 };
   function invoke(method, arg, state) {
     var body;
     if (method === 'checkPin') {
@@ -3860,7 +3864,9 @@ function openViewGuest(id) {
         '<span class="view-guest-status__dot" style="background:var(--green);"></span>' +
         '<div class="view-guest-status__body"><div class="view-guest-status__label">RSVP submitted</div>' + detail + '</div>' +
       '</div>' +
-      '<div style="display:flex;justify-content:flex-end;margin-top:.6rem;">' +
+      '<div style="display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;">' +
+        '<button class="btn btn-secondary btn-sm" onclick="openRecordReply(\'' + escapeAttr(g.id) + '\')" ' +
+          'title="Change their answers (e.g. they told you by phone)">&#9998; Change reply</button>' +
         '<button class="btn btn-danger-ghost btn-sm" onclick="resetGuestRSVP(\'' + escapeAttr(g.id) + '\', this)" ' +
           'title="Clear their response so they can RSVP again">&#8634; Reset RSVP</button>' +
       '</div>';
@@ -3882,6 +3888,11 @@ function openViewGuest(id) {
       '</div>';
   }
 
+  if (!isSubmitted && evIds.length) {
+    statusHtml += '<div style="display:flex;justify-content:flex-end;margin-top:.6rem;">' +
+      '<button class="btn btn-primary btn-sm" onclick="openRecordReply(\'' + escapeAttr(g.id) + '\')" ' +
+        'title="They replied by phone, message or in person">&#9998; Record their reply</button></div>';
+  }
   var html = hero + detailsHtml + allocHtml + statusHtml;
 
   document.getElementById('view-modal-title').textContent = rawFullName;
@@ -3918,6 +3929,116 @@ function resetGuestRSVP(guestId, btn) {
       showToast('Reset failed: ' + ((err && err.message) || 'Unknown error'), 'error');
     })
     .resetGuestRSVP({ code: g.invitation_code });
+}
+
+// ── Record / change a reply for a guest (manual responses) ──
+// Only the events they're invited to; seats capped at their allocation;
+// named seats are tick boxes. Saving replaces any earlier reply and sends
+// no emails. Server: adminRecordRSVP.
+var _recordReplyGuestId = null;
+function _latestReplyFor(g) {
+  var code = String(g.invitation_code || '').toUpperCase().trim();
+  return _latestReplyByCode()[code] || null;
+}
+function openRecordReply(guestId) {
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  if (!g) return;
+  if (!g.invitation_code) { showToast('Give this guest an invitation code first (Edit guest).', 'error'); return; }
+  var evIds = String(g.events || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  if (!evIds.length) { showToast('This guest isn’t invited to any events yet.', 'info'); return; }
+  _recordReplyGuestId = guestId;
+  var prev = _latestReplyFor(g);
+  var rows = evIds.map(function(id) {
+    var ev = eventsById[id] || { name: id, icon: '' };
+    var names = _splitNames(sanitiseValue(g[id + '_names']));
+    var seats = names.length || Number(g[id + '_guests']) || 1;
+    var att = prev ? String(prev[id + ' Attending'] || '') : '';
+    var prevGuests = prev ? Number(prev[id + ' Guests']) || 0 : 0;
+    var prevNames = prev ? _splitNames(String(prev[id + ' Names'] || '')) : [];
+    var who;
+    if (names.length) {
+      who = '<div class="rr-who" data-ev="' + escapeAttr(id) + '">' + names.map(function(n) {
+        var on = !prev || att !== 'Yes' || prevNames.indexOf(n) > -1;
+        return '<label style="display:inline-flex;gap:.35rem;align-items:center;margin:.2rem .8rem .2rem 0;font-size:.85rem;">' +
+          '<input type="checkbox" value="' + escapeAttr(n) + '"' + (on ? ' checked' : '') + '/> ' + escapeAttr(n) + '</label>';
+      }).join('') + '</div>';
+    } else {
+      var val = att === 'Yes' ? Math.min(prevGuests || seats, seats) : seats;
+      who = '<div class="rr-who" data-ev="' + escapeAttr(id) + '" style="font-size:.85rem;">People coming: ' +
+        '<input type="number" min="1" max="' + seats + '" value="' + val + '" style="width:4.5rem;margin:0 .3rem;" ' +
+        'oninput="if(+this.value>+this.max)this.value=this.max"/> of ' + seats + '</div>';
+    }
+    return '<div class="rr-row" data-ev="' + escapeAttr(id) + '" style="border-bottom:1px solid rgba(0,0,0,.07);padding:.7rem 0;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;">' +
+        '<strong>' + escapeAttr((ev.icon ? ev.icon + ' ' : '') + ev.name) + '</strong>' +
+        '<span class="rr-choice" style="display:flex;gap:.3rem;">' +
+          '<button type="button" class="rr-btn' + (att === 'Yes' ? ' on-yes' : '') + '" data-v="Yes" onclick="_rrPick(this)">YES</button>' +
+          '<button type="button" class="rr-btn' + (att === 'No' ? ' on-no' : '') + '" data-v="No" onclick="_rrPick(this)">NO</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="rr-detail" style="margin-top:.45rem;' + (att === 'Yes' ? '' : 'display:none;') + '">' + who + '</div>' +
+      '<input type="hidden" class="rr-val" value="' + (att === 'Yes' || att === 'No' ? att : '') + '"/>' +
+    '</div>';
+  }).join('');
+  document.getElementById('view-modal-title').textContent = (prev ? 'Change reply · ' : 'Record reply · ') + _guestDisplayName(g);
+  document.getElementById('view-modal-body').innerHTML =
+    '<p style="font-size:.85rem;color:var(--muted);margin-bottom:.4rem;">' +
+      (prev ? 'This replaces their current reply.' : 'For guests who replied by phone, message or in person.') +
+      ' Choose Yes or No for each event. No emails are sent.</p>' +
+    '<div id="rr-list">' + rows + '</div>' +
+    '<div id="rr-error" style="color:var(--red);font-size:.85rem;margin-top:.6rem;"></div>' +
+    '<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;">' +
+      '<button type="button" class="btn btn-ghost" onclick="closeViewModal()">Cancel</button>' +
+      '<button type="button" class="btn btn-primary" id="rr-save" onclick="saveRecordReply()">Save reply</button>' +
+    '</div>';
+  document.getElementById('view-modal-overlay').classList.remove('hidden');
+}
+function _rrPick(btn) {
+  var row = btn.closest('.rr-row');
+  row.querySelectorAll('.rr-choice button').forEach(function(b) {
+    b.classList.remove('on-yes', 'on-no');
+  });
+  btn.classList.add(btn.getAttribute('data-v') === 'Yes' ? 'on-yes' : 'on-no');
+  row.querySelector('.rr-val').value = btn.getAttribute('data-v');
+  row.querySelector('.rr-detail').style.display = btn.getAttribute('data-v') === 'Yes' ? '' : 'none';
+  document.getElementById('rr-error').textContent = '';
+}
+function saveRecordReply() {
+  var g = allGuests.find(function(x) { return x.id === _recordReplyGuestId; });
+  if (!g) return;
+  var err = document.getElementById('rr-error');
+  var events = [], problem = '';
+  document.querySelectorAll('#rr-list .rr-row').forEach(function(row) {
+    var id = row.getAttribute('data-ev');
+    var name = (eventsById[id] || {}).name || id;
+    var v = row.querySelector('.rr-val').value;
+    if (!v) { problem = problem || 'Choose Yes or No for ' + name + '.'; return; }
+    if (v === 'No') { events.push({ id: id, attending: false, guests: 0, names: [] }); return; }
+    var ticks = row.querySelectorAll('.rr-who input[type=checkbox]');
+    if (ticks.length) {
+      var picked = Array.prototype.filter.call(ticks, function(c) { return c.checked; }).map(function(c) { return c.value; });
+      if (!picked.length) { problem = problem || 'Tick who is coming to ' + name + ', or choose No.'; return; }
+      events.push({ id: id, attending: true, guests: picked.length, names: picked });
+    } else {
+      var inp = row.querySelector('.rr-who input[type=number]');
+      var n = Math.max(1, Math.min(Number(inp.max) || 1, Math.round(Number(inp.value) || 0)));
+      events.push({ id: id, attending: true, guests: n, names: [] });
+    }
+  });
+  if (problem) { err.textContent = problem; return; }
+  var btn = document.getElementById('rr-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  google.script.run
+    .withSuccessHandler(function() {
+      closeViewModal();
+      showToast('Reply saved for ' + _guestDisplayName(g) + '.', 'success');
+      loadGuests({ silent: true });
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false; btn.textContent = 'Save reply';
+      err.textContent = (e && e.message) || 'Couldn’t save the reply.';
+    })
+    .adminRecordRSVP({ guestId: g.id, events: events });
 }
 
 // Holds the RSVP currently open in the edit modal so saveRSVPEdits can read

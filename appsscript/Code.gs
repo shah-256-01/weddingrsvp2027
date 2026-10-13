@@ -124,7 +124,7 @@ function doPost(e) {
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
       'generateCode', 'markInviteSent', 'updateRSVP', 'getBootstrap',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
-      'deleteRSVPSubmission', 'resetGuestRSVP',
+      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     isAdminAction = pinActions.indexOf(action) > -1;
@@ -203,6 +203,7 @@ function doPost(e) {
     else if (action === 'bulkMarkInviteSent') result = bulkMarkInviteSent(payload);
     else if (action === 'deleteRSVPSubmission') result = deleteRSVPSubmission(payload);
     else if (action === 'resetGuestRSVP')   result = resetGuestRSVP(payload);
+    else if (action === 'adminRecordRSVP')  result = adminRecordRSVP(payload);
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'validate') {
       const rateKey = 'validate_' + String(payload.code || '').toUpperCase().trim();
@@ -247,7 +248,7 @@ function doPost(e) {
       // invites go out, and throwing away the saved guest list each time
       // would slow guest sign-ins. Admin loads read the sent column fresh
       // instead (see _withFreshInviteSent).
-      'deleteRSVPSubmission', 'resetGuestRSVP',
+      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
       try { bumpAdminCacheVersion(); } catch (e) { /* best-effort */ }
@@ -1460,6 +1461,42 @@ function markRSVPRowsDeleted(invitationCode) {
 // marked DELETED (kept for the record), exactly as deleting a guest does.
 // The guest's row, code and invite_sent_at are untouched, so they drop back
 // to "Awaiting RSVP" and can sign in and resubmit.
+// ── adminRecordRSVP ──────────────────────────────────────
+// For guests who reply by phone, message or in person: the admin records
+// (or changes) their answers. Same checks as a guest's own reply (only
+// events they're invited to, within their seats, reserved names), but no
+// deadline, and no emails to the guest or the couple. Any earlier reply is
+// set aside (soft-deleted, like Reset RSVP) only once the new one is valid.
+// payload: { guestId, events: [{ id, attending, guests, names }] }
+function adminRecordRSVP(payload) {
+  const guestId = String((payload && payload.guestId) || '').trim();
+  if (!guestId) throw new Error('guestId required');
+  _guestsCache = null;
+  const guest = (getGuestsCached() || []).find(g =>
+    String(g.id) === guestId && String(g.status || '').toUpperCase() !== 'DELETED');
+  if (!guest) throw new Error('Guest not found.');
+  const code = String(guest.invitation_code || '').toUpperCase().trim();
+  if (!code) throw new Error('This guest has no invitation code yet — give them one first.');
+  const name = (String(guest.first_name || '') + ' ' + String(guest.last_name || '')).trim();
+  const events = (payload.events || [])
+    .filter(ev => ev && EVENT_IDS.includes(ev.id))
+    .map(ev => ({ id: ev.id, attending: !!ev.attending, guests: Number(ev.guests) || 0,
+                  names: Array.isArray(ev.names) ? ev.names : [], notes: String(ev.notes || ''),
+                  name: ((getEvents() || []).find(e => e.id === ev.id) || {}).name || ev.id }));
+  // Validate on a copy first so a bad entry never wipes the existing reply.
+  _checkRSVPEvents(JSON.parse(JSON.stringify(events)), guest);
+  const invited = EVENT_IDS.filter(id => _eventAllocation(guest, id).invited);
+  const missing = invited.filter(id => !events.some(ev => ev.id === id));
+  if (missing.length) throw new Error('Please answer every event this guest is invited to.');
+  _clearPendingRSVPs(code);
+  markRSVPRowsDeleted(code);
+  _commitRSVP({
+    submissionName: name, invitationCode: code, submittedAt: new Date().toISOString(),
+    events: events, adminEntry: true,
+  }, true);
+  return { recorded: true, code: code, name: name };
+}
+
 function resetGuestRSVP(payload) {
   const code = String((payload && payload.code) || '').toUpperCase().trim();
   if (!code) throw new Error('Invitation code required.');
@@ -2263,6 +2300,11 @@ function _commitRSVP(payload, fromHold) {
   // (returns false) we fall back to sending inline — a slower response for
   // this one guest is far better than silently dropping their confirmation.
   let queued = false;
+  if (payload.adminEntry) {
+    // Recorded by the couple in the admin — nobody needs an email about it.
+    try { bumpAdminCacheVersion(); } catch (e) {}
+    return { submitted: true };
+  }
   if (_notificationTriggerInstalled()) {
     queued = _enqueueNotification({ payload: payload, guestEmail: validGuestEmail ? guestEmailAddr : '' });
   }
