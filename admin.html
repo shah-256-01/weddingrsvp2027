@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261005181947"/>
+<meta name="app-build" content="20261013151806"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -818,6 +818,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         </div>
         <div id="msgx-list-head"></div>
         <div class="msgx-seg msgx-subs" id="msgx-subs" aria-label="Group"></div>
+        <div class="msgx-seg msgx-subs" id="msgx-where" aria-label="Overseas or in Kenya"></div>
         <div class="msgx-seg" id="msgx-seg" role="tablist"></div>
         <input type="search" class="msgx-search" id="msgx-search" placeholder="Find a guest by name or code" oninput="msgxSearch(this.value)" autocomplete="off"/>
         <div id="msgx-rows"></div>
@@ -5461,7 +5462,7 @@ var MSGX_NONE = '__none__';       // guests with no (or an unknown) relationship
 var _MSGX_SS = 'wa:msgxGroup';
 var MSGX_PAGE = 50;
 // group: null = on the group picker; '' = everyone; otherwise a relationship.
-var _msgx = { group: null, sub: '', step: 'groups', tab: 'todo', q: '', shown: MSGX_PAGE, current: null, sent: false, editing: false };
+var _msgx = { group: null, sub: '', where: '', step: 'groups', tab: 'todo', q: '', shown: MSGX_PAGE, current: null, sent: false, editing: false };
 var _msgxDrafts = {};   // guestId → one-off edited message (this page load only)
 var _msgxTpl = {};      // guestId → template picked on the send screen
 
@@ -5503,6 +5504,7 @@ function _msgxInGroup(rel) {
   }
   return allGuests.filter(function(g) { return g.relationship === rel; });
 }
+function _msgxIsOverseas(g) { return String(sanitiseValue(g.is_overseas) || '').toUpperCase() === 'TRUE'; }
 function _msgxReplied(g) { return allSubmittedCodes.has(g.invitation_code); }
 // Scope for the current mode:
 //  - invite: everyone in the group
@@ -5529,9 +5531,15 @@ function _msgxBuckets(mode, rel) {
   var all = _msgxInGroup(rel);
   // Inside a relationship's list, an optional group chip narrows everything
   // (counts, tabs and the sending queue) to that group.
-  var sub = (_msgx.step !== 'groups' && rel === (_msgx.group || '')) ? _msgx.sub : '';
-  var inSub = function(g) { return !sub || (sub === '__none__' ? !guestGroup(g) : guestGroup(g) === sub); };
-  if (sub) all = all.filter(inSub);
+  var inList = _msgx.step !== 'groups' && rel === (_msgx.group || '');
+  var sub = inList ? _msgx.sub : '';
+  // …and so can Overseas / In Kenya (works with any group chip).
+  var where = inList ? _msgx.where : '';
+  var inSub = function(g) {
+    if (where && (where === 'overseas') !== _msgxIsOverseas(g)) return false;
+    return !sub || (sub === '__none__' ? !guestGroup(g) : guestGroup(g) === sub);
+  };
+  if (sub || where) all = all.filter(inSub);
   var b = { all: all, invitable: all.filter(_msgxHasEvents), scope: msgScopeGuests(mode, rel).filter(inSub),
     todo: [], done: [], skipped: [], noPhone: [], noEvents: all.filter(function(g) { return !_msgxHasEvents(g); }), skips: skips };
   b.scope.forEach(function(g) {
@@ -5599,6 +5607,7 @@ function renderMessagesList() { if (_msgx.step !== 'send') msgxRender(); }
 function msgxShowGroups() {
   _msgx.group = null;
   _msgx.sub = '';
+  _msgx.where = '';
   _msgx.current = null;
   _ssSet(_MSGX_SS, '__picker__');
   if (/sender=/.test(window.location.hash)) {
@@ -5658,6 +5667,7 @@ function _msgxGroupCard(rel, isAll) {
 function msgxPickGroup(rel) {
   _msgx.group = rel;
   _msgx.sub = '';
+  _msgx.where = '';
   _msgx.tab = 'todo';
   _msgx.q = '';
   _msgx.shown = MSGX_PAGE;
@@ -5682,7 +5692,9 @@ function _msgxRenderList() {
   var chase = msgMode === 'chase';
   var b = _msgxBuckets(msgMode, rel);
   var total = b.invitable.length;
-  var label = _msgxGroupLabel(rel);
+  var label = _msgxGroupLabel(rel) +
+    (_msgx.sub ? ' › ' + (_msgx.sub === '__none__' ? 'No group' : _msgx.sub) : '') +
+    (_msgx.where ? ' › ' + (_msgx.where === 'overseas' ? 'Overseas' : 'In Kenya') : '');
   var sentToday = 0;
   if (!chase) {
     var inGroup = new Set(b.all.map(function(g) { return g.id; }));
@@ -5777,22 +5789,47 @@ function _msgxRow(g) {
 function _msgxRenderSubs(rel) {
   var host = document.getElementById('msgx-subs');
   if (!host) return;
-  var everyone = _msgxInGroup(rel);
-  var counts = {}, none = 0;
-  everyone.forEach(function(g) { var x = guestGroup(g); if (x) counts[x] = (counts[x] || 0) + 1; else none++; });
+  _msgxRenderWhere(rel);
+  // Group counts follow the Overseas / In Kenya choice.
+  // Which chips exist comes from the whole group; the numbers follow the
+  // Overseas / In Kenya choice (a group can show 0).
+  var whole = _msgxInGroup(rel);
+  var everyone = whole.filter(function(g) { return !_msgx.where || (_msgx.where === 'overseas') === _msgxIsOverseas(g); });
+  var counts = {}, none = 0, anyNone = false;
+  whole.forEach(function(g) { var x = guestGroup(g); if (x) counts[x] = 0; else anyNone = true; });
+  everyone.forEach(function(g) { var x = guestGroup(g); if (x) counts[x]++; else none++; });
   var names = Object.keys(counts).sort(function(a, b) { return a.localeCompare(b); });
   if (!names.length) { host.innerHTML = ''; host.classList.add('hidden'); _msgx.sub = ''; return; }
   host.classList.remove('hidden');
-  if (_msgx.sub && _msgx.sub !== '__none__' && !counts[_msgx.sub]) _msgx.sub = '';
+  if (_msgx.sub && _msgx.sub !== '__none__' && !(_msgx.sub in counts)) _msgx.sub = '';
   var chip = function(val, label, n) {
     return '<button type="button" class="' + (_msgx.sub === val ? 'active' : '') + '" data-val="' + escapeAttr(val) + '" onclick="msgxSub(this.dataset.val)">' +
       escapeAttr(label) + (n != null ? ' · ' + n : '') + '</button>';
   };
   host.innerHTML = chip('', 'All groups', everyone.length) +
     names.map(function(n) { return chip(n, n, counts[n]); }).join('') +
-    (none ? chip('__none__', 'No group', none) : '');
+    (anyNone ? chip('__none__', 'No group', none) : '');
 }
 function msgxSub(val) { _msgx.sub = val; _msgx.tab = 'todo'; _msgx.shown = MSGX_PAGE; _msgxRenderList(); }
+// Overseas / In Kenya chips — under every group, shown when it has any
+// overseas guests. Counts follow the group chip.
+function _msgxRenderWhere(rel) {
+  var host = document.getElementById('msgx-where');
+  if (!host) return;
+  var list = _msgxInGroup(rel).filter(function(g) {
+    var s = _msgx.sub;
+    return !s || (s === '__none__' ? !guestGroup(g) : guestGroup(g) === s);
+  });
+  var abroad = list.filter(_msgxIsOverseas).length;
+  if (!_msgxInGroup(rel).some(_msgxIsOverseas)) { host.innerHTML = ''; host.classList.add('hidden'); _msgx.where = ''; return; }
+  host.classList.remove('hidden');
+  var chip = function(val, label, n) {
+    return '<button type="button" class="' + (_msgx.where === val ? 'active' : '') + '" data-val="' + val + '" onclick="msgxWhere(this.dataset.val)">' +
+      label + ' · ' + n + '</button>';
+  };
+  host.innerHTML = chip('', 'Everywhere', list.length) + chip('overseas', '&#127757; Overseas', abroad) + chip('local', 'In Kenya', list.length - abroad);
+}
+function msgxWhere(val) { _msgx.where = val; _msgx.tab = 'todo'; _msgx.shown = MSGX_PAGE; _msgxRenderList(); }
 
 function msgxTab(tab) { _msgx.tab = tab; _msgx.shown = MSGX_PAGE; _msgxRenderList(); }
 function msgxMore() { _msgx.shown += MSGX_PAGE; _msgxRenderList(); }
