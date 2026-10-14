@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261013162208"/>
+<meta name="app-build" content="20261014175900"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -245,6 +245,51 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .group-card-body{padding:.8rem 1.1rem;}
 .group-guest-row{display:flex;align-items:center;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:var(--fs-md);}
 .group-guest-row:last-child{border-bottom:none;}
+/* ── RSVPs tab ── */
+.rsvp-scope-note{background:var(--gold-pale);border:1px solid rgba(184,146,74,.35);padding:.5rem .8rem;font-size:.82rem;margin:-.3rem 0 1rem;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;}
+.rsvp-overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin-bottom:1.1rem;}
+.rsvp-ov{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);padding:.85rem .9rem;text-align:left;cursor:pointer;font:inherit;color:inherit;}
+.rsvp-ov:hover{border-color:var(--gold);}
+.rsvp-ov__num{font-family:'Cormorant Garamond',serif;font-size:1.9rem;color:var(--wine);line-height:1;}
+.rsvp-ov__num small{font-size:.55em;color:var(--muted);}
+.rsvp-ov__lbl{font-size:.78rem;color:var(--ink);margin-top:.3rem;font-weight:500;}
+.rsvp-ov__sub{font-size:.72rem;color:var(--muted);margin-top:.15rem;}
+.rsvp-ov .msgx-bar{margin-top:.5rem;}
+.rsvp-card{margin-bottom:1.1rem;}
+.rsvp-card__head{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem;flex-wrap:wrap;margin-bottom:.3rem;}
+.rsvp-hint{font-size:.78rem;color:var(--muted);margin:0 0 .7rem;}
+.rsvp-grid{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(4,minmax(0,1fr));align-items:center;font-size:.88rem;}
+.rsvp-grid>div{padding:.45rem .15rem;border-bottom:1px solid rgba(0,0,0,.06);text-align:center;min-width:0;}
+.rsvp-grid>.c0{text-align:left;padding-left:0;overflow-wrap:anywhere;}
+.rsvp-grid>.c0 small{display:block;font-size:.7rem;color:var(--muted);}
+.rsvp-grid>.h{font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom-width:2px;}
+.rsvp-grid>.full{grid-column:2 / -1;color:var(--muted);font-size:.8rem;}
+.rsvp-grid>.tot{font-weight:600;border-top:2px solid rgba(0,0,0,.12);}
+#rsvp-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
+#rsvp-filter-bar input{grid-column:1 / -1;}
+#rsvp-filter-bar>*{width:100%;min-width:0;margin:0;}
+.rsvp-num{background:none;border:0;padding:.2rem .4rem;font:inherit;cursor:pointer;color:var(--ink);border-radius:2px;min-width:2.2rem;}
+.rsvp-num:hover,.rsvp-num.on{background:var(--gold-pale);color:var(--wine);}
+.rsvp-num.on{outline:1px solid var(--gold);}
+.rsvp-num.coming{color:var(--green);font-weight:600;}
+.rsvp-num.declined{color:var(--red);}
+.rsvp-num.waiting{color:#9a6b12;}
+.rsvp-num small{display:block;font-size:.66rem;color:var(--muted);font-weight:400;}
+.rsvp-bd-controls{display:flex;gap:.5rem;flex-wrap:wrap;margin:.2rem 0 .7rem;}
+.rsvp-bd-controls select{flex:1;min-width:140px;}
+.rsvp-list-tools{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.4rem 0 .6rem;}
+.rsvp-list-tools select{flex:1;min-width:150px;}
+.rsvp-row{display:flex;gap:.7rem;align-items:center;padding:.65rem .2rem;border-bottom:1px solid rgba(0,0,0,.06);cursor:pointer;}
+.rsvp-row:hover{background:rgba(184,146,74,.06);}
+.rsvp-row__main{flex:1;min-width:0;}
+.rsvp-row__name{font-family:'Cormorant Garamond',serif;font-size:1.12rem;color:var(--wine);line-height:1.25;}
+.rsvp-row__meta{font-size:.74rem;color:var(--muted);margin-top:.1rem;}
+.rsvp-row__aside{text-align:right;font-size:.8rem;flex-shrink:0;max-width:48%;}
+.rsvp-tag{display:inline-block;padding:.12rem .45rem;font-size:.74rem;border-radius:2px;white-space:nowrap;}
+.rsvp-tag.coming{background:rgba(46,95,72,.12);color:var(--green);}
+.rsvp-tag.declined{background:rgba(139,32,32,.1);color:var(--red);}
+.rsvp-tag.waiting{background:rgba(184,146,74,.16);color:#7a5410;}
+.rsvp-row .rsvp-evt-pills{justify-content:flex-end;}
 .rsvp-breakdown{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;}
 .event-rsvp-card{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);border-radius:2px;overflow:hidden;}
 .event-rsvp-header{padding:.7rem .9rem;display:flex;align-items:center;gap:.5rem;}
@@ -613,61 +658,70 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 
   <!-- ── TAB: RSVPs ── -->
   <div class="admin-panel" id="tab-rsvps">
-    <!-- Filters -->
+    <!-- Who's included (applies to every number below) -->
     <div class="filter-bar" id="rsvp-filter-bar">
-      <input type="text" id="rsvp-search" placeholder="Search name or code..." oninput="debouncedApplyRSVPFilters()"/>
-      <select id="rsvp-event-filter" onchange="applyRSVPFilters()">
-        <option value="">All events</option>
-      </select>
-      <select id="rsvp-response-filter" onchange="applyRSVPFilters()">
-        <option value="">All responses</option>
-        <option value="attending">Attending any</option>
-        <option value="declined">Declined all</option>
-        <option value="mixed">Mixed (some yes, some no)</option>
-      </select>
+      <input type="text" id="rsvp-search" placeholder="Search name, code or phone..." oninput="debouncedApplyRSVPFilters()"/>
       <select id="rsvp-relationship-filter" onchange="applyRSVPFilters()">
         <option value="">All relationships</option>
       </select>
       <select id="rsvp-group-filter" onchange="applyRSVPFilters()">
         <option value="">All groups</option>
       </select>
-      <select id="rsvp-sort" onchange="applyRSVPFilters()">
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="name">Name A&rarr;Z</option>
+      <select id="rsvp-overseas-filter" onchange="applyRSVPFilters()">
+        <option value="">Everywhere</option>
+        <option value="overseas">Overseas only</option>
+        <option value="local">In Kenya only</option>
       </select>
     </div>
+    <div id="rsvp-scope-note" class="rsvp-scope-note hidden"></div>
 
-    <!-- View switcher + export -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.7rem;">
-      <div class="view-switcher">
-        <button class="view-btn active" onclick="setRSVPView('submissions')" id="rvbtn-submissions">&#9776; Submissions</button>
-        <button class="view-btn" onclick="setRSVPView('event')" id="rvbtn-event">&#128197; By Event</button>
-        <button class="view-btn" onclick="setRSVPView('matrix')" id="rvbtn-matrix">&#8862; Matrix</button>
+    <!-- 1. Overview -->
+    <div class="rsvp-overview" id="rsvp-overview"><div class="skeleton-loader"></div></div>
+
+    <!-- 2. Headcount by event -->
+    <div class="admin-card rsvp-card">
+      <div class="rsvp-card__head">
+        <div class="admin-card-title" style="margin-bottom:0;">Headcount by event</div>
+        <button class="btn btn-ghost btn-sm" onclick="exportHeadcountCSV()">&#8595; Export</button>
       </div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-        <button class="btn btn-ghost btn-sm" onclick="clearRSVPFilters()">Clear filters</button>
-        <button class="btn btn-secondary btn-sm" onclick="exportFilteredRSVPsCSV()">&#8595; Export CSV</button>
-      </div>
+      <div class="rsvp-hint">Number of <strong>people</strong>. Tap any number to see who.</div>
+      <div class="rsvp-grid" id="rsvp-headcount"></div>
     </div>
 
-    <!-- Event breakdown (reflects current filter) -->
-    <div style="margin-bottom:1.2rem;">
-      <div id="rsvp-filter-summary" style="font-size:.85rem;color:var(--muted);margin:0 0 .6rem;"></div>
-      <div class="rsvp-breakdown" id="rsvp-event-breakdown">
-        <div class="skeleton-loader"></div>
+    <!-- 3. Breakdown -->
+    <div class="admin-card rsvp-card">
+      <div class="rsvp-card__head">
+        <div class="admin-card-title" style="margin-bottom:0;">Breakdown</div>
       </div>
+      <div class="rsvp-bd-controls">
+        <select id="rsvp-bd-event" onchange="renderRSVPBreakdown()"></select>
+        <select id="rsvp-bd-by" onchange="renderRSVPBreakdown()">
+          <option value="rel">by relationship</option>
+          <option value="group">by group</option>
+          <option value="place">overseas / in Kenya</option>
+        </select>
+      </div>
+      <div class="rsvp-grid" id="rsvp-breakdown"></div>
     </div>
 
-    <!-- View container -->
-    <div class="admin-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:.7rem;">
-        <div class="admin-card-title" id="rsvp-view-title" style="margin-bottom:0;">Submissions</div>
-        <div class="guest-status-legend" style="margin-bottom:0;">
-          <span><span class="rsvp-evt-pill rsvp-evt-pill--yes" style="padding:.1rem .45rem;">Yes</span></span>
-          <span><span class="rsvp-evt-pill rsvp-evt-pill--tbc" style="padding:.1rem .45rem;">TBC</span></span>
-          <span><span class="rsvp-evt-pill rsvp-evt-pill--no" style="padding:.1rem .45rem;">No</span></span>
+    <!-- 4. The list behind whatever was tapped -->
+    <div class="admin-card rsvp-card" id="rsvp-list-card">
+      <div class="rsvp-card__head">
+        <div style="min-width:0;">
+          <div class="admin-card-title" style="margin-bottom:.15rem;" id="rsvp-list-title">Latest replies</div>
+          <div class="rsvp-hint" style="margin:0;" id="rsvp-list-sub"></div>
         </div>
+        <button class="btn btn-secondary btn-sm hidden" id="rsvp-list-clear" onclick="rsvpDrill(null)">&#10005; Show latest replies</button>
+      </div>
+      <div class="rsvp-list-tools">
+        <select id="rsvp-sort" onchange="renderRSVPList()">
+          <option value="newest">Newest reply first</option>
+          <option value="name">Name A&rarr;Z</option>
+          <option value="people">Most people first</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="copyRSVPListNames()">&#128203; Copy names</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportRSVPListCSV()">&#8595; Export list</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportFilteredRSVPsCSV()">&#8595; All replies</button>
       </div>
       <div id="rsvp-view-container"><div class="skeleton-loader"></div></div>
     </div>
@@ -948,11 +1002,12 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         </ul>
         <p><strong>The detail &mdash; <kbd>&#128203; RSVPs</kbd> tab:</strong></p>
         <ul>
-          <li>The row of event cards at the top shows Yes / No / guest count <em>per event</em>, and updates as you filter.</li>
-          <li><kbd>&#9776; Submissions</kbd> &mdash; every response, newest first, with a pill per event (green Yes, red No).</li>
-          <li><kbd>&#128197; By Event</kbd> &mdash; pick an event, see who's attending and who declined.</li>
-          <li><kbd>&#8862; Matrix</kbd> &mdash; one big grid: guests down, events across, seat counts in the cells. Great for the caterer.</li>
-          <li>Use the search and dropdowns to narrow it down, then <kbd>&#8595; Export CSV</kbd> to download exactly what's on screen.</li>
+          <li>Everything is counted in <strong>people</strong>, not invites. A couple who said yes counts as 2.</li>
+          <li><strong>Overview</strong> &mdash; invites replied, people coming, invites not replied (and how many invites aren't sent yet), people who can't come at all.</li>
+          <li><strong>Headcount by event</strong> &mdash; for every event: Coming, Declined, Waiting (no reply yet) and Invited. <strong>Tap any number</strong> to see exactly who.</li>
+          <li><strong>Breakdown</strong> &mdash; pick an event and split it by relationship, group, or overseas / in Kenya. Tap any number to see who.</li>
+          <li><strong>The list</strong> at the bottom shows whatever you tapped (or the latest replies). Tap a name to open the guest &mdash; from there you can record or change their reply. <kbd>Copy names</kbd> and <kbd>Export list</kbd> give you that exact list; <kbd>All replies</kbd> downloads every reply.</li>
+          <li>The dropdowns at the top (relationship, group, overseas, search) narrow <em>every</em> number on the page.</li>
         </ul>
         <p><strong>Seating:</strong> Guests tab &rarr; <kbd>&#128197; By Event</kbd> &rarr; pick the event. For anyone attending you can type a table number straight into the row. <kbd>Export Seating CSV</kbd> gives the venue a list.</p>
         <div class="warn">If the RSVP Status view shows a <strong>&#9888; Duplicate Submissions</strong> box, someone responded twice. Only the newest counts. Tap <kbd>Delete this submission</kbd> on the older one to tidy it up.</div>
@@ -965,9 +1020,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <ul>
           <li><strong>Edit a guest</strong> &mdash; Guests tab, tap <kbd>&#9998; Edit</kbd> on their row. Change anything, tap <kbd>Save Guest</kbd>.</li>
           <li><strong>"Updated by someone else" message when saving?</strong> Another admin edited the same guest while you had it open. Tap <kbd>Reload</kbd>, then make your change again. Nothing was lost.</li>
-          <li><strong>Delete a guest</strong> &mdash; tap <kbd>&#10005; Delete</kbd>. There's no confirm box because you get <kbd>Undo</kbd> for 8 seconds, and they can always be restored from the <em>Deleted</em> section at the bottom of the list.</li>
+          <li><strong>Delete a guest</strong> &mdash; tap <kbd>&#10005; Delete</kbd>, tick <em>Yes, I'm sure</em> and confirm. You get <kbd>Undo</kbd> for 8 seconds, and they can always be restored from the <em>Deleted</em> section at the bottom of the list.</li>
           <li><strong>Change lots of guests at once</strong> &mdash; tick the boxes on the left of the rows (or the top box for the whole page). A gold bar appears with: mark invite sent, set relationship, tag overseas, delete selected.</li>
-          <li><strong>A guest RSVP'd wrong and asked you to fix it</strong> &mdash; RSVPs tab, find their submission, open it and edit. Guests can't change their own answer once sent; they contact you.</li>
+          <li><strong>A guest RSVP'd wrong, or replied by phone</strong> &mdash; open the guest (Guests tab <kbd>&#128065; View</kbd>, or tap their name in the RSVPs tab), then <kbd>&#9998; Change reply</kbd> or <kbd>&#9998; Record their reply</kbd>. Guests can't change their own answer once sent; they contact you.</li>
           <li><strong>A guest wants to start their RSVP again</strong> (or you're clearing a test) &mdash; Guests tab, tap <kbd>&#128065; View</kbd> on their row, then <kbd>&#8634; Reset RSVP</kbd>. Their answers are cleared and they go back to <em>Awaiting RSVP</em>, so they can sign in and respond again. Their invite and code stay the same.</li>
           <li><strong>A guest says their code doesn't work</strong> &mdash; check the name on their row matches what they're typing. They must type the name exactly as it appears on the invite (spaces and capitals don't matter, but "Paul &amp; Mehreen" won't match "Paul").</li>
           <li><strong>Can't find someone</strong> &mdash; check the filters at the top of the Guests tab; tap <kbd>Clear filters</kbd>.</li>
@@ -4598,9 +4653,19 @@ function clearCSV() {
 //   RSVPs TAB
 // ══════════════════════════════════════════════
 
-// ── RSVPs tab state ───────────────────────────────────────
-var rsvpFilters = { search: '', eventId: '', response: '', relationship: '', sort: 'newest' };
-var rsvpView = 'submissions';
+// ── RSVPs tab ─────────────────────────────────────────────
+// Guest-centred: every invite, its latest reply, and each event it's
+// invited to is either Coming (people from the reply), Declined, or
+// Waiting (no answer yet). Everything is counted in PEOPLE.
+//   1. Overview          — replies so far, people coming, still waiting
+//   2. Headcount table   — per event: coming / declined / waiting / invited
+//   3. Breakdown         — one event split by relationship, group or place
+//   4. List              — whatever number was tapped (default: latest replies)
+// The filter bar (search, relationship, group, overseas) narrows all four.
+var rsvpFilters = { search: '', relationship: '', group: '', place: '' };
+var _rsvpDrill = null;   // { event: id|'', status: 'coming'|'declined'|'waiting'|'invited'|'replied'|'all', seg: {by, val}|null }
+var RSVP_TAB_PAGE = 50;
+var _rsvpTabShown = RSVP_TAB_PAGE;
 
 function loadRSVPsTab() {
   populateRSVPFilterOptions();
@@ -4613,49 +4678,41 @@ function populateRSVPFilterOptions() {
   function fill(sel, allLabel, items) {
     if (!sel) return;
     var cur = sel.value;
-    sel.innerHTML = '<option value="">' + allLabel + '</option>' + items.map(function(it) {
+    sel.innerHTML = (allLabel ? '<option value="">' + allLabel + '</option>' : '') + items.map(function(it) {
       return '<option value="' + escapeAttr(it[0]) + '">' + escapeAttr(it[1]) + '</option>';
     }).join('');
     if (cur && items.some(function(it) { return it[0] === cur; })) sel.value = cur;
-  }
-  if (allEvents.length) {
-    fill(document.getElementById('rsvp-event-filter'), 'All events',
-      allEvents.map(function(ev) { return [ev.id, ((ev.icon || '') + ' ' + ev.name).trim()]; }));
   }
   var rels = {};
   allGuests.forEach(function(g) { var r = canonRel(g.relationship || ''); if (r) rels[r] = true; });
   fill(document.getElementById('rsvp-relationship-filter'), 'All relationships',
     Object.keys(rels).sort().map(function(r) { return [r, r]; }));
-  fill(document.getElementById('rsvp-group-filter'), 'All groups',
-    allGroupNames().map(function(gname) { return [gname, gname]; }));
+  var groups = allGroupNames().map(function(n) { return [n, n]; });
+  if (allGuests.some(function(g) { return !guestGroup(g); }) && groups.length) groups.push(['__none__', '(No group)']);
+  fill(document.getElementById('rsvp-group-filter'), 'All groups', groups);
+  if (allEvents.length) {
+    fill(document.getElementById('rsvp-bd-event'), '',
+      allEvents.map(function(ev) { return [ev.id, ((ev.icon || '') + ' ' + ev.name).trim()]; }));
+  }
 }
 
 function applyRSVPFilters() {
-  rsvpFilters.search       = (document.getElementById('rsvp-search').value || '').toLowerCase().trim();
-  rsvpFilters.eventId      = document.getElementById('rsvp-event-filter').value;
-  rsvpFilters.response     = document.getElementById('rsvp-response-filter').value;
-  rsvpFilters.relationship = document.getElementById('rsvp-relationship-filter').value;
-  rsvpFilters.group        = (document.getElementById('rsvp-group-filter') || {}).value || '';
-  rsvpFilters.sort         = document.getElementById('rsvp-sort').value;
+  var v = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+  rsvpFilters.search       = (v('rsvp-search') || '').toLowerCase().trim();
+  rsvpFilters.relationship = v('rsvp-relationship-filter');
+  rsvpFilters.group        = v('rsvp-group-filter');
+  rsvpFilters.place        = v('rsvp-overseas-filter');
+  _rsvpTabShown = RSVP_TAB_PAGE;
   renderRSVPsTab();
 }
-
 function clearRSVPFilters() {
-  document.getElementById('rsvp-search').value = '';
-  document.getElementById('rsvp-event-filter').value = '';
-  document.getElementById('rsvp-response-filter').value = '';
-  document.getElementById('rsvp-relationship-filter').value = '';
-  var grpSel = document.getElementById('rsvp-group-filter'); if (grpSel) grpSel.value = '';
-  document.getElementById('rsvp-sort').value = 'newest';
+  ['rsvp-search', 'rsvp-relationship-filter', 'rsvp-group-filter', 'rsvp-overseas-filter'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
   applyRSVPFilters();
 }
-
-function setRSVPView(v) {
-  rsvpView = v;
-  document.querySelectorAll('#tab-rsvps .view-switcher .view-btn').forEach(function(b) { b.classList.remove('active'); });
-  var btn = document.getElementById('rvbtn-' + v);
-  if (btn) btn.classList.add('active');
-  renderRSVPsTab();
+function _rsvpFiltersOn() {
+  return !!(rsvpFilters.search || rsvpFilters.relationship || rsvpFilters.group || rsvpFilters.place);
 }
 
 // Memoized by allGuests identity — the map only needs to be rebuilt when
@@ -4681,339 +4738,342 @@ function _invalidateGuestIdx() {
   _statsCache = null; _statsCacheKey = null;
 }
 
-function getFilteredRSVPs() {
-  var byCode = _rsvpGuestsByCode();
 
-  var filtered = activeRSVPs().filter(function(r) {
+function _isOverseasGuest(g) { return String(sanitiseValue(g.is_overseas) || '').toUpperCase() === 'TRUE'; }
+function _seatsFor(g, id) {
+  var names = _splitNames(sanitiseValue(g[id + '_names']));
+  if (names.length) return names.length;
+  var raw = String(g[id + '_guests'] == null ? '' : g[id + '_guests']).trim();
+  return (raw === '' || !isNaN(Number(raw))) ? (Number(raw) || 0) : _splitNames(raw).length;
+}
+function _segOf(g, by) {
+  if (by === 'group') return guestGroup(g) || '(No group)';
+  if (by === 'place') return _isOverseasGuest(g) ? 'Overseas' : 'In Kenya';
+  return canonRel(g.relationship || '') || '(No relationship)';
+}
 
-    // Search: submission name or invitation code
-    if (rsvpFilters.search) {
-      var hay = ((r.submission_name || '') + ' ' + (r.invitation_code || '')).toLowerCase();
-      if (hay.indexOf(rsvpFilters.search) < 0) return false;
+// One row per invite (guest) in scope, with per-event status. Memoised on
+// the data arrays + filters.
+var _rsvpRowsCache = null, _rsvpRowsKey = null;
+function _rsvpRows() {
+  var key = [allGuests, allRSVPs, allEvents, JSON.stringify(rsvpFilters)];
+  if (_rsvpRowsCache && _rsvpRowsKey && key.every(function(k, i) { return k === _rsvpRowsKey[i]; })) return _rsvpRowsCache;
+  var replies = _latestReplyByCode();
+  var f = rsvpFilters;
+  var rows = [];
+  allGuests.forEach(function(g) {
+    if (f.relationship && canonRel(g.relationship || '') !== canonRel(f.relationship)) return;
+    if (f.group && (f.group === '__none__' ? !!guestGroup(g) : guestGroup(g) !== f.group)) return;
+    if (f.place && (f.place === 'overseas') !== _isOverseasGuest(g)) return;
+    if (f.search) {
+      var hay = [g.first_name, g.last_name, g.invitation_code, g.phone, g.notes, guestGroup(g)].filter(Boolean).join(' ').toLowerCase();
+      if (hay.indexOf(f.search) < 0) return;
     }
-
-    // Event + response filter
-    if (rsvpFilters.eventId) {
-      var att = r[rsvpFilters.eventId + ' Attending'];
-      if (!att) return false;
-      if (rsvpFilters.response === 'attending' && att !== 'Yes') return false;
-      if (rsvpFilters.response === 'declined'  && att !== 'No')  return false;
-      if (rsvpFilters.response === 'mixed') {
-        // "mixed" with a specific event selected doesn't make sense; treat as no-op.
+    var evIds = String(g.events || '').split(',').map(function(x) { return x.trim(); }).filter(function(id) { return !!eventsById[id]; });
+    if (!evIds.length) return;   // nothing to RSVP to
+    var code = String(g.invitation_code || '').toUpperCase().trim();
+    var reply = replies[code] || null;
+    var ev = {}, mostComing = 0, invitedPeople = 0;
+    evIds.forEach(function(id) {
+      var seats = _seatsFor(g, id);
+      invitedPeople = Math.max(invitedPeople, seats);
+      var ans = reply ? String(reply[id + ' Attending'] || '') : '';
+      if (ans === 'Yes') {
+        var n = Number(reply[id + ' Guests']) || 0;
+        ev[id] = { status: 'coming', people: n, seats: seats, names: _splitNames(String(reply[id + ' Names'] || '')) };
+        mostComing = Math.max(mostComing, n);
+      } else if (ans === 'No') {
+        ev[id] = { status: 'declined', people: seats, seats: seats, names: [] };
+      } else {
+        ev[id] = { status: 'waiting', people: seats, seats: seats, names: [] };
       }
-    } else if (rsvpFilters.response) {
-      var hasYes = false, hasNo = false;
-      (allEvents || []).forEach(function(ev) {
-        var a = r[ev.id + ' Attending'];
-        if (a === 'Yes') hasYes = true;
-        else if (a === 'No') hasNo = true;
-      });
-      if (rsvpFilters.response === 'attending' && !hasYes) return false;
-      if (rsvpFilters.response === 'declined'  && (hasYes || !hasNo)) return false;
-      if (rsvpFilters.response === 'mixed'     && !(hasYes && hasNo)) return false;
-    }
-
-    // Relationship filter (via the guest family)
-    if (rsvpFilters.relationship) {
-      var code = String(r.invitation_code || '').toUpperCase().trim();
-      var family = byCode[code] || [];
-      var hasRel = family.some(function(g) { return canonRel(g.relationship || '') === rsvpFilters.relationship; });
-      if (!hasRel) return false;
-    }
-    if (rsvpFilters.group) {
-      var fam = byCode[String(r.invitation_code || '').toUpperCase().trim()] || [];
-      if (!fam.some(function(g) { return guestGroup(g) === rsvpFilters.group; })) return false;
-    }
-
-    return true;
+    });
+    rows.push({ g: g, reply: reply, ev: ev, evIds: evIds, coming: mostComing, invited: invitedPeople,
+      sent: !!sanitiseValue(g.invite_sent_at), ts: reply ? new Date(reply.timestamp || 0).getTime() || 0 : 0 });
   });
-
-  filtered.sort(function(a, b) {
-    if (rsvpFilters.sort === 'oldest') return new Date(a.timestamp || 0) - new Date(b.timestamp || 0);
-    if (rsvpFilters.sort === 'name')   return String(a.submission_name || '').localeCompare(String(b.submission_name || ''));
-    return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+  _rsvpRowsCache = rows; _rsvpRowsKey = key;
+  return rows;
+}
+// Totals for one event over a set of rows.
+function _rsvpEventTotals(rows, id) {
+  var t = { coming: 0, comingInv: 0, declined: 0, declinedInv: 0, waiting: 0, waitingInv: 0, invited: 0, invitedInv: 0 };
+  rows.forEach(function(r) {
+    var e = r.ev[id]; if (!e) return;
+    t.invited += e.seats; t.invitedInv++;
+    if (e.status === 'coming') { t.coming += e.people; t.comingInv++; }
+    else if (e.status === 'declined') { t.declined += e.people; t.declinedInv++; }
+    else { t.waiting += e.people; t.waitingInv++; }
   });
-
-  return filtered;
+  return t;
+}
+function _drillIs(ev, status, seg) {
+  var d = _rsvpDrill;
+  if (!d) return false;
+  var segSame = (!d.seg && !seg) || (d.seg && seg && d.seg.by === seg.by && d.seg.val === seg.val);
+  return d.event === ev && d.status === status && segSame;
+}
+function _numBtn(n, sub, cls, ev, status, seg) {
+  var segAttr = seg ? ' data-seg-by="' + escapeAttr(seg.by) + '" data-seg-val="' + escapeAttr(seg.val) + '"' : '';
+  return '<button type="button" class="rsvp-num ' + cls + (_drillIs(ev, status, seg) ? ' on' : '') + '" data-ev="' + escapeAttr(ev) +
+    '" data-st="' + status + '"' + segAttr + ' onclick="_rsvpNumClick(this)">' + n + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+}
+function _rsvpNumClick(btn) {
+  var seg = btn.dataset.segBy ? { by: btn.dataset.segBy, val: btn.dataset.segVal } : null;
+  rsvpDrill({ event: btn.dataset.ev || '', status: btn.dataset.st, seg: seg });
+}
+function rsvpDrill(d) {
+  _rsvpDrill = d;
+  _rsvpTabShown = RSVP_TAB_PAGE;
+  renderRSVPsTab();
+  if (d) { var card = document.getElementById('rsvp-list-card'); if (card) try { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
 }
 
 function renderRSVPsTab() {
+  if (!document.getElementById('rsvp-overview')) return;
   if (!allEvents.length) {
-    document.getElementById('rsvp-event-breakdown').innerHTML = '<div class="empty-state">Loading events...</div>';
-    document.getElementById('rsvp-view-container').innerHTML = '';
+    document.getElementById('rsvp-overview').innerHTML = '<div class="empty-state">Loading events…</div>';
     return;
   }
-
   populateRSVPFilterOptions();
-  var filtered = getFilteredRSVPs();
-  _renderRSVPFilterSummary(filtered);
-  renderRSVPEventBreakdown(filtered);
-
-  // Reset the shared "Show more" counter whenever the view or the filtered
-  // result set changes. Fingerprint on view + length + first/last ids so
-  // any search/filter/sort change resets without needing the input ids.
-  var fp = rsvpView + '|' + filtered.length + '|' +
-    (filtered.length ? (filtered[0].invitation_code || '') + '/' + (filtered[0].timestamp || '') : '') + '|' +
-    (filtered.length ? (filtered[filtered.length - 1].invitation_code || '') + '/' + (filtered[filtered.length - 1].timestamp || '') : '');
-  if (fp !== _lastRSVPTabFingerprint) {
-    _lastRSVPTabFingerprint = fp;
-    _rsvpTabShown = RSVP_TAB_PAGE;
+  var rows = _rsvpRows();
+  // Scope note
+  var note = document.getElementById('rsvp-scope-note');
+  if (note) {
+    if (_rsvpFiltersOn()) {
+      var parts = [];
+      if (rsvpFilters.relationship) parts.push(rsvpFilters.relationship);
+      if (rsvpFilters.group) parts.push(rsvpFilters.group === '__none__' ? 'No group' : rsvpFilters.group);
+      if (rsvpFilters.place) parts.push(rsvpFilters.place === 'overseas' ? 'Overseas' : 'In Kenya');
+      if (rsvpFilters.search) parts.push('“' + rsvpFilters.search + '”');
+      note.innerHTML = '<span style="flex:1;">Numbers below are for <strong>' + escapeAttr(parts.join(' · ')) + '</strong> only (' + rows.length + ' invites).</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="clearRSVPFilters()">&#10005; Everyone</button>';
+      note.classList.remove('hidden');
+    } else note.classList.add('hidden');
   }
-
-  var container = document.getElementById('rsvp-view-container');
-  var titleEl = document.getElementById('rsvp-view-title');
-
-  if (!filtered.length) {
-    var empty = activeRSVPs().length
-      ? 'No RSVPs match the current filters.'
-      : 'No RSVPs submitted yet.';
-    container.innerHTML = '<div class="empty-state">' + empty + '</div>';
-    if (titleEl) titleEl.textContent = 'No results';
-    return;
-  }
-
-  if (rsvpView === 'event') {
-    titleEl.textContent = 'By Event';
-    container.innerHTML = renderRSVPByEventView(filtered);
-  } else if (rsvpView === 'matrix') {
-    titleEl.textContent = 'Attendance Matrix (' + filtered.length + ')';
-    container.innerHTML = renderRSVPMatrixView(filtered);
-  } else {
-    titleEl.textContent = 'Submissions (' + filtered.length + ')';
-    container.innerHTML = renderRSVPSubmissionsView(filtered);
-  }
+  _renderRSVPOverview(rows);
+  _renderRSVPHeadcount(rows);
+  renderRSVPBreakdown();
+  renderRSVPList();
 }
 
-// "Showing 12 of 140 replies · 31 people coming" — changes with every filter.
-function _renderRSVPFilterSummary(filtered) {
-  var el = document.getElementById('rsvp-filter-summary');
-  if (!el) return;
-  var total = activeRSVPs().length;
-  var ids = rsvpFilters.eventId ? [rsvpFilters.eventId] : (allEvents || []).map(function(e) { return e.id; });
-  var coming = 0;
-  filtered.forEach(function(r) {
-    var most = 0;
-    ids.forEach(function(id) { if (r[id + ' Attending'] === 'Yes') most = Math.max(most, Number(r[id + ' Guests']) || 0); });
-    coming += most;
+function _renderRSVPOverview(rows) {
+  var replied = rows.filter(function(r) { return r.reply; });
+  var waiting = rows.filter(function(r) { return !r.reply; });
+  var notSent = waiting.filter(function(r) { return !r.sent; }).length;
+  var coming = replied.reduce(function(t, r) { return t + r.coming; }, 0);
+  var invited = rows.reduce(function(t, r) { return t + r.invited; }, 0);
+  var waitingPeople = waiting.reduce(function(t, r) { return t + r.invited; }, 0);
+  var allNo = replied.filter(function(r) { return r.coming === 0; }).length;
+  var pct = rows.length ? Math.round(replied.length / rows.length * 100) : 0;
+  var card = function(st, num, lbl, sub, extra) {
+    return '<button type="button" class="rsvp-ov" data-ev="" data-st="' + st + '" onclick="_rsvpNumClick(this)">' +
+      '<div class="rsvp-ov__num">' + num + '</div><div class="rsvp-ov__lbl">' + lbl + '</div>' +
+      (sub ? '<div class="rsvp-ov__sub">' + sub + '</div>' : '') + (extra || '') + '</button>';
+  };
+  document.getElementById('rsvp-overview').innerHTML =
+    card('replied', replied.length + '<small> / ' + rows.length + '</small>', 'Invites replied', pct + '% replied',
+      '<div class="msgx-bar"><i style="width:' + pct + '%"></i></div>') +
+    card('coming', coming, 'People coming', 'to at least one event') +
+    card('waiting', waiting.length, 'Invites not replied', waitingPeople + ' people · ' + notSent + ' invite' + (notSent === 1 ? '' : 's') + ' not sent yet') +
+    card('allno', allNo, 'Can’t come at all', 'replied No to everything') +
+    card('all', invited, 'People invited', rows.length + ' invites');
+}
+
+function _renderRSVPHeadcount(rows) {
+  var html = '<div class="h c0">Event</div><div class="h">Coming</div><div class="h">Declined</div><div class="h">Waiting</div><div class="h">Invited</div>';
+  allEvents.forEach(function(ev) {
+    var t = _rsvpEventTotals(rows, ev.id);
+    var label = escapeAttr(((ev.icon || '') + ' ' + ev.name).trim());
+    if (!t.invitedInv) { html += '<div class="c0"><strong>' + label + '</strong></div><div class="full">No one invited</div>'; return; }
+    var pct = Math.round((t.comingInv + t.declinedInv) / t.invitedInv * 100);
+    html += '<div class="c0"><strong>' + label + '</strong><small>' + pct + '% replied</small></div>' +
+      '<div>' + _numBtn(t.coming, t.comingInv + ' inv', 'coming', ev.id, 'coming') + '</div>' +
+      '<div>' + _numBtn(t.declined, t.declinedInv + ' inv', 'declined', ev.id, 'declined') + '</div>' +
+      '<div>' + _numBtn(t.waiting, t.waitingInv + ' inv', 'waiting', ev.id, 'waiting') + '</div>' +
+      '<div>' + _numBtn(t.invited, t.invitedInv + ' inv', '', ev.id, 'invited') + '</div>';
   });
-  var any = rsvpFilters.search || rsvpFilters.eventId || rsvpFilters.response || rsvpFilters.relationship || rsvpFilters.group;
-  var ev = rsvpFilters.eventId ? (eventsById[rsvpFilters.eventId] || {}).name : '';
-  el.innerHTML = (any ? 'Showing <strong>' + filtered.length + '</strong> of ' + total + ' replies'
-                      : '<strong>' + total + '</strong> replies') +
-    ' · <strong>' + coming + '</strong> ' + (coming === 1 ? 'person' : 'people') + ' coming' +
-    (ev ? ' to ' + escapeAttr(ev) : ' to at least one event');
+  document.getElementById('rsvp-headcount').innerHTML = html;
 }
-function renderRSVPEventBreakdown(filtered) {
-  var breakdownEl = document.getElementById('rsvp-event-breakdown');
-  if (!filtered.length) {
-    breakdownEl.innerHTML = '<div class="empty-state" style="padding:1rem;">No matches.</div>';
-    return;
+
+function renderRSVPBreakdown() {
+  var sel = document.getElementById('rsvp-bd-event'), bySel = document.getElementById('rsvp-bd-by');
+  var host = document.getElementById('rsvp-breakdown');
+  if (!sel || !host || !allEvents.length) return;
+  if (!sel.value || !_rsvpRows().some(function(r) { return r.ev[sel.value]; })) {
+    // Start on the event most invites are for.
+    var best = '', bestN = -1;
+    allEvents.forEach(function(ev) { var n = _rsvpRows().filter(function(r) { return r.ev[ev.id]; }).length; if (n > bestN) { best = ev.id; bestN = n; } });
+    if (best) sel.value = best;
   }
-  // Single pass over `filtered` accumulating every event's counters at once,
-  // instead of one full walk per event (6× 700 at scale).
-  var acc = {};
-  allEvents.forEach(function(ev) { acc[ev.id] = { yes: 0, no: 0, guests: 0 }; });
-  filtered.forEach(function(r) {
-    for (var i = 0; i < allEvents.length; i++) {
-      var ev = allEvents[i];
-      var att = r[ev.id + ' Attending'];
-      if (att === 'Yes') { acc[ev.id].yes++; acc[ev.id].guests += Number(r[ev.id + ' Guests']) || 0; }
-      else if (att === 'No') { acc[ev.id].no++; }
-    }
+  var id = sel.value, by = bySel.value || 'rel';
+  var rows = _rsvpRows().filter(function(r) { return r.ev[id]; });
+  var segs = {};
+  rows.forEach(function(r) { var k = _segOf(r.g, by); (segs[k] = segs[k] || []).push(r); });
+  var keys = Object.keys(segs).sort(function(a, b) {
+    return _rsvpEventTotals(segs[b], id).invited - _rsvpEventTotals(segs[a], id).invited || a.localeCompare(b);
   });
-  // Filtering by one event shows just that event's numbers.
-  var shownEvents = rsvpFilters.eventId
-    ? allEvents.filter(function(ev) { return ev.id === rsvpFilters.eventId; })
-    : allEvents;
-  breakdownEl.innerHTML = shownEvents.map(function(ev) {
-    var yes = acc[ev.id].yes, no = acc[ev.id].no, totalGuests = acc[ev.id].guests;
-    return '<div class="event-rsvp-card">' +
-      '<div class="event-rsvp-header"><span style="font-size:1.2rem;">' + escapeAttr(ev.icon) + '</span>' +
-      '<span class="event-rsvp-title">' + escapeAttr(ev.name) + '</span></div>' +
-      '<div class="event-rsvp-stats">' +
-      '<div class="ersvp-stat"><div class="ersvp-num">' + yes + '</div><div class="ersvp-lbl">Yes</div></div>' +
-      '<div class="ersvp-stat"><div class="ersvp-num">' + no + '</div><div class="ersvp-lbl">No</div></div>' +
-      '<div class="ersvp-stat"><div class="ersvp-num">' + totalGuests + '</div><div class="ersvp-lbl">Guests</div></div>' +
-      '</div></div>';
-  }).join('');
-}
-
-// Shared pagination for the three RSVPs-tab views. One counter, reset by
-// renderRSVPsTab whenever the filter/view fingerprint changes, bumped by
-// the "Show more" button. Previously all three built every filtered row
-// (up to 700, × allEvents pills/cells) into a single innerHTML.
-var RSVP_TAB_PAGE = 50;
-var _rsvpTabShown = RSVP_TAB_PAGE;
-var _lastRSVPTabFingerprint = '';
-function showMoreRSVPTab() { _rsvpTabShown += RSVP_TAB_PAGE; renderRSVPsTab(); }
-function _rsvpShowMoreHtml(total, shown) {
-  var more = total - shown;
-  if (more <= 0) return '';
-  return '<div style="padding:.8rem;text-align:center;"><button class="btn btn-secondary btn-sm" onclick="showMoreRSVPTab()">Show ' +
-    Math.min(more, RSVP_TAB_PAGE) + ' more (' + more + ' hidden)</button></div>';
-}
-
-function renderRSVPSubmissionsView(filtered) {
-  var byCode = _rsvpGuestsByCode();
-  var shown = Math.min(_rsvpTabShown, filtered.length);
-  return filtered.slice(0, shown).map(function(r) {
-    var evPills = allEvents.map(function(ev) {
-      var att = r[ev.id + ' Attending'];
-      if (!att) return '';
-      var kind = att === 'Yes' ? 'yes' : att === 'No' ? 'no' : 'tbc';
-      var countSuffix = att === 'Yes' ? ' &middot; ' + (Number(r[ev.id + ' Guests']) || 0) : '';
-      return '<span class="rsvp-evt-pill rsvp-evt-pill--' + kind + '" title="' + escapeAttr(ev.name) + ' &mdash; ' + escapeAttr(att) + '">' +
-        '<span class="rsvp-evt-pill__icon">' + escapeAttr(ev.icon) + '</span>' +
-        escapeAttr(att) + countSuffix +
-      '</span>';
-    }).join('');
-
-    var code = String(r.invitation_code || '').toUpperCase().trim();
-    var family = byCode[code] || [];
-    var rel = family.length ? escapeAttr(family[0].relationship || '') : '';
-
-    return '<div class="invite-row">' +
-      '<div class="invite-row__identity">' +
-        '<div class="msg-row__headline">' +
-          '<span class="guest-name-cell">' + escapeAttr(r.submission_name || '') + '</span>' +
-        '</div>' +
-        (rel ? '<div class="msg-row__rel">' + rel + '</div>' : '') +
-        (r.invitation_code ? '<div class="msg-row__code"><span class="code-pill">' + escapeAttr(r.invitation_code) + '</span></div>' : '') +
-        (r.timestamp ? '<div class="msg-row__phone" style="font-size:var(--fs-2xs);">' + escapeAttr(r.timestamp) + '</div>' : '') +
-      '</div>' +
-      '<div class="invite-row__controls" style="align-self:center;">' +
-        '<div class="rsvp-evt-pills">' + evPills + '</div>' +
-      '</div>' +
-    '</div>';
-  }).join('') + _rsvpShowMoreHtml(filtered.length, shown);
-}
-
-function renderRSVPByEventView(filtered) {
-  // One pass over `filtered` bucketing into every event at once, instead of
-  // a full walk per event. Each Attending/Declined block is capped at
-  // RSVP_TAB_PAGE rows with an "…and N more" line — the RSVPs tab's
-  // "Show more" raises the cap for all blocks together.
-  var buckets = {};
-  allEvents.forEach(function(ev) { buckets[ev.id] = { attending: [], declining: [] }; });
-  filtered.forEach(function(r) {
-    for (var i = 0; i < allEvents.length; i++) {
-      var ev = allEvents[i];
-      var a = r[ev.id + ' Attending'];
-      if (a === 'Yes') buckets[ev.id].attending.push(r);
-      else if (a === 'No') buckets[ev.id].declining.push(r);
-    }
-  });
-  var cap = _rsvpTabShown;
-  var anyHidden = false;
-  var html = allEvents.map(function(ev) {
-    var attending = buckets[ev.id].attending, declining = buckets[ev.id].declining;
-    var row = function(r) {
-      var g = Number(r[ev.id + ' Guests']) || 0;
-      return '<div class="summary-row" style="border-bottom:1px solid rgba(0,0,0,.05);padding:.45rem 0;font-size:var(--fs-md);display:flex;justify-content:space-between;gap:.6rem;">' +
-        '<span>' + escapeAttr(r.submission_name || '') + '</span>' +
-        '<span class="summary-status" style="color:var(--muted);">' + (g ? g + ' guest' + (g !== 1 ? 's' : '') : '') + '</span>' +
-      '</div>';
-    };
-    var block = function(title, arr, color) {
-      if (!arr.length) return '';
-      var visible = arr.slice(0, cap);
-      var hidden = arr.length - visible.length;
-      if (hidden > 0) anyHidden = true;
-      return '<div style="margin-top:.8rem;">' +
-        '<div style="font-family:\'Cinzel\',serif;font-size:var(--fs-2xs);letter-spacing:var(--ls-wide);color:' + color + ';text-transform:uppercase;margin-bottom:.4rem;">' + title + ' (' + arr.length + ')</div>' +
-        visible.map(row).join('') +
-        (hidden > 0 ? '<div style="font-size:var(--fs-2xs);color:var(--muted);padding:.3rem 0;">…and ' + hidden + ' more</div>' : '') +
-      '</div>';
-    };
-    return '<div class="admin-card" style="margin-bottom:1rem;padding:1.2rem;">' +
-      '<div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.4rem;">' +
-        '<span style="font-size:1.35rem;">' + escapeAttr(ev.icon) + '</span>' +
-        '<span style="font-family:\'Cormorant Garamond\',serif;font-size:var(--fs-xl);color:var(--wine);">' + escapeAttr(ev.name) + '</span>' +
-      '</div>' +
-      block('Attending', attending, 'var(--green)') +
-      block('Declined',  declining, 'var(--red)') +
-      (!attending.length && !declining.length
-        ? '<div class="empty-state" style="padding:.8rem;">No responses for this event.</div>'
-        : '') +
-    '</div>';
-  }).join('');
-  if (anyHidden) {
-    html += '<div style="padding:.8rem;text-align:center;"><button class="btn btn-secondary btn-sm" onclick="showMoreRSVPTab()">Show ' +
-      RSVP_TAB_PAGE + ' more per event</button></div>';
-  }
-  return html;
-}
-
-function renderRSVPMatrixView(filtered) {
-  var header = '<tr><th style="text-align:left;">Guest</th>' +
-    allEvents.map(function(ev) {
-      return '<th title="' + escapeAttr(ev.name) + '" style="text-align:center;font-size:1.2rem;">' + escapeAttr(ev.icon) + '</th>';
+  if (!keys.length) { host.innerHTML = '<div class="c0" style="grid-column:1 / -1;color:var(--muted);">No one in this view is invited to this event.</div>'; return; }
+  var label = by === 'group' ? 'Group' : by === 'place' ? 'Where' : 'Relationship';
+  var tot = _rsvpEventTotals(rows, id);
+  host.innerHTML = '<div class="h c0">' + label + '</div><div class="h">Coming</div><div class="h">Declined</div><div class="h">Waiting</div><div class="h">Invited</div>' +
+    keys.map(function(k) {
+      var t = _rsvpEventTotals(segs[k], id), seg = { by: by, val: k };
+      return '<div class="c0">' + escapeAttr(k) + '</div>' +
+        '<div>' + _numBtn(t.coming, '', 'coming', id, 'coming', seg) + '</div>' +
+        '<div>' + _numBtn(t.declined, '', 'declined', id, 'declined', seg) + '</div>' +
+        '<div>' + _numBtn(t.waiting, '', 'waiting', id, 'waiting', seg) + '</div>' +
+        '<div>' + _numBtn(t.invited, '', '', id, 'invited', seg) + '</div>';
     }).join('') +
-    '<th style="text-align:right;">Total</th></tr>';
-
-  var shown = Math.min(_rsvpTabShown, filtered.length);
-  var rows = filtered.slice(0, shown).map(function(r) {
-    var cells = allEvents.map(function(ev) {
-      var a = r[ev.id + ' Attending'];
-      var g = Number(r[ev.id + ' Guests']) || 0;
-      if (a === 'Yes') return '<td style="text-align:center;"><span class="rsvp-evt-pill rsvp-evt-pill--yes" title="Attending' + (g ? ' &middot; ' + g + ' guests' : '') + '">\u2713' + (g ? ' ' + g : '') + '</span></td>';
-      if (a === 'No')  return '<td style="text-align:center;"><span class="rsvp-evt-pill rsvp-evt-pill--no" title="Declined">\u2715</span></td>';
-      return '<td style="text-align:center;color:var(--muted);">&mdash;</td>';
-    }).join('');
-    var total = allEvents.reduce(function(s, ev) {
-      return s + (r[ev.id + ' Attending'] === 'Yes' ? (Number(r[ev.id + ' Guests']) || 0) : 0);
-    }, 0);
-    return '<tr>' +
-      '<td style="text-align:left;">' +
-        '<div style="font-family:\'Cormorant Garamond\',serif;color:var(--wine);font-size:var(--fs-lg);">' + escapeAttr(r.submission_name || '') + '</div>' +
-        '<div style="margin-top:.2rem;"><span class="code-pill">' + escapeAttr(r.invitation_code || '') + '</span></div>' +
-      '</td>' + cells +
-      '<td style="text-align:right;font-weight:600;color:var(--wine);">' + total + '</td>' +
-    '</tr>';
-  }).join('');
-
-  return '<div class="guest-table-wrap"><table class="guest-table">' +
-    '<thead>' + header + '</thead>' +
-    '<tbody>' + rows + '</tbody>' +
-  '</table></div>' + _rsvpShowMoreHtml(filtered.length, shown);
+    '<div class="c0 tot">Total</div><div class="tot">' + _numBtn(tot.coming, '', 'coming', id, 'coming') + '</div><div class="tot">' + _numBtn(tot.declined, '', 'declined', id, 'declined') +
+    '</div><div class="tot">' + _numBtn(tot.waiting, '', 'waiting', id, 'waiting') + '</div><div class="tot">' + _numBtn(tot.invited, '', '', id, 'invited') + '</div>';
 }
 
-function exportFilteredRSVPsCSV() {
-  var filtered = getFilteredRSVPs();
-  if (!filtered.length) { showToast('No RSVPs to export.', 'info'); return; }
-  var byCode = _rsvpGuestsByCode();
+// Rows for the current drill-down, plus a title.
+function _rsvpListRows() {
+  var d = _rsvpDrill, rows = _rsvpRows();
+  if (!d) return { rows: rows.filter(function(r) { return r.reply; }), title: 'Latest replies', sub: '', ev: '' };
+  var ev = d.event ? eventsById[d.event] : null;
+  var list = rows;
+  if (d.seg) list = list.filter(function(r) { return _segOf(r.g, d.seg.by) === d.seg.val; });
+  var stLabel = { coming: 'Coming', declined: 'Declined', waiting: 'Not replied yet', invited: 'Invited', replied: 'Replied', all: 'Everyone invited', allno: 'Can’t come at all' }[d.status] || '';
+  if (d.event) {
+    list = list.filter(function(r) { var e = r.ev[d.event]; return e && (d.status === 'invited' || e.status === d.status); });
+  } else if (d.status === 'replied') list = list.filter(function(r) { return r.reply; });
+  else if (d.status === 'waiting') list = list.filter(function(r) { return !r.reply; });
+  else if (d.status === 'coming') list = list.filter(function(r) { return r.reply && r.coming > 0; });
+  else if (d.status === 'allno') list = list.filter(function(r) { return r.reply && r.coming === 0; });
+  var title = (ev ? ev.name + ' › ' : '') + stLabel + (d.seg ? ' › ' + d.seg.val : '');
+  return { rows: list, title: title, ev: d.event || '' };
+}
+// People to count for a row in the current list: for one event, that
+// event's number; otherwise people coming — except lists about invites that
+// aren't coming (not replied, can't come, everyone invited), which count the
+// people the invite was for.
+function _rsvpPeopleIn(r, evId) {
+  if (evId) { var e = r.ev[evId]; return e ? e.people : 0; }
+  var st = _rsvpDrill ? _rsvpDrill.status : 'replied';
+  return (st === 'waiting' || st === 'allno' || st === 'all') ? r.invited : r.coming;
+}
 
+function renderRSVPList() {
+  var host = document.getElementById('rsvp-view-container');
+  if (!host) return;
+  var L = _rsvpListRows(), rows = L.rows.slice();
+  var sort = (document.getElementById('rsvp-sort') || {}).value || 'newest';
+  var nameOf = function(r) { return _guestDisplayName(r.g).toLowerCase(); };
+  rows.sort(function(a, b) {
+    if (sort === 'name') return nameOf(a).localeCompare(nameOf(b));
+    if (sort === 'people') return _rsvpPeopleIn(b, L.ev) - _rsvpPeopleIn(a, L.ev) || nameOf(a).localeCompare(nameOf(b));
+    return (b.ts - a.ts) || nameOf(a).localeCompare(nameOf(b));
+  });
+  var people = rows.reduce(function(t, r) { return t + _rsvpPeopleIn(r, L.ev); }, 0);
+  var st = _rsvpDrill ? _rsvpDrill.status : 'replied';
+  var peopleWord = (L.ev ? (st === 'coming' ? 'people coming' : st === 'declined' ? 'people declined' : st === 'waiting' ? 'people waiting' : 'people invited')
+    : (st === 'waiting' || st === 'allno' || st === 'all') ? 'people invited' : 'people coming');
+  document.getElementById('rsvp-list-title').textContent = L.title;
+  document.getElementById('rsvp-list-sub').textContent = rows.length + ' invite' + (rows.length === 1 ? '' : 's') + ' · ' + people + ' ' + peopleWord;
+  document.getElementById('rsvp-list-clear').classList.toggle('hidden', !_rsvpDrill);
+  _rsvpListShown = rows;   // for copy / export
+  _rsvpListEv = L.ev;
+  if (!rows.length) { host.innerHTML = '<div class="empty-state">Nobody here.</div>'; return; }
+  var shown = rows.slice(0, _rsvpTabShown);
+  host.innerHTML = shown.map(function(r) { return _rsvpRowHtml(r, L.ev); }).join('') +
+    (rows.length > shown.length
+      ? '<div style="padding:.8rem;text-align:center;"><button class="btn btn-secondary btn-sm" onclick="showMoreRSVPTab()">Show more (' + (rows.length - shown.length) + ' hidden)</button></div>'
+      : '');
+}
+var _rsvpListShown = [], _rsvpListEv = '';
+function showMoreRSVPTab() { _rsvpTabShown += RSVP_TAB_PAGE; renderRSVPList(); }
+
+function _rsvpRowHtml(r, evId) {
+  var g = r.g;
+  var meta = [canonRel(g.relationship || ''), guestGroup(g), _isOverseasGuest(g) ? '🌍 Overseas' : ''].filter(Boolean).map(escapeAttr).join(' · ');
+  var when = r.reply ? 'Replied ' + escapeAttr(formatSentAt(String(r.reply.timestamp || ''))) :
+    r.sent ? 'Invite sent ' + escapeAttr(formatSentAt(sanitiseValue(g.invite_sent_at))) + ' · no reply' : 'Invite not sent yet';
+  var aside;
+  if (evId) {
+    var e = r.ev[evId];
+    if (e.status === 'coming') aside = '<span class="rsvp-tag coming">✓ ' + e.people + ' coming</span>' +
+      (e.names.length ? '<div class="rsvp-row__meta">' + escapeAttr(e.names.join(', ')) + '</div>' : '');
+    else if (e.status === 'declined') aside = '<span class="rsvp-tag declined">✕ Declined</span>';
+    else aside = '<span class="rsvp-tag waiting">Waiting · ' + e.seats + ' invited</span>';
+  } else {
+    aside = '<div class="rsvp-evt-pills">' + r.evIds.map(function(id) {
+      var e = r.ev[id], ev = eventsById[id] || {};
+      var kind = e.status === 'coming' ? 'yes' : e.status === 'declined' ? 'no' : 'tbc';
+      var txt = e.status === 'coming' ? '✓' + e.people : e.status === 'declined' ? '✕' : '…';
+      return '<span class="rsvp-evt-pill rsvp-evt-pill--' + kind + '" title="' + escapeAttr(ev.name || id) + '">' +
+        (ev.icon ? '<span class="rsvp-evt-pill__icon">' + escapeAttr(ev.icon) + '</span>' : escapeAttr(id) + ' ') + txt + '</span>';
+    }).join('') + '</div>';
+  }
+  return '<div class="rsvp-row" role="button" tabindex="0" onclick="openViewGuest(\'' + escapeAttr(g.id) + '\')">' +
+    '<div class="rsvp-row__main"><div class="rsvp-row__name">' + escapeAttr(_guestDisplayName(g)) + '</div>' +
+      '<div class="rsvp-row__meta">' + (meta ? meta + ' · ' : '') + when + '</div></div>' +
+    '<div class="rsvp-row__aside">' + aside + '</div></div>';
+}
+
+function copyRSVPListNames() {
+  var txt = _rsvpListShown.map(function(r) {
+    var n = _rsvpPeopleIn(r, _rsvpListEv);
+    return _guestDisplayName(r.g) + (n ? ' (' + n + ')' : '');
+  }).join('\n');
+  if (!txt) { showToast('Nothing to copy.', 'info'); return; }
+  var done = function() { showToast('Copied ' + _rsvpListShown.length + ' names.', 'success'); };
+  try { navigator.clipboard.writeText(txt).then(done, function() { window.prompt('Copy:', txt); }); }
+  catch (e) { window.prompt('Copy:', txt); }
+}
+function _downloadCSV(name, header, rows) {
   var esc = function(v) {
     var s = v == null ? '' : String(v);
-    // Guard against CSV formula injection (=, +, -, @, tab, CR)
     if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
     return s;
   };
-
-  var headers = ['timestamp', 'submission_name', 'invitation_code', 'relationship'];
-  allEvents.forEach(function(ev) {
-    headers.push(ev.id + '_attending', ev.id + '_guests');
+  var csv = '﻿' + [header].concat(rows).map(function(r) { return r.map(esc).join(','); }).join('\n');
+  var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  var a = document.createElement('a'); a.href = url; a.download = name; a.click();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+function exportRSVPListCSV() {
+  if (!_rsvpListShown.length) { showToast('Nothing to export.', 'info'); return; }
+  var ev = _rsvpListEv;
+  var header = ['name', 'relationship', 'group', 'overseas', 'phone', 'code', 'replied_at'];
+  if (ev) header.push('status', 'people', 'names', 'seats_invited');
+  else allEvents.forEach(function(e) { header.push(e.name); });
+  var rows = _rsvpListShown.map(function(r) {
+    var g = r.g;
+    var base = [_guestDisplayName(g), canonRel(g.relationship || ''), guestGroup(g), _isOverseasGuest(g) ? 'Yes' : 'No',
+      sanitiseValue(g.phone) || '', g.invitation_code || '', r.reply ? r.reply.timestamp || '' : ''];
+    if (ev) { var e = r.ev[ev]; base.push(e.status, e.status === 'coming' ? e.people : 0, e.names.join(', '), e.seats); }
+    else allEvents.forEach(function(x) { var e = r.ev[x.id]; base.push(!e ? '' : e.status === 'coming' ? 'Yes ' + e.people : e.status === 'declined' ? 'No' : 'Waiting'); });
+    return base;
   });
-  var rows = filtered.map(function(r) {
-    var code = String(r.invitation_code || '').toUpperCase().trim();
-    var fam  = byCode[code] || [];
-    var rel  = fam.length ? (fam[0].relationship || '') : '';
-    var base = [r.timestamp || '', r.submission_name || '', r.invitation_code || '', rel];
+  _downloadCSV('rsvp-' + (document.getElementById('rsvp-list-title').textContent || 'list').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.csv', header, rows);
+}
+function exportHeadcountCSV() {
+  var rows = _rsvpRows();
+  _downloadCSV('headcount.csv', ['event', 'people_coming', 'invites_coming', 'people_declined', 'invites_declined', 'people_waiting', 'invites_waiting', 'people_invited', 'invites_invited'],
+    allEvents.map(function(ev) {
+      var t = _rsvpEventTotals(rows, ev.id);
+      return [ev.name, t.coming, t.comingInv, t.declined, t.declinedInv, t.waiting, t.waitingInv, t.invited, t.invitedInv];
+    }));
+}
+// Every reply in view, one row per invite, every event (for spreadsheets).
+function exportFilteredRSVPsCSV() {
+  var rows = _rsvpRows().filter(function(r) { return r.reply; });
+  if (!rows.length) { showToast('No replies to export.', 'info'); return; }
+  var header = ['replied_at', 'name', 'relationship', 'group', 'overseas', 'code'];
+  allEvents.forEach(function(ev) { header.push(ev.name + ' attending', ev.name + ' people', ev.name + ' names'); });
+  _downloadCSV('rsvps.csv', header, rows.map(function(r) {
+    var g = r.g;
+    var out = [r.reply.timestamp || '', _guestDisplayName(g), canonRel(g.relationship || ''), guestGroup(g), _isOverseasGuest(g) ? 'Yes' : 'No', g.invitation_code || ''];
     allEvents.forEach(function(ev) {
-      base.push(r[ev.id + ' Attending'] || '');
-      base.push(r[ev.id + ' Guests'] || '');
+      var e = r.ev[ev.id];
+      out.push(!e ? 'Not invited' : e.status === 'coming' ? 'Yes' : e.status === 'declined' ? 'No' : 'No answer',
+        e && e.status === 'coming' ? e.people : 0, e ? e.names.join(', ') : '');
     });
-    return base.map(esc).join(',');
-  });
-  var csv = [headers.join(',')].concat(rows).join('\n');
-  var blob = new Blob([csv], { type: 'text/csv' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = 'rsvps-filtered.csv';
-  a.click();
-  URL.revokeObjectURL(url);
+    return out;
+  }));
 }
 
 // ══════════════════════════════════════════════
@@ -6331,12 +6391,12 @@ var WA_TOUR_STEPS = [
   { tab: 'settings', selector: '#msg-templates-list', skipIfMissing: true, title: 'The message text',
     text: 'Templates live here. <code>{{name}}</code>, <code>{{code}}</code>, <code>{{url}}</code> and <code>{{deadline}}</code> are filled in per guest. <strong>Always tap “Send test to my phone” before a real send.</strong>' },
 
-  { tab: 'rsvps', selector: '#rsvp-event-breakdown', title: '3 · Review responses',
-    text: 'Yes / No / guest count for every event, and it follows whatever filter you set below.' },
-  { tab: 'rsvps', selector: '#tab-rsvps .view-switcher', title: 'Three views',
-    text: '<strong>Submissions</strong> is every response, newest first. <strong>By Event</strong> shows who’s coming to what. <strong>Matrix</strong> is the caterer’s grid — guests down, events across.' },
-  { tab: 'rsvps', selector: 'button[onclick="exportFilteredRSVPsCSV()"]', title: 'Export',
-    text: 'Downloads exactly what’s on screen as a spreadsheet. Filter first, then export.' },
+  { tab: 'rsvps', selector: '#rsvp-overview', title: '3 · Review responses',
+    text: 'Replies so far and how many <strong>people</strong> are coming. Every number here counts people, not invites.' },
+  { tab: 'rsvps', selector: '#rsvp-headcount', title: 'Headcount by event',
+    text: 'Coming, declined, waiting and invited for every event. <strong>Tap any number</strong> to see exactly who — the list appears below.' },
+  { tab: 'rsvps', selector: '#rsvp-list-card', title: 'Who, exactly',
+    text: 'The guests behind whatever you tapped. Tap a name to open them (and record or change their reply). <strong>Copy names</strong> or <strong>Export list</strong> for the caterer or venue.' },
 
   { tab: 'help', title: 'That’s the tour',
     text: 'Full written steps for every workflow are right here on the <strong>Help</strong> tab. You can restart this tour from here anytime.<br><br>Now go add your guests. \u{1F389}' },
