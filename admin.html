@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261014180453"/>
+<meta name="app-build" content="20261014200954"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -264,6 +264,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-grid>.c0 small{display:block;font-size:.7rem;color:var(--muted);}
 .rsvp-grid>.h{font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom-width:2px;}
 .rsvp-grid>.full{grid-column:2 / -1;color:var(--muted);font-size:.8rem;}
+.rsvp-grid>.sub{background:rgba(184,146,74,.06);font-size:.84rem;}
+.rsvp-grid>.c0.sub{padding-left:.6rem;color:var(--ink);}
 .rsvp-grid>.tot{font-weight:600;border-top:2px solid rgba(0,0,0,.12);}
 #rsvp-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
 #rsvp-filter-bar input{grid-column:1 / -1;}
@@ -696,6 +698,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div class="rsvp-bd-controls">
         <select id="rsvp-bd-event" onchange="renderRSVPBreakdown()"></select>
         <select id="rsvp-bd-by" onchange="renderRSVPBreakdown()">
+          <option value="side">by side (bride / groom)</option>
           <option value="rel">by relationship</option>
           <option value="group">by group</option>
           <option value="place">overseas / in Kenya</option>
@@ -4746,7 +4749,15 @@ function _seatsFor(g, id) {
   var raw = String(g[id + '_guests'] == null ? '' : g[id + '_guests']).trim();
   return (raw === '' || !isNaN(Number(raw))) ? (Number(raw) || 0) : _splitNames(raw).length;
 }
+// Lagnotri and Mandvo are held separately by each side (own time and
+// venue), so the headcount splits them by side.
+var RSVP_SIDE_SPLIT = ['Lg', 'Ma'];
+function _sideOf(g) {
+  var r = canonRel(g.relationship || '').toLowerCase();
+  return r.indexOf('bride') === 0 ? 'Bride’s side' : r.indexOf('groom') === 0 ? 'Groom’s side' : 'Side not set';
+}
 function _segOf(g, by) {
+  if (by === 'side') return _sideOf(g);
   if (by === 'group') return guestGroup(g) || '(No group)';
   if (by === 'place') return _isOverseasGuest(g) ? 'Overseas' : 'In Kenya';
   return canonRel(g.relationship || '') || '(No relationship)';
@@ -4891,6 +4902,20 @@ function _renderRSVPHeadcount(rows) {
       '<div>' + _numBtn(t.declined, t.declinedInv + ' inv', 'declined', ev.id, 'declined') + '</div>' +
       '<div>' + _numBtn(t.waiting, t.waitingInv + ' inv', 'waiting', ev.id, 'waiting') + '</div>' +
       '<div>' + _numBtn(t.invited, t.invitedInv + ' inv', '', ev.id, 'invited') + '</div>';
+    if (RSVP_SIDE_SPLIT.indexOf(ev.id) > -1) {
+      ['Bride’s side', 'Groom’s side', 'Side not set'].forEach(function(side) {
+        var sub = rows.filter(function(r) { return _sideOf(r.g) === side; });
+        var st = _rsvpEventTotals(sub, ev.id);
+        if (!st.invitedInv) return;
+        var seg = { by: 'side', val: side };
+        var spct = Math.round((st.comingInv + st.declinedInv) / st.invitedInv * 100);
+        html += '<div class="c0 sub">&#8627; ' + escapeAttr(side) + '<small>' + spct + '% replied</small></div>' +
+          '<div class="sub">' + _numBtn(st.coming, st.comingInv + ' inv', 'coming', ev.id, 'coming', seg) + '</div>' +
+          '<div class="sub">' + _numBtn(st.declined, st.declinedInv + ' inv', 'declined', ev.id, 'declined', seg) + '</div>' +
+          '<div class="sub">' + _numBtn(st.waiting, st.waitingInv + ' inv', 'waiting', ev.id, 'waiting', seg) + '</div>' +
+          '<div class="sub">' + _numBtn(st.invited, st.invitedInv + ' inv', '', ev.id, 'invited', seg) + '</div>';
+      });
+    }
   });
   document.getElementById('rsvp-headcount').innerHTML = html;
 }
@@ -4905,7 +4930,7 @@ function renderRSVPBreakdown() {
     allEvents.forEach(function(ev) { var n = _rsvpRows().filter(function(r) { return r.ev[ev.id]; }).length; if (n > bestN) { best = ev.id; bestN = n; } });
     if (best) sel.value = best;
   }
-  var id = sel.value, by = bySel.value || 'rel';
+  var id = sel.value, by = bySel.value || 'side';
   var rows = _rsvpRows().filter(function(r) { return r.ev[id]; });
   var segs = {};
   rows.forEach(function(r) { var k = _segOf(r.g, by); (segs[k] = segs[k] || []).push(r); });
@@ -4913,7 +4938,7 @@ function renderRSVPBreakdown() {
     return _rsvpEventTotals(segs[b], id).invited - _rsvpEventTotals(segs[a], id).invited || a.localeCompare(b);
   });
   if (!keys.length) { host.innerHTML = '<div class="c0" style="grid-column:1 / -1;color:var(--muted);">No one in this view is invited to this event.</div>'; return; }
-  var label = by === 'group' ? 'Group' : by === 'place' ? 'Where' : 'Relationship';
+  var label = by === 'group' ? 'Group' : by === 'place' ? 'Where' : by === 'side' ? 'Side' : 'Relationship';
   var tot = _rsvpEventTotals(rows, id);
   host.innerHTML = '<div class="h c0">' + label + '</div><div class="h">Coming</div><div class="h">Declined</div><div class="h">Waiting</div><div class="h">Invited</div>' +
     keys.map(function(k) {
