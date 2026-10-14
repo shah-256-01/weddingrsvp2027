@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261014202351"/>
+<meta name="app-build" content="20261014203022"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -264,6 +264,10 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-grid>.c0 small{display:block;font-size:.7rem;color:var(--muted);}
 .rsvp-grid>.h{font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom-width:2px;}
 .rsvp-grid>.full{grid-column:2 / -1;color:var(--muted);font-size:.8rem;}
+.rsvp-hc-tabs{margin:0 0 .4rem;flex-basis:100%;overflow:visible;}
+.rsvp-hc-tabs button{flex:1;white-space:normal;line-height:1.2;min-height:44px;}
+#rsvp-hc-card .rsvp-card__head{flex-wrap:wrap;}
+#rsvp-hc-card .rsvp-card__head>.btn{margin-left:auto;}
 .rsvp-grid.g3{grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr));}
 .rsvp-num.upto{color:var(--wine);font-weight:700;}
 .rsvp-grid>.sub{background:rgba(184,146,74,.06);font-size:.84rem;}
@@ -692,23 +696,23 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <!-- 1. Overview -->
     <div class="rsvp-overview" id="rsvp-overview"><div class="skeleton-loader"></div></div>
 
-    <!-- 2. Headcount by event -->
-    <div class="admin-card rsvp-card">
+    <!-- 2. Headcount / Possible final numbers (tabbed) -->
+    <div class="admin-card rsvp-card" id="rsvp-hc-card">
       <div class="rsvp-card__head">
-        <div class="admin-card-title" style="margin-bottom:0;">Headcount by event</div>
+        <div class="msgx-seg rsvp-hc-tabs" role="tablist">
+          <button type="button" role="tab" id="rsvp-tab-headcount" class="active" onclick="rsvpHcTab('headcount')">Headcount</button>
+          <button type="button" role="tab" id="rsvp-tab-possible" onclick="rsvpHcTab('possible')">Possible final numbers</button>
+        </div>
         <button class="btn btn-ghost btn-sm" onclick="exportHeadcountCSV()">&#8595; Export</button>
       </div>
-      <div class="rsvp-hint">Number of <strong>people</strong>. Tap any number to see who.</div>
-      <div class="rsvp-grid" id="rsvp-headcount"></div>
-    </div>
-
-    <!-- 2b. Possible final numbers -->
-    <div class="admin-card rsvp-card">
-      <div class="rsvp-card__head">
-        <div class="admin-card-title" style="margin-bottom:0;">Possible final numbers</div>
+      <div id="rsvp-pane-headcount">
+        <div class="rsvp-hint">Number of <strong>people</strong>. Tap any number to see who.</div>
+        <div class="rsvp-grid" id="rsvp-headcount"></div>
       </div>
-      <div class="rsvp-hint">If everyone who hasn’t replied yet says yes. <strong>Up to</strong> = confirmed + still could. Tap any number to see who.</div>
-      <div class="rsvp-grid g3" id="rsvp-possible"></div>
+      <div id="rsvp-pane-possible" class="hidden">
+        <div class="rsvp-hint">If everyone who hasn’t replied yet says yes. <strong>Up to</strong> = confirmed + still could. Tap any number to see who.</div>
+        <div class="rsvp-grid g3" id="rsvp-possible"></div>
+      </div>
     </div>
 
     <!-- 3. Breakdown -->
@@ -4936,6 +4940,7 @@ function renderRSVPsTab() {
   _renderRSVPOverview(rows);
   _renderRSVPHeadcount(rows);
   _renderRSVPPossible(rows);
+  rsvpHcTab(_ssGet('wa:rsvpHcTab') || 'headcount');
   renderRSVPBreakdown();
   renderRSVPList();
 }
@@ -4994,6 +4999,17 @@ function _renderRSVPHeadcount(rows) {
   document.getElementById('rsvp-headcount').innerHTML = html;
 }
 
+// Headcount and Possible final numbers share one card; remember the tab.
+function rsvpHcTab(which) {
+  if (which !== 'possible') which = 'headcount';
+  _ssSet('wa:rsvpHcTab', which);
+  ['headcount', 'possible'].forEach(function(w) {
+    var on = w === which;
+    var b = document.getElementById('rsvp-tab-' + w), pane = document.getElementById('rsvp-pane-' + w);
+    if (b) { b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); }
+    if (pane) pane.classList.toggle('hidden', !on);
+  });
+}
 // "Possible final numbers": confirmed + everyone who hasn't replied yet.
 function _renderRSVPPossible(rows) {
   var host = document.getElementById('rsvp-possible');
