@@ -124,7 +124,7 @@ function doPost(e) {
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
       'generateCode', 'markInviteSent', 'updateRSVP', 'getBootstrap',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
-      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP',
+      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'updateTravel',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     isAdminAction = pinActions.indexOf(action) > -1;
@@ -204,6 +204,7 @@ function doPost(e) {
     else if (action === 'deleteRSVPSubmission') result = deleteRSVPSubmission(payload);
     else if (action === 'resetGuestRSVP')   result = resetGuestRSVP(payload);
     else if (action === 'adminRecordRSVP')  result = adminRecordRSVP(payload);
+    else if (action === 'updateTravel')     result = updateTravel(payload);
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'validate') {
       const rateKey = 'validate_' + String(payload.code || '').toUpperCase().trim();
@@ -248,7 +249,7 @@ function doPost(e) {
       // invites go out, and throwing away the saved guest list each time
       // would slow guest sign-ins. Admin loads read the sent column fresh
       // instead (see _withFreshInviteSent).
-      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP',
+      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'updateTravel',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
       try { bumpAdminCacheVersion(); } catch (e) { /* best-effort */ }
@@ -349,7 +350,7 @@ function _guestRev(obj) {
   // sheet — e.g. the {id}_names columns — doesn't change every guest's rev
   // and throw false "updated by someone else" conflicts.
   const keys = Object.keys(obj)
-    .filter(k => !REV_EXCLUDE.has(k) && !/_table$/.test(k))
+    .filter(k => !REV_EXCLUDE.has(k) && !/_table$/.test(k) && !/^travel_/.test(k))
     .filter(k => obj[k] !== '' && obj[k] != null)
     .sort();
   const s = keys.map(k => k + '=' + String(obj[k] == null ? '' : obj[k])).join('');
@@ -516,7 +517,7 @@ function repairGuestSheet() {
     }
     const tidied = _canonGuestSheet(sheet, null);
     bumpAdminCacheVersion();
-    const known = new Set(guestHeaders());
+    const known = new Set(guestHeaders().concat(TRAVEL_FIELDS));
     const unused = headers.filter(function(h) { return h && !known.has(h); });
     const msg = 'repairGuestSheet: added ' + missing.length + ' column(s)' +
       (missing.length ? ' [' + missing.join(', ') + ']' : '') +
@@ -1461,6 +1462,64 @@ function markRSVPRowsDeleted(invitationCode) {
 // marked DELETED (kept for the record), exactly as deleting a guest does.
 // The guest's row, code and invite_sent_at are untouched, so they drop back
 // to "Awaiting RSVP" and can sign in and resubmit.
+// ── Hotel & travel (overseas guests) ─────────────────────
+// Admin-only details collected from guests by message: hotel, rooms,
+// flights, airport transfers. Stored in travel_* columns on the Guests tab
+// (added the first time they're used). Not part of the guest's rev, so a
+// travel update never clashes with someone editing the guest.
+const TRAVEL_FIELDS = [
+  'travel_hotel', 'travel_rooms', 'travel_people', 'travel_checkin', 'travel_checkout',
+  'travel_arr_date', 'travel_arr_time', 'travel_arr_flight',
+  'travel_dep_date', 'travel_dep_time', 'travel_dep_flight',
+  'travel_transfer', 'travel_notes', 'travel_updated',
+];
+function _cleanTravel(field, v) {
+  const s = String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim();
+  switch (field) {
+    case 'travel_hotel':    return /^(yes|no)$/i.test(s) ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+    case 'travel_transfer': return ['Both', 'Arrival', 'Departure', 'No'].indexOf(s) > -1 ? s : '';
+    case 'travel_rooms':
+    case 'travel_people':   return s === '' ? '' : String(Math.max(0, Math.min(50, Math.round(Number(s) || 0))));
+    case 'travel_checkin': case 'travel_checkout': case 'travel_arr_date': case 'travel_dep_date':
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+    case 'travel_arr_time': case 'travel_dep_time':
+      return /^\d{1,2}:\d{2}$/.test(s) ? s : '';
+    default:                return sanitizeForSheet(s.slice(0, field === 'travel_notes' ? 500 : 60));
+  }
+}
+// payload: { guestId, travel: { travel_hotel: 'Yes', ... } }
+function updateTravel(payload) {
+  const guestId = String((payload && payload.guestId) || '').trim();
+  if (!guestId) throw new Error('guestId required');
+  const t = (payload && payload.travel) || {};
+  const sheet = getSheet(TABS.guests);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const rowNum = findRowById(sheet, guestId);
+    if (rowNum === -1) throw new Error('Guest not found.');
+    let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    TRAVEL_FIELDS.forEach(function(f) { headers = _ensureGuestColumn(sheet, headers, f).headers; });
+    const range = sheet.getRange(rowNum, 1, 1, headers.length);
+    const row = range.getValues()[0];
+    const out = {};
+    TRAVEL_FIELDS.forEach(function(f) {
+      if (f === 'travel_updated') return;
+      if (Object.prototype.hasOwnProperty.call(t, f)) row[headers.indexOf(f)] = _cleanTravel(f, t[f]);
+      out[f] = row[headers.indexOf(f)];
+    });
+    // Times/dates are stored as text so Sheets doesn't reformat them.
+    const firstTravel = headers.indexOf(TRAVEL_FIELDS[0]) + 1;
+    sheet.getRange(rowNum, firstTravel, 1, TRAVEL_FIELDS.length).setNumberFormat('@');
+    out.travel_updated = new Date().toISOString();
+    row[headers.indexOf('travel_updated')] = out.travel_updated;
+    range.setValues([row]);
+    return { guestId: guestId, travel: out };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ── adminRecordRSVP ──────────────────────────────────────
 // For guests who reply by phone, message or in person: the admin records
 // (or changes) their answers. Same checks as a guest's own reply (only

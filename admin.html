@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261014201437"/>
+<meta name="app-build" content="20261014202351"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -288,6 +288,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-row__main{flex:1;min-width:0;}
 .rsvp-row__name{font-family:'Cormorant Garamond',serif;font-size:1.12rem;color:var(--wine);line-height:1.25;}
 .rsvp-row__meta{font-size:.74rem;color:var(--muted);margin-top:.1rem;}
+.travel-day{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:1rem 0 .3rem;}
+.travel-form label{display:block;font-size:.8rem;color:var(--muted);margin:.7rem 0 .25rem;}
+.travel-form input,.travel-form textarea{width:100%;box-sizing:border-box;}
+.travel-form .tf-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;}
+.travel-form .tf-row2{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
+.travel-form h4{font-family:'Cormorant Garamond',serif;color:var(--wine);font-size:1.15rem;margin:1.1rem 0 .1rem;}
+.tf-opts{display:flex;gap:.35rem;flex-wrap:wrap;}
+.tf-opts button{min-height:36px;padding:0 .8rem;border:1px solid var(--border,#d9cfc4);background:#fff;font-size:.8rem;cursor:pointer;}
+.tf-opts button.on{background:var(--wine);border-color:var(--wine);color:#fff;}
 .rsvp-row__aside{text-align:right;font-size:.8rem;flex-shrink:0;max-width:48%;}
 .rsvp-tag{display:inline-block;padding:.12rem .45rem;font-size:.74rem;border-radius:2px;white-space:nowrap;}
 .rsvp-tag.coming{background:rgba(46,95,72,.12);color:var(--green);}
@@ -546,6 +555,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     <button class="admin-tab active" data-tab="guests" onclick="switchTab('guests',this)">&#128101; Guests</button>
     <button class="admin-tab" data-tab="messages" onclick="switchTab('messages',this)">&#9993; Messages</button>
     <button class="admin-tab" data-tab="rsvps" onclick="switchTab('rsvps',this)">&#128203; RSVPs</button>
+    <button class="admin-tab" data-tab="travel" onclick="switchTab('travel',this)">&#127976; Travel</button>
     <button class="admin-tab" data-tab="settings" onclick="switchTab('settings',this)">&#9881;&#65039; Settings</button>
     <button class="admin-tab" data-tab="csv" onclick="switchTab('csv',this)">&#128228; CSV Upload</button>
     <button class="admin-tab" data-tab="help" onclick="switchTab('help',this)">&#128214; Help</button>
@@ -738,6 +748,37 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <button class="btn btn-ghost btn-sm" onclick="exportFilteredRSVPsCSV()">&#8595; All replies</button>
       </div>
       <div id="rsvp-view-container"><div class="skeleton-loader"></div></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: TRAVEL ── -->
+  <div class="admin-panel" id="tab-travel">
+    <div class="rsvp-hint" style="font-size:.85rem;">Hotel and airport details for overseas guests (Glam Hotel, Nairobi · standard stay 26&ndash;30 December). Tap a guest to record what they told you.</div>
+    <div class="filter-bar" id="travel-filter-bar">
+      <input type="text" id="travel-search" placeholder="Search name or phone..." oninput="renderTravelTab()"/>
+      <select id="travel-side" onchange="renderTravelTab()">
+        <option value="">Both sides</option>
+        <option value="Bride’s side">Bride’s side</option>
+        <option value="Groom’s side">Groom’s side</option>
+      </select>
+    </div>
+    <div class="rsvp-overview" id="travel-overview"></div>
+    <div class="admin-card rsvp-card">
+      <div class="rsvp-card__head">
+        <div class="admin-card-title" style="margin-bottom:0;" id="travel-list-title">Overseas guests</div>
+        <button class="btn btn-secondary btn-sm hidden" id="travel-list-clear" onclick="travelFilter('')">&#10005; Show all</button>
+      </div>
+      <div class="rsvp-list-tools">
+        <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('hotel')">&#8595; Hotel list</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('transfers')">&#8595; Airport transfers</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('all')">&#8595; Everything</button>
+      </div>
+      <div id="travel-list"></div>
+    </div>
+    <div class="admin-card rsvp-card">
+      <div class="admin-card-title">Arrivals &amp; departures</div>
+      <div class="rsvp-hint">For planning airport pickups and drop-offs. 🚗 = transfer requested.</div>
+      <div id="travel-schedule"></div>
     </div>
   </div>
 
@@ -1030,6 +1071,20 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
     </details>
 
     <details>
+      <summary>Hotel &amp; travel (overseas guests)</summary>
+      <div class="help-body">
+        <ul>
+          <li>The <kbd>&#127976; Travel</kbd> tab lists every overseas guest (and anyone else you've recorded travel for).</li>
+          <li>Tap a guest to record what they told you: do they need the Glam Hotel, rooms, people staying, check-in/out if not the standard 26&ndash;30 December, arrival and departure flights, and airport pickup / drop-off.</li>
+          <li>The cards at the top count invites and <strong>people</strong>: need the hotel (with total rooms), don't need it, not answered yet, airport pickups and drop-offs, and hotel guests with no flight yet. Tap a card to list those guests.</li>
+          <li><strong>Arrivals &amp; departures</strong> lists flights by day and time for planning pickups.</li>
+          <li><kbd>&#8595; Hotel list</kbd> is ready to send to the hotel; <kbd>&#8595; Airport transfers</kbd> to the driver.</li>
+          <li>For a guest who isn't marked overseas, open them on the Guests tab (<kbd>&#128065; View</kbd>) and tap <kbd>&#127976; Hotel &amp; travel</kbd>.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
       <summary>4 &middot; Fixing things</summary>
       <div class="help-body">
         <ul>
@@ -1225,7 +1280,7 @@ function _isRemembered() { return !!_rememberedPin(); }
   var ADMIN_FETCH_TIMEOUT_MS = 30000;
   // Bulk writes can wait behind other changes and take longer; Apps Script
   // itself allows up to 6 minutes.
-  var LONG_CALL_TIMEOUT_MS = { bulkAddGuests: 150000, bulkUpdate: 90000, bulkDelete: 90000, bulkMarkInviteSent: 90000, adminRecordRSVP: 90000 };
+  var LONG_CALL_TIMEOUT_MS = { bulkAddGuests: 150000, bulkUpdate: 90000, bulkDelete: 90000, bulkMarkInviteSent: 90000, adminRecordRSVP: 90000, updateTravel: 60000 };
   function invoke(method, arg, state) {
     var body;
     if (method === 'checkPin') {
@@ -1939,6 +1994,7 @@ function switchTab(name, btn) {
   if (name === 'rsvps') loadRSVPsTab();
   if (name === 'settings') { renderSettingsTab(); renderMessageSettingsUI(); }
   if (name === 'messages') loadMessagesTab();
+  if (name === 'travel') renderTravelTab();
 }
 
 // ── Dashboard Loading ──────────────────────
@@ -2410,6 +2466,7 @@ function _refreshOpenTabAfterSync() {
   var active = document.querySelector('.admin-panel.active');
   var id = active ? active.id : '';
   if (id === 'tab-rsvps' && typeof renderRSVPsTab === 'function') renderRSVPsTab();
+  if (id === 'tab-travel' && typeof renderTravelTab === 'function') renderTravelTab();
 }
 setInterval(function() { syncFromServer(false); }, SYNC_EVERY_MS);
 document.addEventListener('visibilitychange', function() {
@@ -3963,6 +4020,9 @@ function openViewGuest(id) {
       '<button class="btn btn-primary btn-sm" onclick="openRecordReply(\'' + escapeAttr(g.id) + '\')" ' +
         'title="They replied by phone, message or in person">&#9998; Record their reply</button></div>';
   }
+  statusHtml += '<div style="display:flex;justify-content:flex-end;margin-top:.5rem;">' +
+    '<button class="btn btn-ghost btn-sm" onclick="openTravelForm(\'' + escapeAttr(g.id) + '\')">&#127976; Hotel &amp; travel' +
+    (_hasTravel(g) ? ' · ' + escapeAttr(_travelSummary(g)) : '') + '</button></div>';
   var html = hero + detailsHtml + allocHtml + statusHtml;
 
   document.getElementById('view-modal-title').textContent = rawFullName;
@@ -5142,6 +5202,212 @@ function exportFilteredRSVPsCSV() {
         e && e.status === 'coming' ? e.people : 0, e ? e.names.join(', ') : '');
     });
     return out;
+  }));
+}
+
+// ══════════════════════════════════════════════
+//   TRAVEL TAB — hotel & airport for overseas guests
+// ══════════════════════════════════════════════
+// Details are what guests tell you by message; saved with updateTravel into
+// travel_* columns on the Guests sheet. The list is overseas guests plus
+// anyone else you've recorded travel for (Hotel & travel on any guest).
+var TRAVEL_STD_IN = '2026-12-26', TRAVEL_STD_OUT = '2026-12-30';
+var _travelFilter = '';
+function _tv(g, f) { return String(sanitiseValue(g['travel_' + f]) || '').trim(); }
+function _hasTravel(g) {
+  return ['hotel', 'rooms', 'people', 'arr_date', 'arr_flight', 'dep_date', 'dep_flight', 'transfer', 'notes', 'checkin', 'checkout']
+    .some(function(f) { return !!_tv(g, f); });
+}
+function _travelPeople(g) { return Number(_tv(g, 'people')) || _invitePeople(g) || 1; }
+function _fmtDay(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return '';
+  var d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function _travelSummary(g) {
+  var h = _tv(g, 'hotel');
+  var bits = [h === 'Yes' ? 'hotel: ' + (_tv(g, 'rooms') || '?') + ' room' + (_tv(g, 'rooms') === '1' ? '' : 's') : h === 'No' ? 'no hotel' : 'hotel: not answered'];
+  if (_tv(g, 'transfer') && _tv(g, 'transfer') !== 'No') bits.push('transfer');
+  return bits.join(', ');
+}
+function _travelReplyComing(g) {
+  var r = _latestReplyByCode()[String(g.invitation_code || '').toUpperCase().trim()];
+  if (!r) return null;
+  var most = 0;
+  ALL_EVENT_IDS.forEach(function(id) { if (r[id + ' Attending'] === 'Yes') most = Math.max(most, Number(r[id + ' Guests']) || 0); });
+  return most;
+}
+function _travelGuests() {
+  var q = ((document.getElementById('travel-search') || {}).value || '').toLowerCase().trim();
+  var side = (document.getElementById('travel-side') || {}).value || '';
+  return allGuests.filter(function(g) {
+    if (!_isOverseasGuest(g) && !_hasTravel(g)) return false;
+    if (side && _sideOf(g) !== side) return false;
+    if (q && ([g.first_name, g.last_name, g.phone, guestGroup(g)].join(' ').toLowerCase().indexOf(q) < 0)) return false;
+    return true;
+  });
+}
+function travelFilter(f) { _travelFilter = f; renderTravelTab(); }
+function _travelMatches(g, f) {
+  var h = _tv(g, 'hotel'), t = _tv(g, 'transfer');
+  if (f === 'hotel') return h === 'Yes';
+  if (f === 'nohotel') return h === 'No';
+  if (f === 'unanswered') return !h;
+  if (f === 'pickup') return t === 'Both' || t === 'Arrival';
+  if (f === 'dropoff') return t === 'Both' || t === 'Departure';
+  if (f === 'noflight') return h === 'Yes' && !_tv(g, 'arr_date');
+  return true;
+}
+function renderTravelTab() {
+  var host = document.getElementById('travel-overview');
+  if (!host) return;
+  var list = _travelGuests();
+  var sum = function(f) { return list.filter(function(g) { return _travelMatches(g, f); }); };
+  var hotel = sum('hotel'), pick = sum('pickup'), drop = sum('dropoff');
+  var rooms = hotel.reduce(function(t, g) { return t + (Number(_tv(g, 'rooms')) || 0); }, 0);
+  var ppl = function(arr) { return arr.reduce(function(t, g) { return t + _travelPeople(g); }, 0); };
+  var card = function(f, num, lbl, sub) {
+    return '<button type="button" class="rsvp-ov' + (_travelFilter === f ? ' on' : '') + '" onclick="travelFilter(\'' + f + '\')"' +
+      (_travelFilter === f ? ' style="border-color:var(--gold);background:var(--gold-pale);"' : '') + '>' +
+      '<div class="rsvp-ov__num">' + num + '</div><div class="rsvp-ov__lbl">' + lbl + '</div>' + (sub ? '<div class="rsvp-ov__sub">' + sub + '</div>' : '') + '</button>';
+  };
+  host.innerHTML =
+    card('', list.length, 'Overseas invites', ppl(list) + ' people') +
+    card('hotel', hotel.length, 'Need the hotel', rooms + ' room' + (rooms === 1 ? '' : 's') + ' · ' + ppl(hotel) + ' people') +
+    card('nohotel', sum('nohotel').length, 'Don’t need it', ppl(sum('nohotel')) + ' people') +
+    card('unanswered', sum('unanswered').length, 'Not answered yet', 'hotel question') +
+    card('pickup', pick.length, 'Airport pickups', ppl(pick) + ' people') +
+    card('dropoff', drop.length, 'Airport drop-offs', ppl(drop) + ' people') +
+    card('noflight', sum('noflight').length, 'Hotel, no flight yet', 'arrival details missing');
+  var titles = { '': 'Overseas guests', hotel: 'Need the hotel', nohotel: 'Don’t need the hotel', unanswered: 'Hotel: not answered yet',
+    pickup: 'Airport pickups', dropoff: 'Airport drop-offs', noflight: 'Need the hotel · no flight details yet' };
+  var shown = list.filter(function(g) { return _travelMatches(g, _travelFilter); })
+    .sort(function(a, b) { return _guestDisplayName(a).localeCompare(_guestDisplayName(b)); });
+  document.getElementById('travel-list-title').textContent = titles[_travelFilter] + ' · ' + shown.length;
+  document.getElementById('travel-list-clear').classList.toggle('hidden', !_travelFilter);
+  document.getElementById('travel-list').innerHTML = shown.length ? shown.map(_travelRowHtml).join('')
+    : '<div class="empty-state">' + (list.length ? 'Nobody here.' : 'No overseas guests yet. Mark guests as overseas (Edit guest), or use “Hotel & travel” on any guest.') + '</div>';
+  _renderTravelSchedule(list);
+}
+function _travelRowHtml(g) {
+  var coming = _travelReplyComing(g);
+  var rsvp = coming == null ? 'RSVP: not replied' : coming ? 'RSVP: ' + coming + ' coming' : 'RSVP: can’t come';
+  var meta = [_sideOf(g), guestGroup(g), rsvp].filter(Boolean).map(escapeAttr).join(' · ');
+  var h = _tv(g, 'hotel');
+  var tags = (h === 'Yes' ? '<span class="rsvp-tag coming">🏨 ' + (_tv(g, 'rooms') || '?') + ' room' + (_tv(g, 'rooms') === '1' ? '' : 's') + ' · ' + _travelPeople(g) + ' ppl</span>'
+    : h === 'No' ? '<span class="rsvp-tag declined">No hotel</span>' : '<span class="rsvp-tag waiting">Hotel: ?</span>');
+  var lines = [];
+  if (h === 'Yes' && ((_tv(g, 'checkin') && _tv(g, 'checkin') !== TRAVEL_STD_IN) || (_tv(g, 'checkout') && _tv(g, 'checkout') !== TRAVEL_STD_OUT)))
+    lines.push('Stay ' + _fmtDay(_tv(g, 'checkin') || TRAVEL_STD_IN) + ' → ' + _fmtDay(_tv(g, 'checkout') || TRAVEL_STD_OUT));
+  if (_tv(g, 'arr_date') || _tv(g, 'arr_flight')) lines.push('✈ In ' + [_fmtDay(_tv(g, 'arr_date')), _tv(g, 'arr_time'), _tv(g, 'arr_flight')].filter(Boolean).join(' '));
+  if (_tv(g, 'dep_date') || _tv(g, 'dep_flight')) lines.push('✈ Out ' + [_fmtDay(_tv(g, 'dep_date')), _tv(g, 'dep_time'), _tv(g, 'dep_flight')].filter(Boolean).join(' '));
+  var t = _tv(g, 'transfer');
+  if (t && t !== 'No') lines.push('🚗 ' + (t === 'Both' ? 'Pickup & drop-off' : t === 'Arrival' ? 'Pickup only' : 'Drop-off only'));
+  if (_tv(g, 'notes')) lines.push('📝 ' + _tv(g, 'notes'));
+  return '<div class="rsvp-row" role="button" tabindex="0" onclick="openTravelForm(\'' + escapeAttr(g.id) + '\')">' +
+    '<div class="rsvp-row__main"><div class="rsvp-row__name">' + escapeAttr(_guestDisplayName(g)) + '</div>' +
+      '<div class="rsvp-row__meta">' + meta + '</div>' +
+      (lines.length ? '<div class="rsvp-row__meta" style="color:var(--ink);">' + lines.map(escapeAttr).join('<br>') + '</div>' : '') +
+    '</div><div class="rsvp-row__aside">' + tags + '</div></div>';
+}
+function _renderTravelSchedule(list) {
+  var host = document.getElementById('travel-schedule');
+  var items = [];
+  list.forEach(function(g) {
+    var t = _tv(g, 'transfer');
+    if (_tv(g, 'arr_date')) items.push({ g: g, kind: 'Arrives', date: _tv(g, 'arr_date'), time: _tv(g, 'arr_time'), flight: _tv(g, 'arr_flight'), car: t === 'Both' || t === 'Arrival' });
+    if (_tv(g, 'dep_date')) items.push({ g: g, kind: 'Leaves', date: _tv(g, 'dep_date'), time: _tv(g, 'dep_time'), flight: _tv(g, 'dep_flight'), car: t === 'Both' || t === 'Departure' });
+  });
+  if (!items.length) { host.innerHTML = '<div class="empty-state">No flight dates recorded yet.</div>'; return; }
+  items.sort(function(a, b) { return (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')); });
+  var html = '', day = '';
+  items.forEach(function(it) {
+    if (it.date !== day) { day = it.date; html += '<div class="travel-day">' + escapeAttr(_fmtDay(day)) + '</div>'; }
+    html += '<div class="rsvp-row" onclick="openTravelForm(\'' + escapeAttr(it.g.id) + '\')">' +
+      '<div class="rsvp-row__main"><div class="rsvp-row__name" style="font-size:1rem;">' + escapeAttr((it.time || '--:--') + ' · ' + _guestDisplayName(it.g)) + '</div>' +
+      '<div class="rsvp-row__meta">' + escapeAttr(it.kind + (it.flight ? ' · ' + it.flight : '') + ' · ' + _travelPeople(it.g) + ' people') + '</div></div>' +
+      '<div class="rsvp-row__aside">' + (it.car ? '<span class="rsvp-tag coming">🚗 ' + (it.kind === 'Arrives' ? 'Pickup' : 'Drop-off') + '</span>' : '') + '</div></div>';
+  });
+  host.innerHTML = html;
+}
+
+var _travelEditId = null;
+function openTravelForm(guestId) {
+  var g = allGuests.find(function(x) { return x.id === guestId; });
+  if (!g) return;
+  _travelEditId = guestId;
+  var opt = function(name, vals, cur) {
+    return '<div class="tf-opts" data-name="' + name + '">' + vals.map(function(v) {
+      return '<button type="button" data-v="' + escapeAttr(v[0]) + '" class="' + (cur === v[0] ? 'on' : '') + '" onclick="_tfPick(this)">' + escapeAttr(v[1]) + '</button>';
+    }).join('') + '</div>';
+  };
+  var inp = function(f, type, ph) { return '<input type="' + type + '" id="tf-' + f + '" value="' + escapeAttr(_tv(g, f)) + '"' + (ph ? ' placeholder="' + escapeAttr(ph) + '"' : '') + '/>'; };
+  var coming = _travelReplyComing(g);
+  document.getElementById('view-modal-title').textContent = 'Hotel & travel · ' + _guestDisplayName(g);
+  document.getElementById('view-modal-body').innerHTML =
+    '<div class="travel-form">' +
+      '<div class="rsvp-hint" style="margin:0;">' + escapeAttr(_sideOf(g) + (guestGroup(g) ? ' · ' + guestGroup(g) : '') + ' · ' +
+        (coming == null ? 'RSVP not replied' : coming ? coming + ' coming' : 'can’t come')) + (_isOverseasGuest(g) ? ' · 🌍 Overseas' : '') + '</div>' +
+      '<h4>Hotel (Glam Hotel)</h4>' +
+      '<label>Do they need the hotel?</label>' + opt('hotel', [['Yes', 'Yes'], ['No', 'No'], ['', 'Not answered']], _tv(g, 'hotel')) +
+      '<div class="tf-row2"><div><label>Rooms</label>' + inp('rooms', 'number', '') + '</div>' +
+        '<div><label>People staying</label>' + inp('people', 'number', String(_invitePeople(g) || '')) + '</div></div>' +
+      '<div class="tf-row2"><div><label>Check-in (blank = 26 Dec)</label>' + inp('checkin', 'date', '') + '</div>' +
+        '<div><label>Check-out (blank = 30 Dec)</label>' + inp('checkout', 'date', '') + '</div></div>' +
+      '<h4>Flights</h4>' +
+      '<label>Arrival — date, time, flight</label><div class="tf-row">' + inp('arr_date', 'date') + inp('arr_time', 'time') + inp('arr_flight', 'text', 'e.g. KQ 101') + '</div>' +
+      '<label>Departure — date, time, flight</label><div class="tf-row">' + inp('dep_date', 'date') + inp('dep_time', 'time') + inp('dep_flight', 'text', 'e.g. KQ 100') + '</div>' +
+      '<h4>Airport transfers</h4>' +
+      opt('transfer', [['Both', 'Pickup & drop-off'], ['Arrival', 'Pickup only'], ['Departure', 'Drop-off only'], ['No', 'None'], ['', 'Not answered']], _tv(g, 'transfer')) +
+      '<label>Notes</label><textarea id="tf-notes" rows="2" maxlength="500" placeholder="Anything else (e.g. arriving separately, extra night)">' + escapeAttr(_tv(g, 'notes')) + '</textarea>' +
+      '<div id="tf-error" style="color:var(--red);font-size:.85rem;margin-top:.5rem;"></div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;">' +
+        '<button type="button" class="btn btn-ghost" onclick="closeViewModal()">Cancel</button>' +
+        '<button type="button" class="btn btn-primary" id="tf-save" onclick="saveTravelForm()">Save</button>' +
+      '</div>' +
+      (_tv(g, 'updated') ? '<div class="rsvp-hint" style="text-align:right;margin-top:.5rem;">Last updated ' + escapeAttr(formatSentAt(_tv(g, 'updated'))) + '</div>' : '') +
+    '</div>';
+  document.getElementById('view-modal-overlay').classList.remove('hidden');
+}
+function _tfPick(btn) {
+  btn.parentNode.querySelectorAll('button').forEach(function(b) { b.classList.toggle('on', b === btn); });
+}
+function saveTravelForm() {
+  var g = allGuests.find(function(x) { return x.id === _travelEditId; });
+  if (!g) return;
+  var pick = function(name) { var on = document.querySelector('.tf-opts[data-name="' + name + '"] button.on'); return on ? on.getAttribute('data-v') : ''; };
+  var val = function(f) { var el = document.getElementById('tf-' + f); return el ? String(el.value || '').trim() : ''; };
+  var t = { travel_hotel: pick('hotel'), travel_transfer: pick('transfer') };
+  ['rooms', 'people', 'checkin', 'checkout', 'arr_date', 'arr_time', 'arr_flight', 'dep_date', 'dep_time', 'dep_flight', 'notes'].forEach(function(f) { t['travel_' + f] = val(f); });
+  if (t.travel_hotel === 'Yes' && !t.travel_rooms) { document.getElementById('tf-error').textContent = 'How many rooms do they need?'; return; }
+  var btn = document.getElementById('tf-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var saved = (res && res.travel) || t;
+      Object.keys(saved).forEach(function(k) { g[k] = saved[k]; });
+      closeViewModal();
+      showToast('Travel details saved for ' + _guestDisplayName(g) + '.', 'success');
+      if (document.getElementById('tab-travel').classList.contains('active')) renderTravelTab();
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false; btn.textContent = 'Save';
+      document.getElementById('tf-error').textContent = (e && e.message) || 'Couldn’t save.';
+    })
+    .updateTravel({ guestId: g.id, travel: t });
+}
+function exportTravelCSV(kind) {
+  var list = _travelGuests();
+  if (kind === 'hotel') list = list.filter(function(g) { return _tv(g, 'hotel') === 'Yes'; });
+  if (kind === 'transfers') list = list.filter(function(g) { var t = _tv(g, 'transfer'); return t && t !== 'No'; });
+  if (!list.length) { showToast('Nothing to export.', 'info'); return; }
+  var header = ['name', 'side', 'group', 'phone', 'people', 'rooms', 'check_in', 'check_out', 'arrival_date', 'arrival_time', 'arrival_flight',
+    'departure_date', 'departure_time', 'departure_flight', 'transfer', 'hotel', 'notes'];
+  _downloadCSV('travel-' + kind + '.csv', header, list.map(function(g) {
+    return [_guestDisplayName(g), _sideOf(g), guestGroup(g), sanitiseValue(g.phone) || '', _travelPeople(g), _tv(g, 'rooms'),
+      _tv(g, 'checkin') || (_tv(g, 'hotel') === 'Yes' ? TRAVEL_STD_IN : ''), _tv(g, 'checkout') || (_tv(g, 'hotel') === 'Yes' ? TRAVEL_STD_OUT : ''),
+      _tv(g, 'arr_date'), _tv(g, 'arr_time'), _tv(g, 'arr_flight'), _tv(g, 'dep_date'), _tv(g, 'dep_time'), _tv(g, 'dep_flight'),
+      _tv(g, 'transfer'), _tv(g, 'hotel'), _tv(g, 'notes')];
   }));
 }
 
