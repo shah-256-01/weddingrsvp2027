@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261014180411"/>
+<meta name="app-build" content="20261014180453"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -323,11 +323,6 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .family-name-input{width:100%;border:1px solid var(--border);background:#fff;padding:.85rem 1rem;font-family:var(--serif);font-size:var(--body-lg);color:var(--wine);outline:none;transition:border-color .2s;}
 .family-name-input:focus{border-color:var(--gold);}
 .rsvp-summary{max-width:900px;margin:0 auto 1.5rem;padding:0 1.5rem;}
-.diet-wrap{margin-top:1.3rem;padding-top:1.1rem;border-top:1px solid var(--rule);}
-.diet-label{display:block;font-family:var(--serif,'Cormorant Garamond',serif);font-size:1.15rem;color:var(--wine);margin-bottom:.5rem;}
-.diet-label span{font-family:var(--sans);font-size:var(--ui-xs);color:var(--muted);}
-#diet-input{width:100%;box-sizing:border-box;font:inherit;font-size:var(--ui);padding:.7rem .8rem;border:1px solid var(--rule);background:#fff;color:var(--ink);resize:vertical;min-height:3.2rem;}
-#diet-input:focus{outline:2px solid var(--gold);outline-offset:1px;}
 .summary-card{background:var(--cream-deep);border:1px solid var(--rule);padding:1.8rem;position:relative;}
 .summary-title{font-family:var(--serif);font-style:italic;font-size:1.5rem;color:var(--wine);margin-bottom:1rem;}
 .summary-row{display:flex;justify-content:space-between;align-items:baseline;padding:.75rem 0;border-bottom:1px solid var(--rule);font-size:var(--body);gap:.5rem;}
@@ -683,10 +678,6 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
       <div class="summary-title">Your answers</div>
       <div class="summary-hint">Tap any event to change your answer.</div>
       <div id="summary-rows"></div>
-      <div class="diet-wrap hidden" id="diet-wrap">
-        <label for="diet-input" class="diet-label">Any dietary requirements or allergies? <span>(optional)</span></label>
-        <textarea id="diet-input" rows="2" maxlength="300" placeholder="e.g. Jain, vegetarian, vegan, nut allergy"></textarea>
-      </div>
     </div>
   </div>
   <div class="rsvp-bar" id="rsvp-bar" aria-live="polite">
@@ -1429,8 +1420,6 @@ function _setRepliedMode(replied) {
 
 function loadGuestPage() {
   showPage('guest');
-  var dietIn = document.getElementById('diet-input');   // never carry one guest's answer to the next
-  if (dietIn) dietIn.value = '';
   document.getElementById('display-code').textContent = currentGuest.firstName || currentGuest.familyName;
   _setRepliedMode(false);
   var fullName = [currentGuest.firstName, currentGuest.lastName].filter(Boolean).join(' ').trim()
@@ -1941,7 +1930,7 @@ function renderEventCards() {
               '</div>'
             : '') +
           '<div class="field-section">' +
-            '<button type="button" class="notes-toggle" id="notes-btn-' + safeId + '" onclick="toggleNotes(\'' + safeId + '\')">+ Add a note (dietary needs, anything we should know)</button>' +
+            '<button type="button" class="notes-toggle" id="notes-btn-' + safeId + '" onclick="toggleNotes(\'' + safeId + '\')">+ Add a note (anything we should know)</button>' +
             '<textarea class="notes-field hidden" id="notes-' + safeId + '" aria-label="Note for this event" placeholder="Anything we should know for this event\u2026" oninput="eventRSVPs[\'' + safeId + '\'].notes=this.value"></textarea>' +
           '</div>' +
         '</div>' +
@@ -2552,9 +2541,6 @@ function renderSummary() {
     row.onkeydown = function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); editFromReview(id); } };
     rows.appendChild(row);
   });
-  // Dietary question only matters if they're coming to something.
-  var diet = document.getElementById('diet-wrap');
-  if (diet) diet.classList.toggle('hidden', !currentEventIds.some(function(id) { return eventRSVPs[id] && eventRSVPs[id].attending; }));
   renderGlance();
 }
 
@@ -2633,9 +2619,6 @@ async function submitRSVP() {
         names:      r.attending ? (r.guestNames || []).slice(0, r.guests) : [],
       };
     }),
-    // Optional, once per reply; only sent if they're coming to something.
-    dietary: currentEventIds.some(function(id) { return eventRSVPs[id].attending; })
-      ? String((document.getElementById('diet-input') || {}).value || '').trim().slice(0, 300) : '',
     _syncStatus: 'pending',
   };
 

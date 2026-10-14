@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261014180411"/>
+<meta name="app-build" content="20261014180453"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -284,7 +284,6 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-row__main{flex:1;min-width:0;}
 .rsvp-row__name{font-family:'Cormorant Garamond',serif;font-size:1.12rem;color:var(--wine);line-height:1.25;}
 .rsvp-row__meta{font-size:.74rem;color:var(--muted);margin-top:.1rem;}
-.rsvp-row__diet{font-size:.78rem;color:var(--ink);background:var(--gold-pale);display:inline-block;padding:.1rem .45rem;margin-top:.25rem;}
 .rsvp-row__aside{text-align:right;font-size:.8rem;flex-shrink:0;max-width:48%;}
 .rsvp-tag{display:inline-block;padding:.12rem .45rem;font-size:.74rem;border-radius:2px;white-space:nowrap;}
 .rsvp-tag.coming{background:rgba(46,95,72,.12);color:var(--green);}
@@ -3913,8 +3912,7 @@ function openViewGuest(id) {
     var rsvp = matches[0];
     var detail = rsvp
       ? 'Submitted by ' + escapeAttr(rsvp.submission_name || 'guest') +
-          (rsvp.timestamp ? ' on ' + escapeAttr(rsvp.timestamp) : '') +
-          (rsvp.dietary ? '<br>&#127869; Dietary: <strong>' + escapeAttr(rsvp.dietary) + '</strong>' : '')
+          (rsvp.timestamp ? ' on ' + escapeAttr(rsvp.timestamp) : '')
       : 'Response recorded.';
     statusHtml =
       '<div class="view-guest-status view-guest-status--rsvp">' +
@@ -4043,9 +4041,6 @@ function openRecordReply(guestId) {
       (prev ? 'This replaces their current reply.' : 'For guests who replied by phone, message or in person.') +
       ' Choose Yes or No for each event. No emails are sent.</p>' +
     '<div id="rr-list">' + rows + '</div>' +
-    '<label style="display:block;margin-top:.9rem;font-size:.85rem;font-weight:500;">Dietary requirements or allergies <span style="color:var(--muted);font-weight:400;">(optional)</span>' +
-      '<textarea id="rr-diet" rows="2" maxlength="300" placeholder="e.g. Jain, vegetarian, nut allergy" style="display:block;width:100%;margin-top:.3rem;">' +
-      escapeAttr(prev ? String(prev.dietary || '') : '') + '</textarea></label>' +
     '<div id="rr-error" style="color:var(--red);font-size:.85rem;margin-top:.6rem;"></div>' +
     '<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;">' +
       '<button type="button" class="btn btn-ghost" onclick="closeViewModal()">Cancel</button>' +
@@ -4098,7 +4093,7 @@ function saveRecordReply() {
       btn.disabled = false; btn.textContent = 'Save reply';
       err.textContent = (e && e.message) || 'Couldn’t save the reply.';
     })
-    .adminRecordRSVP({ guestId: g.id, events: events, dietary: String((document.getElementById('rr-diet') || {}).value || '').trim() });
+    .adminRecordRSVP({ guestId: g.id, events: events });
 }
 
 // Holds the RSVP currently open in the edit modal so saveRSVPEdits can read
@@ -4794,7 +4789,6 @@ function _rsvpRows() {
       }
     });
     rows.push({ g: g, reply: reply, ev: ev, evIds: evIds, coming: mostComing, invited: invitedPeople,
-      diet: reply ? String(reply.dietary || '').trim() : '',
       sent: !!sanitiseValue(g.invite_sent_at), ts: reply ? new Date(reply.timestamp || 0).getTime() || 0 : 0 });
   });
   _rsvpRowsCache = rows; _rsvpRowsKey = key;
@@ -4882,8 +4876,6 @@ function _renderRSVPOverview(rows) {
     card('coming', coming, 'People coming', 'to at least one event') +
     card('waiting', waiting.length, 'Invites not replied', waitingPeople + ' people · ' + notSent + ' invite' + (notSent === 1 ? '' : 's') + ' not sent yet') +
     card('allno', allNo, 'Can’t come at all', 'replied No to everything') +
-    card('dietary', replied.filter(function(r) { return r.diet && r.coming > 0; }).length, 'Dietary requirements',
-      replied.filter(function(r) { return r.diet && r.coming > 0; }).reduce(function(t, r) { return t + r.coming; }, 0) + ' people in those invites') +
     card('all', invited, 'People invited', rows.length + ' invites');
 }
 
@@ -4943,14 +4935,13 @@ function _rsvpListRows() {
   var ev = d.event ? eventsById[d.event] : null;
   var list = rows;
   if (d.seg) list = list.filter(function(r) { return _segOf(r.g, d.seg.by) === d.seg.val; });
-  var stLabel = { coming: 'Coming', declined: 'Declined', waiting: 'Not replied yet', invited: 'Invited', replied: 'Replied', all: 'Everyone invited', allno: 'Can’t come at all', dietary: 'Dietary requirements' }[d.status] || '';
+  var stLabel = { coming: 'Coming', declined: 'Declined', waiting: 'Not replied yet', invited: 'Invited', replied: 'Replied', all: 'Everyone invited', allno: 'Can’t come at all' }[d.status] || '';
   if (d.event) {
     list = list.filter(function(r) { var e = r.ev[d.event]; return e && (d.status === 'invited' || e.status === d.status); });
   } else if (d.status === 'replied') list = list.filter(function(r) { return r.reply; });
   else if (d.status === 'waiting') list = list.filter(function(r) { return !r.reply; });
   else if (d.status === 'coming') list = list.filter(function(r) { return r.reply && r.coming > 0; });
   else if (d.status === 'allno') list = list.filter(function(r) { return r.reply && r.coming === 0; });
-  else if (d.status === 'dietary') list = list.filter(function(r) { return r.diet && r.coming > 0; });
   var title = (ev ? ev.name + ' › ' : '') + stLabel + (d.seg ? ' › ' + d.seg.val : '');
   return { rows: list, title: title, ev: d.event || '' };
 }
@@ -5017,8 +5008,7 @@ function _rsvpRowHtml(r, evId) {
   }
   return '<div class="rsvp-row" role="button" tabindex="0" onclick="openViewGuest(\'' + escapeAttr(g.id) + '\')">' +
     '<div class="rsvp-row__main"><div class="rsvp-row__name">' + escapeAttr(_guestDisplayName(g)) + '</div>' +
-      '<div class="rsvp-row__meta">' + (meta ? meta + ' · ' : '') + when + '</div>' +
-      (r.diet ? '<div class="rsvp-row__diet">&#127869; ' + escapeAttr(r.diet) + '</div>' : '') + '</div>' +
+      '<div class="rsvp-row__meta">' + (meta ? meta + ' · ' : '') + when + '</div></div>' +
     '<div class="rsvp-row__aside">' + aside + '</div></div>';
 }
 
@@ -5047,13 +5037,13 @@ function _downloadCSV(name, header, rows) {
 function exportRSVPListCSV() {
   if (!_rsvpListShown.length) { showToast('Nothing to export.', 'info'); return; }
   var ev = _rsvpListEv;
-  var header = ['name', 'relationship', 'group', 'overseas', 'phone', 'code', 'replied_at', 'dietary'];
+  var header = ['name', 'relationship', 'group', 'overseas', 'phone', 'code', 'replied_at'];
   if (ev) header.push('status', 'people', 'names', 'seats_invited');
   else allEvents.forEach(function(e) { header.push(e.name); });
   var rows = _rsvpListShown.map(function(r) {
     var g = r.g;
     var base = [_guestDisplayName(g), canonRel(g.relationship || ''), guestGroup(g), _isOverseasGuest(g) ? 'Yes' : 'No',
-      sanitiseValue(g.phone) || '', g.invitation_code || '', r.reply ? r.reply.timestamp || '' : '', r.diet];
+      sanitiseValue(g.phone) || '', g.invitation_code || '', r.reply ? r.reply.timestamp || '' : ''];
     if (ev) { var e = r.ev[ev]; base.push(e.status, e.status === 'coming' ? e.people : 0, e.names.join(', '), e.seats); }
     else allEvents.forEach(function(x) { var e = r.ev[x.id]; base.push(!e ? '' : e.status === 'coming' ? 'Yes ' + e.people : e.status === 'declined' ? 'No' : 'Waiting'); });
     return base;
@@ -5072,11 +5062,11 @@ function exportHeadcountCSV() {
 function exportFilteredRSVPsCSV() {
   var rows = _rsvpRows().filter(function(r) { return r.reply; });
   if (!rows.length) { showToast('No replies to export.', 'info'); return; }
-  var header = ['replied_at', 'name', 'relationship', 'group', 'overseas', 'code', 'dietary'];
+  var header = ['replied_at', 'name', 'relationship', 'group', 'overseas', 'code'];
   allEvents.forEach(function(ev) { header.push(ev.name + ' attending', ev.name + ' people', ev.name + ' names'); });
   _downloadCSV('rsvps.csv', header, rows.map(function(r) {
     var g = r.g;
-    var out = [r.reply.timestamp || '', _guestDisplayName(g), canonRel(g.relationship || ''), guestGroup(g), _isOverseasGuest(g) ? 'Yes' : 'No', g.invitation_code || '', r.diet];
+    var out = [r.reply.timestamp || '', _guestDisplayName(g), canonRel(g.relationship || ''), guestGroup(g), _isOverseasGuest(g) ? 'Yes' : 'No', g.invitation_code || ''];
     allEvents.forEach(function(ev) {
       var e = r.ev[ev.id];
       out.push(!e ? 'Not invited' : e.status === 'coming' ? 'Yes' : e.status === 'declined' ? 'No' : 'No answer',
