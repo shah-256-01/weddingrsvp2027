@@ -1492,7 +1492,7 @@ function adminRecordRSVP(payload) {
   markRSVPRowsDeleted(code);
   _commitRSVP({
     submissionName: name, invitationCode: code, submittedAt: new Date().toISOString(),
-    events: events, adminEntry: true,
+    events: events, adminEntry: true, dietary: _cleanDietary(payload.dietary),
   }, true);
   return { recorded: true, code: code, name: name };
 }
@@ -2069,6 +2069,9 @@ function _checkRSVPEvents(events, guestRecord) {
   });
 }
 
+function _cleanDietary(v) {
+  return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+}
 function _commitRSVP(payload, fromHold) {
   // Check deadline (a reply accepted before the deadline is still written
   // if the background write happens just after it)
@@ -2198,7 +2201,7 @@ function _commitRSVP(payload, fromHold) {
     const byFamilySheet = getSheet(TABS.rsvpByFamily);
     let headers;
     if (byFamilySheet.getLastRow() < 1) {
-      headers = ['timestamp','submission_name','invitation_code','status'];
+      headers = ['timestamp','submission_name','invitation_code','status','dietary'];
       events.forEach(ev => {
         headers.push(
           ev.id + ' Attending', ev.id + ' Guests',
@@ -2210,11 +2213,13 @@ function _commitRSVP(payload, fromHold) {
       headers = byFamilySheet
         .getRange(1, 1, 1, byFamilySheet.getLastColumn())
         .getValues()[0];
-      // Ensure status column exists
-      if (!headers.includes('status')) {
-        byFamilySheet.getRange(1, headers.length + 1).setValue('status');
-        headers.push('status');
-      }
+      // Ensure status and dietary columns exist
+      ['status', 'dietary'].forEach(function(col) {
+        if (!headers.includes(col)) {
+          byFamilySheet.getRange(1, headers.length + 1).setValue(col);
+          headers.push(col);
+        }
+      });
       // Batch-collect new columns, then write them all at once
       const newCols = [];
       events.forEach(ev => {
@@ -2236,6 +2241,9 @@ function _commitRSVP(payload, fromHold) {
     row[headers.indexOf('timestamp')]       = ts;
     row[headers.indexOf('submission_name')] = sanitizeForSheet(submissionName);
     row[headers.indexOf('invitation_code')] = invitationCode;
+    // One optional answer per reply: dietary requirements / allergies.
+    const dietary = _cleanDietary(payload.dietary);
+    if (headers.indexOf('dietary') > -1) row[headers.indexOf('dietary')] = sanitizeForSheet(dietary);
     events.forEach(ev => {
       const a  = headers.indexOf(ev.id + ' Attending');
       const g  = headers.indexOf(ev.id + ' Guests');
@@ -2385,6 +2393,7 @@ function _compactPayload(p) {
     submissionName: String(p.submissionName || '').slice(0, 120),
     invitationCode: String(p.invitationCode || '').toUpperCase().trim(),
     submittedAt: p.submittedAt || new Date().toISOString(),
+    dietary: _cleanDietary(p.dietary),
     events: (p.events || []).map(function(ev) {
       return { id: ev.id, name: ev.name, attending: !!ev.attending, guests: ev.attending ? Number(ev.guests) || 0 : 0,
         names: ev.attending ? (ev.names || []).filter(Boolean).slice(0, 30) : [], notes: String(ev.notes || '').slice(0, 300) };
@@ -2541,7 +2550,9 @@ function sendRSVPDigest(entries) {
     let when = '';
     try { when = Utilities.formatDate(new Date(p.submittedAt), DIGEST_TZ, 'EEE d MMM, HH:mm'); } catch (e) {}
     const rel = relByCode[p.invitationCode] || '';
-    return '• ' + p.submissionName + (rel ? ' — ' + rel : '') + ' · ' + p.invitationCode + (when ? ' · ' + when : '') + '\n' + lines;
+    const diet = _cleanDietary(p.dietary);
+    return '• ' + p.submissionName + (rel ? ' — ' + rel : '') + ' · ' + p.invitationCode + (when ? ' · ' + when : '') + '\n' + lines +
+      (diet ? '\n    Dietary: ' + diet : '');
   });
   const n = entries.length;
   const subject = n + ' new RSVP' + (n === 1 ? '' : 's') + ' — Jaini & Shanay';
@@ -2692,6 +2703,7 @@ function sendRSVPNotification(payload) {
     'Invitation Code: ' + code + '\n' +
     'Submitted: ' + ts + '\n\n' +
     'Event Responses:\n' + eventLines + '\n\n' +
+    (_cleanDietary(payload.dietary) ? 'Dietary requirements: ' + _cleanDietary(payload.dietary) + '\n\n' : '') +
     'Open the admin: ' + WEDDING_SITE_URL.replace(/\/?$/, '/') + 'admin.html';
 
   MailApp.sendEmail(NOTIFICATION_EMAIL, subject, body);
