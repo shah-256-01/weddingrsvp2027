@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261014201323"/>
+<meta name="app-build" content="20261014201437"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -264,6 +264,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-grid>.c0 small{display:block;font-size:.7rem;color:var(--muted);}
 .rsvp-grid>.h{font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom-width:2px;}
 .rsvp-grid>.full{grid-column:2 / -1;color:var(--muted);font-size:.8rem;}
+.rsvp-grid.g3{grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr));}
+.rsvp-num.upto{color:var(--wine);font-weight:700;}
 .rsvp-grid>.sub{background:rgba(184,146,74,.06);font-size:.84rem;}
 .rsvp-grid>.c0.sub{padding-left:.6rem;color:var(--ink);}
 .rsvp-grid>.tot{font-weight:600;border-top:2px solid rgba(0,0,0,.12);}
@@ -690,6 +692,15 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div class="rsvp-grid" id="rsvp-headcount"></div>
     </div>
 
+    <!-- 2b. Possible final numbers -->
+    <div class="admin-card rsvp-card">
+      <div class="rsvp-card__head">
+        <div class="admin-card-title" style="margin-bottom:0;">Possible final numbers</div>
+      </div>
+      <div class="rsvp-hint">If everyone who hasn’t replied yet says yes. <strong>Up to</strong> = confirmed + still could. Tap any number to see who.</div>
+      <div class="rsvp-grid g3" id="rsvp-possible"></div>
+    </div>
+
     <!-- 3. Breakdown -->
     <div class="admin-card rsvp-card">
       <div class="rsvp-card__head">
@@ -1008,6 +1019,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <li>Everything is counted in <strong>people</strong>, not invites. A couple who said yes counts as 2.</li>
           <li><strong>Overview</strong> &mdash; invites replied, people coming, invites not replied (and how many invites aren't sent yet), people who can't come at all.</li>
           <li><strong>Headcount by event</strong> &mdash; for every event: Coming, Declined, Waiting (no reply yet) and Invited. <strong>Tap any number</strong> to see exactly who.</li>
+          <li><strong>Possible final numbers</strong> &mdash; per event (and per side): Confirmed, Still could (invited but not replied) and <strong>Up to</strong> = the most that could come if everyone still to reply says yes.</li>
           <li><strong>Breakdown</strong> &mdash; pick an event and split it by relationship, group, or overseas / in Kenya. Tap any number to see who.</li>
           <li><strong>The list</strong> at the bottom shows whatever you tapped (or the latest replies). Tap a name to open the guest &mdash; from there you can record or change their reply. <kbd>Copy names</kbd> and <kbd>Export list</kbd> give you that exact list; <kbd>All replies</kbd> downloads every reply.</li>
           <li>The dropdowns at the top (relationship, group, overseas, search) narrow <em>every</em> number on the page.</li>
@@ -4863,6 +4875,7 @@ function renderRSVPsTab() {
   }
   _renderRSVPOverview(rows);
   _renderRSVPHeadcount(rows);
+  _renderRSVPPossible(rows);
   renderRSVPBreakdown();
   renderRSVPList();
 }
@@ -4885,6 +4898,7 @@ function _renderRSVPOverview(rows) {
     card('replied', replied.length + '<small> / ' + rows.length + '</small>', 'Invites replied', pct + '% replied',
       '<div class="msgx-bar"><i style="width:' + pct + '%"></i></div>') +
     card('coming', coming, 'People coming', 'to at least one event') +
+    card('upto', coming + waitingPeople, 'Up to', 'people, if everyone not replied says yes') +
     card('waiting', waiting.length, 'Invites not replied', waitingPeople + ' people · ' + notSent + ' invite' + (notSent === 1 ? '' : 's') + ' not sent yet') +
     card('allno', allNo, 'Can’t come at all', 'replied No to everything') +
     card('all', invited, 'People invited', rows.length + ' invites');
@@ -4918,6 +4932,33 @@ function _renderRSVPHeadcount(rows) {
     }
   });
   document.getElementById('rsvp-headcount').innerHTML = html;
+}
+
+// "Possible final numbers": confirmed + everyone who hasn't replied yet.
+function _renderRSVPPossible(rows) {
+  var host = document.getElementById('rsvp-possible');
+  if (!host) return;
+  var line = function(label, sub, t, ev, seg, cls) {
+    return '<div class="c0' + cls + '">' + label + (sub ? '<small>' + sub + '</small>' : '') + '</div>' +
+      '<div class="' + cls.trim() + '">' + _numBtn(t.coming, '', 'coming', ev, 'coming', seg) + '</div>' +
+      '<div class="' + cls.trim() + '">' + _numBtn(t.waiting, '', 'waiting', ev, 'waiting', seg) + '</div>' +
+      '<div class="' + cls.trim() + '">' + _numBtn(t.coming + t.waiting, '', 'upto', ev, 'possible', seg) + '</div>';
+  };
+  var html = '<div class="h c0">Event</div><div class="h">Confirmed</div><div class="h">Still could</div><div class="h">Up to</div>';
+  allEvents.forEach(function(ev) {
+    var t = _rsvpEventTotals(rows, ev.id);
+    var label = escapeAttr(((ev.icon || '') + ' ' + ev.name).trim());
+    if (!t.invitedInv) { html += '<div class="c0"><strong>' + label + '</strong></div><div class="full" style="grid-column:2 / -1;">No one invited</div>'; return; }
+    html += line('<strong>' + label + '</strong>', t.declined ? t.declined + ' declined' : '', t, ev.id, null, '');
+    if (RSVP_NO_SIDE_SPLIT.indexOf(ev.id) < 0) {
+      ['Bride’s side', 'Groom’s side', 'Side not set'].forEach(function(side) {
+        var st = _rsvpEventTotals(rows.filter(function(r) { return _sideOf(r.g) === side; }), ev.id);
+        if (!st.invitedInv) return;
+        html += line('&#8627; ' + escapeAttr(side), '', st, ev.id, { by: 'side', val: side }, ' sub');
+      });
+    }
+  });
+  host.innerHTML = html;
 }
 
 function renderRSVPBreakdown() {
@@ -4960,13 +5001,15 @@ function _rsvpListRows() {
   var ev = d.event ? eventsById[d.event] : null;
   var list = rows;
   if (d.seg) list = list.filter(function(r) { return _segOf(r.g, d.seg.by) === d.seg.val; });
-  var stLabel = { coming: 'Coming', declined: 'Declined', waiting: 'Not replied yet', invited: 'Invited', replied: 'Replied', all: 'Everyone invited', allno: 'Can’t come at all' }[d.status] || '';
+  var stLabel = { coming: 'Coming', declined: 'Declined', waiting: 'Not replied yet', invited: 'Invited', replied: 'Replied', all: 'Everyone invited', allno: 'Can’t come at all', possible: 'Could come (confirmed + not replied)', upto: 'Could come (confirmed + not replied)' }[d.status] || '';
   if (d.event) {
-    list = list.filter(function(r) { var e = r.ev[d.event]; return e && (d.status === 'invited' || e.status === d.status); });
+    list = list.filter(function(r) { var e = r.ev[d.event]; return e && (d.status === 'invited' || e.status === d.status ||
+      (d.status === 'possible' && (e.status === 'coming' || e.status === 'waiting'))); });
   } else if (d.status === 'replied') list = list.filter(function(r) { return r.reply; });
   else if (d.status === 'waiting') list = list.filter(function(r) { return !r.reply; });
   else if (d.status === 'coming') list = list.filter(function(r) { return r.reply && r.coming > 0; });
   else if (d.status === 'allno') list = list.filter(function(r) { return r.reply && r.coming === 0; });
+  else if (d.status === 'upto') list = list.filter(function(r) { return !r.reply || r.coming > 0; });
   var title = (ev ? ev.name + ' › ' : '') + stLabel + (d.seg ? ' › ' + d.seg.val : '');
   return { rows: list, title: title, ev: d.event || '' };
 }
@@ -4977,6 +5020,7 @@ function _rsvpListRows() {
 function _rsvpPeopleIn(r, evId) {
   if (evId) { var e = r.ev[evId]; return e ? e.people : 0; }
   var st = _rsvpDrill ? _rsvpDrill.status : 'replied';
+  if (st === 'upto') return r.reply ? r.coming : r.invited;
   return (st === 'waiting' || st === 'allno' || st === 'all') ? r.invited : r.coming;
 }
 
@@ -4993,8 +5037,8 @@ function renderRSVPList() {
   });
   var people = rows.reduce(function(t, r) { return t + _rsvpPeopleIn(r, L.ev); }, 0);
   var st = _rsvpDrill ? _rsvpDrill.status : 'replied';
-  var peopleWord = (L.ev ? (st === 'coming' ? 'people coming' : st === 'declined' ? 'people declined' : st === 'waiting' ? 'people waiting' : 'people invited')
-    : (st === 'waiting' || st === 'allno' || st === 'all') ? 'people invited' : 'people coming');
+  var peopleWord = (L.ev ? (st === 'coming' ? 'people coming' : st === 'declined' ? 'people declined' : st === 'waiting' ? 'people waiting' : st === 'possible' ? 'people at most' : 'people invited')
+    : st === 'upto' ? 'people at most' : (st === 'waiting' || st === 'allno' || st === 'all') ? 'people invited' : 'people coming');
   document.getElementById('rsvp-list-title').textContent = L.title;
   document.getElementById('rsvp-list-sub').textContent = rows.length + ' invite' + (rows.length === 1 ? '' : 's') + ' · ' + people + ' ' + peopleWord;
   document.getElementById('rsvp-list-clear').classList.toggle('hidden', !_rsvpDrill);
