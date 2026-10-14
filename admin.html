@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261014200954"/>
+<meta name="app-build" content="20261014201323"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -4749,9 +4749,9 @@ function _seatsFor(g, id) {
   var raw = String(g[id + '_guests'] == null ? '' : g[id + '_guests']).trim();
   return (raw === '' || !isNaN(Number(raw))) ? (Number(raw) || 0) : _splitNames(raw).length;
 }
-// Lagnotri and Mandvo are held separately by each side (own time and
-// venue), so the headcount splits them by side.
-var RSVP_SIDE_SPLIT = ['Lg', 'Ma'];
+// Every event's headcount is split into bride's side / groom's side —
+// except the Luncheon, which is bride's side only.
+var RSVP_NO_SIDE_SPLIT = ['Lu'];
 function _sideOf(g) {
   var r = canonRel(g.relationship || '').toLowerCase();
   return r.indexOf('bride') === 0 ? 'Bride’s side' : r.indexOf('groom') === 0 ? 'Groom’s side' : 'Side not set';
@@ -4902,7 +4902,7 @@ function _renderRSVPHeadcount(rows) {
       '<div>' + _numBtn(t.declined, t.declinedInv + ' inv', 'declined', ev.id, 'declined') + '</div>' +
       '<div>' + _numBtn(t.waiting, t.waitingInv + ' inv', 'waiting', ev.id, 'waiting') + '</div>' +
       '<div>' + _numBtn(t.invited, t.invitedInv + ' inv', '', ev.id, 'invited') + '</div>';
-    if (RSVP_SIDE_SPLIT.indexOf(ev.id) > -1) {
+    if (RSVP_NO_SIDE_SPLIT.indexOf(ev.id) < 0) {
       ['Bride’s side', 'Groom’s side', 'Side not set'].forEach(function(side) {
         var sub = rows.filter(function(r) { return _sideOf(r.g) === side; });
         var st = _rsvpEventTotals(sub, ev.id);
