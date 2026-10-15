@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261014203022"/>
+<meta name="app-build" content="20261015175602"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -2595,14 +2595,18 @@ function loadGuests(opts) {
   _bootPrefetch = null;
   req.then(function(data) {
     if (!data || typeof data !== 'object') throw new Error('Empty bootstrap');
+    // Never swap a full list for an empty one — that's a failed read on
+    // Google's side, not 100 guests disappearing. Keep what we have.
+    if (allGuests.length >= 5 && (!Array.isArray(data.guests) || !data.guests.length)) throw new Error('The server returned an empty guest list');
+    if (activeRSVPs().length >= 3 && (!Array.isArray(data.rsvps) || !data.rsvps.length)) throw new Error('The server returned no replies');
     _applyBootstrap(data, silent || showedSaved);
     _writeBootCache(data);
     _setListStatus('');
     _runAfterGuestsLoaded();
   }).catch(function(err) {
     _runAfterGuestsLoaded();
-    if (showedSaved) {
-      // Keep the saved list on screen; the next background sync tries again.
+    if (showedSaved || (allGuests.length && !_isWrongPinError(err))) {
+      // Keep the list already on screen; the next background sync tries again.
       var why = String(err && err.message || '').slice(0, 140);
       _setListStatus('Couldn’t refresh — showing the list from ' + _bootCacheAge() + '.' + (why ? ' (' + why + ')' : ''));
       _lastGuestsLoadAt = Date.now() - SYNC_EVERY_MS + 15000;
@@ -4937,12 +4941,12 @@ function renderRSVPsTab() {
       note.classList.remove('hidden');
     } else note.classList.add('hidden');
   }
-  _renderRSVPOverview(rows);
-  _renderRSVPHeadcount(rows);
-  _renderRSVPPossible(rows);
-  rsvpHcTab(_ssGet('wa:rsvpHcTab') || 'headcount');
-  renderRSVPBreakdown();
-  renderRSVPList();
+  // Each section draws on its own, so a problem in one can't blank the page.
+  [function() { _renderRSVPOverview(rows); }, function() { _renderRSVPHeadcount(rows); },
+   function() { _renderRSVPPossible(rows); }, function() { rsvpHcTab(_ssGet('wa:rsvpHcTab') || 'headcount'); },
+   renderRSVPBreakdown, renderRSVPList].forEach(function(fn) {
+    try { fn(); } catch (e) { console.error('RSVPs tab section failed:', e); }
+  });
 }
 
 function _renderRSVPOverview(rows) {

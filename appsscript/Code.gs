@@ -3256,15 +3256,17 @@ function _getBootstrap() {
   // Use the chunked-cache full guest read once, then split into active +
   // deleted client-side. Previously getGuests() and getDeletedGuests()
   // each did their own full sheetToObjects on the same tab.
-  var allGuestsCached = [];
-  try { allGuestsCached = getGuestsCached() || []; } catch (e) { allGuestsCached = []; }
+  // Guests and replies are essential: if either read fails (Sheets has the
+  // odd timeout), let the error through. Swallowing it used to cache and
+  // serve an EMPTY list for 15 minutes — the admin went blank at random.
+  var allGuestsCached = getGuestsCached() || [];
   var active  = allGuestsCached.filter(function(g) { return String(g.status || '').toUpperCase() !== 'DELETED'; });
   var deleted = allGuestsCached.filter(function(g) { return String(g.status || '').toUpperCase() === 'DELETED'; });
 
   // Read RSVPs_by_family ONCE and derive rsvps / submittedCodes / duplicates
   // from it. Previously each of the three did its own full sheetToObjects
   // on the same 700-row tab on every cold bootstrap.
-  var rsvpsAll = safe(function() { return getRSVPsByFamily(); }) || [];
+  var rsvpsAll = getRSVPsByFamily() || [];
   var rsvpsActive = rsvpsAll.filter(function(r) { return String(r.status || '').toUpperCase() !== 'DELETED'; });
 
   return {
