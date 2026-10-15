@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261015182554"/>
+<meta name="app-build" content="20261015183208"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -5328,7 +5328,7 @@ function renderTravelTab() {
     card('pickup', pick.length, 'Airport pickups', ppl(pick) + ' people') +
     card('dropoff', drop.length, 'Airport drop-offs', ppl(drop) + ' people') +
     card('noflight', sum('noflight').length, 'Hotel, no flight yet', 'arrival details missing') +
-    card('extra', sum('extra').length, 'Extra nights (guest pays)', sum('extra').reduce(function(t, g) { return t + _guestStay(g).extra.length * (Number(_tv(g, 'rooms')) || 1); }, 0) + ' room-nights outside 25–30 Dec');
+    card('extra', sum('extra').length, 'Extra nights (guest pays)', sum('extra').reduce(function(t, g) { return t + _guestStay(g).extra.length * _travelPeople(g); }, 0) + ' person-nights outside 25–30 Dec');
   var titles = { '': 'Overseas guests', hotel: 'Need the hotel', nohotel: 'Don’t need the hotel', unanswered: 'Hotel: not answered yet',
     pickup: 'Airport pickups', dropoff: 'Airport drop-offs', noflight: 'Need the hotel · no flight details yet', extra: 'Extra nights — guest pays' };
   var shown = list.filter(function(g) { return _travelMatches(g, _travelFilter); })
@@ -5345,7 +5345,7 @@ function _travelRowHtml(g) {
   var meta = [_sideOf(g), guestGroup(g), rsvp].filter(Boolean).map(escapeAttr).join(' · ');
   var h = _tv(g, 'hotel');
   var tags = (h === 'Yes' ? '<span class="rsvp-tag coming">🏨 ' + (_tv(g, 'rooms') || '?') + ' room' + (_tv(g, 'rooms') === '1' ? '' : 's') + ' · ' + _travelPeople(g) + ' ppl</span>' +
-      (stay && stay.extra.length ? '<br><span class="rsvp-tag declined" style="margin-top:.25rem;">+' + _nightsLabel(stay.extra) + ' guest pays</span>' : '')
+      (stay && stay.extra.length ? '<br><span class="rsvp-tag declined" style="margin-top:.25rem;">+' + _nightsLabel(stay.extra) + ' · ' + (stay.extra.length * _travelPeople(g)) + ' person-nights · guest pays</span>' : '')
     : h === 'No' ? '<span class="rsvp-tag declined">No hotel</span>' : '<span class="rsvp-tag waiting">Hotel: ?</span>');
   var lines = [];
   var stay = _guestStay(g);
@@ -5442,14 +5442,15 @@ function _tfStay() {
   if (!on || on.getAttribute('data-v') !== 'Yes') { box.innerHTML = ''; box.style.display = 'none'; return; }
   var v = function(id) { return (document.getElementById(id) || {}).value || ''; };
   var st = _stayNights(v('tf-checkin'), v('tf-checkout'));
-  var rooms = Number(v('tf-rooms')) || 1;
+  var gg = allGuests.find(function(x) { return x.id === _travelEditId; }) || {};
+  var people = Number(v('tf-people')) || _invitePeople(gg) || 1;
   var html;
   if (st.bad) html = '<strong style="color:var(--red);">Check-out must be after check-in.</strong>';
   else {
     html = '<div><strong>' + _fmtDay(st.cin) + ' → ' + _fmtDay(st.cout) + '</strong> · ' + _nightsLabel(st.covered.concat(st.extra)) + '</div>' +
       '<div class="ok">✓ We cover ' + _nightsLabel(st.covered) + (st.covered.length < 5 ? ' (of the 5 from 25 → 30 Dec)' : ' (25 → 30 Dec)') + '</div>' +
       (st.extra.length ? '<div class="pay">Guest pays ' + _nightsLabel(st.extra) + ': ' + st.extra.map(_fmtDay).join(', ') +
-        (rooms > 1 ? ' · ' + (st.extra.length * rooms) + ' room-nights' : '') + '</div>' : '');
+        ' · ' + (st.extra.length * people) + ' person-night' + (st.extra.length * people === 1 ? '' : 's') + ' (' + people + ' ' + (people === 1 ? 'person' : 'people') + ', breakfast included)</div>' : '');
     var arr = v('tf-arr_date'), dep = v('tf-dep_date');
     if (arr && arr < st.cin) html += '<div class="warn">✈ Arrives ' + _fmtDay(arr) + ', before check-in. <button type="button" onclick="document.getElementById(\'tf-checkin\').value=\'' + arr + '\';_tfStay()">Check in ' + _fmtDay(arr) + '</button></div>';
     if (dep && dep > st.cout) html += '<div class="warn">✈ Leaves ' + _fmtDay(dep) + ', after check-out. <button type="button" onclick="document.getElementById(\'tf-checkout\').value=\'' + dep + '\';_tfStay()">Check out ' + _fmtDay(dep) + '</button></div>';
@@ -5485,12 +5486,12 @@ function exportTravelCSV(kind) {
   if (kind === 'hotel') list = list.filter(function(g) { return _tv(g, 'hotel') === 'Yes'; });
   if (kind === 'transfers') list = list.filter(function(g) { var t = _tv(g, 'transfer'); return t && t !== 'No'; });
   if (!list.length) { showToast('Nothing to export.', 'info'); return; }
-  var header = ['name', 'side', 'group', 'phone', 'people', 'rooms', 'check_in', 'check_out', 'nights_covered', 'extra_nights_guest_pays', 'extra_night_dates', 'arrival_date', 'arrival_time', 'arrival_flight',
+  var header = ['name', 'side', 'group', 'phone', 'people', 'rooms', 'check_in', 'check_out', 'nights_covered', 'extra_nights_guest_pays', 'extra_person_nights', 'extra_night_dates', 'arrival_date', 'arrival_time', 'arrival_flight',
     'departure_date', 'departure_time', 'departure_flight', 'transfer', 'hotel', 'notes'];
   _downloadCSV('travel-' + kind + '.csv', header, list.map(function(g) {
     return [_guestDisplayName(g), _sideOf(g), guestGroup(g), sanitiseValue(g.phone) || '', _travelPeople(g), _tv(g, 'rooms'),
       _tv(g, 'checkin') || (_tv(g, 'hotel') === 'Yes' ? TRAVEL_STD_IN : ''), _tv(g, 'checkout') || (_tv(g, 'hotel') === 'Yes' ? TRAVEL_STD_OUT : ''),
-      _guestStay(g) ? _guestStay(g).covered.length : '', _guestStay(g) ? _guestStay(g).extra.length : '', _guestStay(g) ? _guestStay(g).extra.join(' ') : '',
+      _guestStay(g) ? _guestStay(g).covered.length : '', _guestStay(g) ? _guestStay(g).extra.length : '', _guestStay(g) ? _guestStay(g).extra.length * _travelPeople(g) : '', _guestStay(g) ? _guestStay(g).extra.join(' ') : '',
       _tv(g, 'arr_date'), _tv(g, 'arr_time'), _tv(g, 'arr_flight'), _tv(g, 'dep_date'), _tv(g, 'dep_time'), _tv(g, 'dep_flight'),
       _tv(g, 'transfer'), _tv(g, 'hotel'), _tv(g, 'notes')];
   }));
