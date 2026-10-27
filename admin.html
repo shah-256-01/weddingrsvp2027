@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261027174544"/>
+<meta name="app-build" content="20261027175909"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -6168,7 +6168,9 @@ var EVENT_EXTRAS = {
         grooms: { dress: 'Traditional Indian', note: 'Followed by brunch' } },
   Lu: {},
   MG: { dress: 'Smart casual / Indian', note: 'Followed by dinner' },
-  We: { dress: 'Traditional Indian', note: 'Jaan arrival 8:30 AM · Wedding ceremony 10:30 AM · Followed by lunch' },
+  // Groom's side travels with the Jaan, so their message gives its departure.
+  We: { brides: { dress: 'Traditional Indian', note: 'Jaan arrival 8:30 AM · Wedding ceremony 10:30 AM · Followed by lunch' },
+        grooms: { dress: 'Traditional Indian', note: 'Jaan departs 7:15 AM · Wedding ceremony 10:30 AM · Followed by lunch', time: '7:15 AM' } },
   BT: { dress: 'Black tie' },
 };
 var DEFAULT_DETAILS_TEMPLATE = { id: 't_details', name: 'Event details',
@@ -6195,7 +6197,9 @@ function _eventInfoForGuest(g, id) {
     v = ev[col];
     return (v != null && String(v).trim()) ? String(v).trim() : (fb || '');
   };
-  var time = pick('time');
+  // A side-specific time in the Events tab wins; then one set here; then the shared time.
+  var sideTime = ev['time_' + side] != null && String(ev['time_' + side]).trim() ? String(ev['time_' + side]).trim() : '';
+  var time = sideTime || xs.time || pick('time');
   return { name: ev.name || id, date: pick('date'), time: /see invitation/i.test(time) ? '' : time,
     venue: pick('venue'), dress: pick('dress_code', xs.dress), note: pick('details', xs.note) };
 }
