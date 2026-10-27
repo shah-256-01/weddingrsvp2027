@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261027173336"/>
+<meta name="app-build" content="20261027174544"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -948,6 +948,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <code>{{code}}</code><span style="color:var(--muted);">Their invitation code</span>
           <code>{{url}}</code><span style="color:var(--muted);">RSVP website URL (from Message Settings)</span>
           <code>{{deadline}}</code><span style="color:var(--muted);">Deadline (invite or chase-up, from Message Settings)</span>
+          <code>{{events}}</code><span style="color:var(--muted);">The events they&rsquo;re coming to, each with date &amp; time, venue (their side&rsquo;s), dress code and how many people &mdash; for the Event details message</span>
         </div>
         <div style="color:var(--muted);margin-top:.5rem;font-style:italic;font-size:.68rem;">
           Type these exactly (with the double curly braces). They'll be replaced per guest when the message is sent.
@@ -1046,6 +1047,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <div class="msgx-mode" role="tablist" aria-label="Message type">
           <button type="button" role="tab" id="msgx-mode-invite" onclick="switchMsgMode('invite')">Invites</button>
           <button type="button" role="tab" id="msgx-mode-chase" onclick="switchMsgMode('chase')">Reminders</button>
+          <button type="button" role="tab" id="msgx-mode-details" onclick="switchMsgMode('details')">Event details</button>
         </div>
         <h2 class="msgx-h" id="msgx-groups-title">Who are you sending to?</h2>
         <p class="msgx-sub" id="msgx-groups-sub">Pick a group. You’ll only see their invites.</p>
@@ -1170,6 +1172,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <p><strong>Handing a group to family:</strong> open the group and tap <kbd>Share this list</kbd>. Opening that link lands them straight on that group.</p>
         <p><strong>Guests without a phone number</strong> are under the <em>No phone</em> tab. Tap <kbd>Add phone</kbd>, or <kbd>&#9993; Email</kbd> if we have their email.</p>
         <p><strong>Chasing people who haven&rsquo;t replied:</strong> switch to <kbd>Reminders</kbd> at the top. Same flow, a reminder message, and only guests who haven&rsquo;t responded. Opening WhatsApp records the reminder, so <kbd>Next</kbd> moves on and they appear under <em>Reminded</em> (on every phone). Anyone still not replied after 7 days comes back into the queue for another nudge. WhatsApp didn&rsquo;t send? Tap <kbd>Put back in the queue</kbd>.</p>
+        <p><strong>Sending everyone their event details:</strong> switch to <kbd>Event details</kbd>. Only guests who&rsquo;ve replied yes appear. Each message lists <em>their</em> events (via <code>{{events}}</code>): date &amp; time, their side&rsquo;s venue, dress code, extra details and how many are coming. Edit the wording in Settings &rarr; Message Templates (&ldquo;Event details&rdquo;). Sent guests move to <em>Sent</em> on every phone.</p>
         <div class="tip">WhatsApp didn&rsquo;t actually send? Tap <kbd>Mark as not sent</kbd> under the Next button and they go back in the queue. Already-sent guests are under the <em>Sent</em> tab &mdash; tap one to resend.</div>
       </div>
     </details>
@@ -5775,6 +5778,7 @@ var DEFAULT_MSG_CONFIG = {
   settings: { rsvpUrl: '', chaseDeadline: '', inviteDeadline: '', defaultCountryCode: '' },
   templates: [
     { id: 't_invite', name: 'Initial Invite', body: 'Hi {{name}},\n\nYou are cordially invited to our wedding celebrations!\n\nRSVP here: {{url}}\n\nTo sign in, use:\n  Name: {{name}}\n  Code: {{code}}\n\nPlease respond by: {{deadline}}\n\nWe hope to see you there!' },
+    { id: 't_details', name: 'Event details', body: 'Hi {{name}},\n\nThank you for your RSVP — we can’t wait to celebrate with you! Here are the details for the events you’re joining us for:\n\n{{events}}\n\nYou can see these any time at {{url}} (sign in with your name and code {{code}}).\n\nWith love,\nJaini & Shanay' },
     { id: 't_chase', name: 'Chase-Up', body: 'Hi {{name}},\n\nJust a friendly reminder to RSVP for the wedding!\n\nRSVP here: {{url}}\n\nTo sign in, use:\n  Name: {{name}}\n  Code: {{code}}\n\nDeadline: {{deadline}}\n\nLooking forward to hearing from you!' },
   ],
   relationshipDefaults: {},
@@ -5904,6 +5908,7 @@ function copyRsvpUrl(btn) {
 
 // ── Settings tab: Template CRUD ────────────
 function renderTemplateList() {
+  _ensureDetailsTemplate();
   if (!messageConfig) return;
   var container = document.getElementById('msg-templates-list');
   if (!messageConfig.templates.length) {
@@ -5963,6 +5968,7 @@ function openTemplateEditor(templateId) {
         '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{code}}\')" title="Their invitation code">+ {{code}}</button>' +
         '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{url}}\')" title="RSVP website URL">+ {{url}}</button>' +
         '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{deadline}}\')" title="Deadline from Message Settings">+ {{deadline}}</button>' +
+        '<button type="button" class="btn btn-secondary btn-sm" onclick="insertTemplateVar(\'' + tid + '\',\'{{events}}\')" title="Their events with time, venue and dress code">+ {{events}}</button>' +
       '</div>' +
       '<details style="margin-bottom:.7rem;">' +
         '<summary style="font-size:.7rem;color:var(--muted);cursor:pointer;">Preview with sample guest</summary>' +
@@ -5992,7 +5998,8 @@ function openEmail(guestId, section, bodyOverride) {
       (section === 'chase' ? messageConfig.settings.chaseDeadline : messageConfig.settings.inviteDeadline) : '';
     body = buildMessage(t.body || '', g, deadline);
   }
-  var subject = section === 'chase' ? 'A quick reminder about our wedding RSVP' : 'You’re invited to Jaini & Shanay’s wedding';
+  var subject = section === 'chase' ? 'A quick reminder about our wedding RSVP'
+    : section === 'details' ? 'Your event details — Jaini & Shanay’s wedding' : 'You’re invited to Jaini & Shanay’s wedding';
   var url = 'mailto:' + encodeURIComponent(g.email) +
             '?subject=' + encodeURIComponent(subject) +
             '&body=' + encodeURIComponent(body);
@@ -6146,7 +6153,69 @@ function buildMessage(template, guest, deadline) {
     .replace(/\{\{name\}\}/g, name)
     .replace(/\{\{code\}\}/g, code)
     .replace(/\{\{url\}\}/g, url)
-    .replace(/\{\{deadline\}\}/g, deadline || '');
+    .replace(/\{\{deadline\}\}/g, deadline || '')
+    .replace(/\{\{events\}\}/g, function() { return _guestEventsText(guest); });
+}
+
+// ── Event details message ──
+// Dress codes and extra details from the printed invitations (an Events-tab
+// dress_code / details column, or _brides / _grooms versions, overrides).
+var EVENT_EXTRAS = {
+  Lg: { brides: { dress: 'Smart casual / Indian', note: 'Followed by brunch at V.O.C. Mahajanwadi, Thika' },
+        grooms: { dress: 'Smart casual / Indian', note: 'Followed by lunch' } },
+  MS: { dress: 'Colourful Indo-Western' },
+  Ma: { brides: { dress: 'Traditional Indian', note: 'Followed by lunch' },
+        grooms: { dress: 'Traditional Indian', note: 'Followed by brunch' } },
+  Lu: {},
+  MG: { dress: 'Smart casual / Indian', note: 'Followed by dinner' },
+  We: { dress: 'Traditional Indian', note: 'Jaan arrival 8:30 AM · Wedding ceremony 10:30 AM · Followed by lunch' },
+  BT: { dress: 'Black tie' },
+};
+var DEFAULT_DETAILS_TEMPLATE = { id: 't_details', name: 'Event details',
+  body: 'Hi {{name}},\n\nThank you for your RSVP — we can’t wait to celebrate with you! Here are the details for the events you’re joining us for:\n\n{{events}}\n\nYou can see these any time at {{url}} (sign in with your name and code {{code}}).\n\nWith love,\nJaini & Shanay' };
+function _ensureDetailsTemplate() {
+  if (!messageConfig || !Array.isArray(messageConfig.templates)) return;
+  if (messageConfig.templates.some(function(t) { return t.id === 't_details'; })) return;
+  messageConfig.templates.push(JSON.parse(JSON.stringify(DEFAULT_DETAILS_TEMPLATE)));
+}
+function _detailsSentAt(g) { return String(sanitiseValue(g.details_sent_at) || ''); }
+// Events the guest's latest reply says Yes to, in event order.
+function _detailsComingIds(g) {
+  var r = _latestReplyByCode()[String(g.invitation_code || '').toUpperCase().trim()];
+  if (!r) return [];
+  return (allEvents || []).map(function(e) { return e.id; }).filter(function(id) { return r[id + ' Attending'] === 'Yes'; });
+}
+function _eventInfoForGuest(g, id) {
+  var ev = eventsById[id] || {};
+  var side = _sideOf(g) === 'Groom’s side' ? 'grooms' : 'brides';
+  var x = EVENT_EXTRAS[id] || {}, xs = x[side] || x;
+  var pick = function(col, fb) {
+    var v = ev[col + '_' + side];
+    if (v != null && String(v).trim()) return String(v).trim();
+    v = ev[col];
+    return (v != null && String(v).trim()) ? String(v).trim() : (fb || '');
+  };
+  var time = pick('time');
+  return { name: ev.name || id, date: pick('date'), time: /see invitation/i.test(time) ? '' : time,
+    venue: pick('venue'), dress: pick('dress_code', xs.dress), note: pick('details', xs.note) };
+}
+// The {{events}} block: one short section per event they're coming to.
+function _guestEventsText(g) {
+  var r = _latestReplyByCode()[String(g.invitation_code || '').toUpperCase().trim()];
+  var ids = _detailsComingIds(g);
+  if (!ids.length) return '(No events confirmed yet)';
+  return ids.map(function(id) {
+    var e = _eventInfoForGuest(g, id);
+    var n = Number(r[id + ' Guests']) || 0;
+    var names = _splitNames(String(r[id + ' Names'] || ''));
+    return ['*' + e.name + '*',
+      '🗓 ' + [e.date, e.time].filter(Boolean).join(' · '),
+      e.note ? '✨ ' + e.note : '',
+      e.venue ? '📍 ' + e.venue : '',
+      e.dress ? '👗 Dress code: ' + e.dress : '',
+      '👥 ' + n + ' ' + (n === 1 ? 'person' : 'people') + (names.length ? ' (' + names.join(', ') + ')' : '')
+    ].filter(Boolean).join('\n');
+  }).join('\n\n');
 }
 
 // Kept for any old caller: opening a guest's message now means opening the
@@ -6221,7 +6290,7 @@ function _writePendingMarks(list) {
 // clear=false marks sent, clear=true marks not sent. A newer action for the
 // same guest replaces any older queued one.
 function queueInviteMark(id, clear, kind) {
-  kind = kind === 'reminder' ? 'reminder' : 'invite';
+  kind = (kind === 'reminder' || kind === 'details') ? kind : 'invite';
   var list = _readPendingMarks().filter(function(x) { return !(x.id === id && (x.kind || 'invite') === kind); });
   list.push({ id: id, clear: !!clear, kind: kind, tries: 0 });
   _writePendingMarks(list);
@@ -6233,7 +6302,7 @@ function _applyPendingMarks() {
   _readPendingMarks().forEach(function(m) {
     var g = allGuests.find(function(x) { return x.id === m.id; });
     if (!g) return;
-    var f = m.kind === 'reminder' ? 'reminder_sent_at' : 'invite_sent_at';
+    var f = m.kind === 'reminder' ? 'reminder_sent_at' : m.kind === 'details' ? 'details_sent_at' : 'invite_sent_at';
     if (m.clear) g[f] = '';
     else if (!sanitiseValue(g[f])) g[f] = new Date().toISOString();
   });
@@ -6251,25 +6320,26 @@ function _flushInviteMarks() {
   if (!m) return;
   _markFlushing = true;
   var same = function(x) { return x.id === m.id && x.clear === m.clear && (x.kind || 'invite') === (m.kind || 'invite'); };
-  var isRem = m.kind === 'reminder';
+  var isRem = m.kind === 'reminder', isDet = m.kind === 'details';
   google.script.run
     .withSuccessHandler(function(res) {
       _markFlushing = false;
       _writePendingMarks(_readPendingMarks().filter(function(x) { return !same(x); }));
       var g = allGuests.find(function(x) { return x.id === m.id; });
       var stillQueued = _readPendingMarks().some(function(x) { return x.id === m.id; });
-      if (g && !m.clear && !stillQueued && res && res.invite_sent_at && !isRem) g.invite_sent_at = res.invite_sent_at;
+      if (g && !m.clear && !stillQueued && res && res.invite_sent_at && !isRem && !isDet) g.invite_sent_at = res.invite_sent_at;
+      if (g && !m.clear && !stillQueued && res && res.details_sent_at && isDet) g.details_sent_at = res.details_sent_at;
       if (g && !m.clear && !stillQueued && res && res.reminder_sent_at && isRem) g.reminder_sent_at = res.reminder_sent_at;
       _flushInviteMarks();
     })
     .withFailureHandler(function(err) {
       _markFlushing = false;
-      if (isRem && /unknown action/i.test(String(err && err.message))) {
+      if ((isRem || isDet) && /unknown action/i.test(String(err && err.message))) {
         // Apps Script not updated yet: the reminder stays recorded on this
         // device only (see _remindedLocal) — say so once.
         _writePendingMarks(_readPendingMarks().filter(function(x) { return !same(x); }));
         if (!_ssGet('wa:remOldServer')) { _ssSet('wa:remOldServer', '1');
-          showToast('Reminders are saved on this phone only until Apps Script is updated (paste the latest Code.gs and redeploy).', 'info', 9000); }
+          showToast((isDet ? 'Event details sent are' : 'Reminders are') + ' only remembered on this phone until Apps Script is updated (paste the latest Code.gs and redeploy).', 'info', 9000); }
         _flushInviteMarks();
         return;
       }
@@ -6288,7 +6358,7 @@ function _flushInviteMarks() {
       }
       _scheduleMarkFlush(Math.min(30000, 2000 * Math.pow(2, Math.min(tries, 4))));
     })
-    [isRem ? 'markReminderSent' : 'markInviteSent']({ guestId: m.id, clear: m.clear });
+    [isRem ? 'markReminderSent' : isDet ? 'markDetailsSent' : 'markInviteSent']({ guestId: m.id, clear: m.clear });
 }
 
 // ── Reminders ──
@@ -6387,6 +6457,8 @@ function _msgxReplied(g) { return allSubmittedCodes.has(g.invitation_code); }
 //  - chase:  invite already sent, but no RSVP yet
 function msgScopeGuests(mode, rel) {
   var list = _msgxInGroup(rel);
+  // Event details: only guests who replied and are coming to something.
+  if (mode === 'details') return list.filter(function(g) { return _detailsComingIds(g).length > 0; });
   if (mode !== 'chase') return list;
   return list.filter(function(g) { return !_msgxReplied(g) && !!sanitiseValue(g.invite_sent_at); });
 }
@@ -6422,11 +6494,13 @@ function _msgxBuckets(mode, rel) {
     if (!_msgxHasEvents(g)) return;
     if (mode === 'invite' && sanitiseValue(g.invite_sent_at)) { b.done.push(g); return; }
     if (mode === 'chase' && _recentlyReminded(g)) { b.done.push(g); return; }
+    if (mode === 'details' && _detailsSentAt(g)) { b.done.push(g); return; }
     if (!normalizePhoneForWhatsApp(g.phone)) { b.noPhone.push(g); return; }
     if (skips.has(g.id)) { b.skipped.push(g); return; }
     b.todo.push(g);
   });
   b.done.sort(function(a, c) {
+    if (mode === 'details') return _detailsSentAt(c).localeCompare(_detailsSentAt(a));
     return mode === 'chase' ? _remindedAt(c).localeCompare(_remindedAt(a)) : String(c.invite_sent_at).localeCompare(String(a.invite_sent_at));
   });
   return b;
@@ -6437,7 +6511,7 @@ function findNextMessage(mode) {
 }
 
 function switchMsgMode(mode) {
-  if (mode !== 'invite' && mode !== 'chase') return;
+  if (mode !== 'invite' && mode !== 'chase' && mode !== 'details') return;
   msgMode = mode;
   try { localStorage.setItem('weddingAdmin:msgMode', mode); } catch (e) {}
   _msgx.tab = 'todo';
@@ -6471,7 +6545,7 @@ function _msgxShow(step) {
 
 function msgxRender() {
   if (!document.getElementById('msgx-groups')) return;
-  ['invite', 'chase'].forEach(function(m) {
+  ['invite', 'chase', 'details'].forEach(function(m) {
     var btn = document.getElementById('msgx-mode-' + m);
     if (btn) { btn.classList.toggle('active', msgMode === m); btn.setAttribute('aria-selected', msgMode === m ? 'true' : 'false'); }
   });
@@ -6499,10 +6573,11 @@ function msgxShowGroups() {
 
 function _msgxRenderGroups() {
   _msgxShow('groups');
-  var chase = msgMode === 'chase';
-  document.getElementById('msgx-groups-title').textContent = chase ? 'Who needs a reminder?' : 'Who are you sending to?';
+  var chase = msgMode === 'chase', det = msgMode === 'details';
+  document.getElementById('msgx-groups-title').textContent = chase ? 'Who needs a reminder?' : det ? 'Send event details' : 'Who are you sending to?';
   document.getElementById('msgx-groups-sub').textContent = chase
     ? 'Pick a group. You’ll only see guests who haven’t replied yet.'
+    : det ? 'Each guest gets their own list: the events they’re coming to, with time, venue and dress code. Only guests who’ve replied yes are shown.'
     : 'Pick a group. You’ll only see their invites.';
   var groups = MSGX_GROUPS.map(function(x) { return x.rel; });
   if (_msgxInGroup(MSGX_NONE).length) groups.push(MSGX_NONE);
@@ -6516,7 +6591,15 @@ function _msgxGroupCard(rel, isAll) {
   var total = b.invitable.length;
   if (!b.all.length && !isAll) return '';
   var line, meta, pct, done;
-  if (msgMode === 'invite') {
+  if (msgMode === 'details') {
+    var coming = b.scope.filter(_msgxHasEvents).length;
+    var leftD = b.todo.length + b.skipped.length;
+    done = coming > 0 && leftD === 0 && !b.noPhone.length;
+    line = !coming ? 'Nobody has said yes yet' : done ? '✓ Everyone coming has their details'
+      : leftD ? '<b>' + leftD + '</b> to send' : 'Only guests without a phone left';
+    meta = b.done.length + ' of ' + coming + ' coming have their details' + (b.noPhone.length ? ' · ' + b.noPhone.length + ' without a phone' : '');
+    pct = coming ? Math.round(b.done.length / coming * 100) : 0;
+  } else if (msgMode === 'invite') {
     var left = b.todo.length + b.skipped.length;   // still to send on WhatsApp
     done = total > 0 && left === 0 && !b.noPhone.length;
     line = done ? '✓ All invites sent'
@@ -6571,14 +6654,14 @@ function msgxShowList() {
 function _msgxRenderList() {
   _msgxShow('list');
   var rel = _msgx.group || '';
-  var chase = msgMode === 'chase';
+  var chase = msgMode === 'chase', det = msgMode === 'details';
   var b = _msgxBuckets(msgMode, rel);
-  var total = b.invitable.length;
+  var total = det ? b.scope.filter(_msgxHasEvents).length : b.invitable.length;
   var label = _msgxGroupLabel(rel) +
     (_msgx.sub ? ' › ' + (_msgx.sub === '__none__' ? 'No group' : _msgx.sub) : '') +
     (_msgx.where ? ' › ' + (_msgx.where === 'overseas' ? 'Overseas' : 'In Kenya') : '');
   var sentToday = 0;
-  if (!chase) {
+  if (!chase && !det) {
     var inGroup = new Set(b.all.map(function(g) { return g.id; }));
     sentToday = _readSentToday().ids.filter(function(id) { return inGroup.has(id); }).length;
   }
@@ -6588,19 +6671,20 @@ function _msgxRenderList() {
     : (total ? Math.round(b.done.length / total * 100) : 0);
   var meta = chase
     ? replied + ' of ' + total + ' replied · reminders only go to guests whose invite was sent'
+    : det ? b.done.length + ' of ' + total + ' coming have their details'
     : b.done.length + ' of ' + total + ' sent' + (sentToday ? ' · ' + sentToday + ' today' : '');
 
   var cta;
   if (b.todo.length) {
-    cta = '<button type="button" class="msgx-cta" onclick="msgxStart()">&#9654; ' + (chase ? 'Start reminders' : 'Start sending') + ' · ' + b.todo.length + ' to go</button>';
+    cta = '<button type="button" class="msgx-cta" onclick="msgxStart()">&#9654; ' + (chase ? 'Start reminders' : det ? 'Start sending details' : 'Start sending') + ' · ' + b.todo.length + ' to go</button>';
   } else if (b.skipped.length) {
     cta = '<button type="button" class="msgx-cta" onclick="msgxRetrySkipped()">&#8634; Go through the ' + b.skipped.length + ' skipped</button>';
   } else {
-    cta = '<button type="button" class="msgx-cta" disabled>' + (chase ? '✓ Nobody to remind' : '✓ All sent') + '</button>';
+    cta = '<button type="button" class="msgx-cta" disabled>' + (chase ? '✓ Nobody to remind' : det && !total ? 'Nobody has said yes yet' : '✓ All sent') + '</button>';
   }
   document.getElementById('msgx-list-head').innerHTML =
     '<h2 class="msgx-h">' + escapeAttr(label) + '</h2>' +
-    '<div class="msgx-sub" style="margin:0;">' + (chase ? 'Reminders' : 'Invites') + ' · ' + escapeAttr(meta) + '</div>' +
+    '<div class="msgx-sub" style="margin:0;">' + (chase ? 'Reminders' : det ? 'Event details' : 'Invites') + ' · ' + escapeAttr(meta) + '</div>' +
     '<div class="msgx-bar"><i style="width:' + pct + '%"></i></div>' +
     cta;
   document.getElementById('msgx-share').classList.toggle('hidden', !_slugForSender(rel));
@@ -6622,8 +6706,8 @@ function _msgxRenderList() {
   var host = document.getElementById('msgx-rows');
   if (!rows.length) {
     var empty = q ? 'No guests match “' + escapeAttr(_msgx.q) + '”.'
-      : _msgx.tab === 'todo' ? (b.skipped.length ? 'Nothing left except the skipped guests.' : (chase ? 'Nobody left to remind. 🎉' : 'Everyone in this group has their invite. 🎉'))
-      : _msgx.tab === 'done' ? (chase ? 'No reminders sent yet.' : 'No invites sent yet.')
+      : _msgx.tab === 'todo' ? (b.skipped.length ? 'Nothing left except the skipped guests.' : (chase ? 'Nobody left to remind. 🎉' : det ? (total ? 'Everyone coming has their details. 🎉' : 'Nobody in this group has said yes yet.') : 'Everyone in this group has their invite. 🎉'))
+      : _msgx.tab === 'done' ? (chase ? 'No reminders sent yet.' : det ? 'No details sent yet.' : 'No invites sent yet.')
       : _msgx.tab === 'noEvents' ? 'Everyone in this group has at least one event.' : 'Nobody here.';
     host.innerHTML = '<div class="msgx-empty">' + empty + '</div>';
     return;
@@ -6642,7 +6726,9 @@ function _msgxRow(g) {
   var code = g.invitation_code ? '<span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>' : '';
   var phone = escapeAttr(sanitiseValue(g.phone) || 'No phone');
   var aside = '';
-  if (_msgx.tab === 'done') aside = msgMode === 'chase'
+  if (_msgx.tab === 'done') aside = msgMode === 'details'
+    ? '<span class="ok">✓ Details sent ' + escapeAttr(formatSentAt(_detailsSentAt(g))) + '</span>'
+    : msgMode === 'chase'
     ? '<span class="ok">✓ Reminded ' + escapeAttr(formatSentAt(_remindedAt(g))) + '</span>'
     : '<span class="ok">✓ Sent ' + escapeAttr(formatSentAt(sanitiseValue(g.invite_sent_at))) + '</span>';
   if (_msgx.tab === 'skipped') {
@@ -6778,6 +6864,10 @@ function _msgxTemplateFor(g) {
     var chaseTpl = tpls.find(function(t) { return /chase|remind/i.test(t.name + ' ' + t.id); });
     if (chaseTpl) return chaseTpl;
   }
+  if (msgMode === 'details') {
+    _ensureDetailsTemplate();
+    return tpls.find(function(t) { return t.id === 't_details'; }) || tpls.find(function(t) { return /detail/i.test(t.name + ' ' + t.id); }) || DEFAULT_DETAILS_TEMPLATE;
+  }
   var defId = getDefaultTemplateId(g);
   return tpls.find(function(t) { return t.id === defId; }) || tpls[0];
 }
@@ -6789,6 +6879,13 @@ function _msgxBody(g) {
 }
 
 function _msgxEventChips(g) {
+  if (msgMode === 'details') {
+    var r = _latestReplyByCode()[String(g.invitation_code || '').toUpperCase().trim()];
+    var yes = _detailsComingIds(g);
+    return yes.length ? '<div class="msgx-chips">' + yes.map(function(id) {
+      var ev = eventsById[id] || {}; return '<span class="msgx-chip">✓ ' + escapeAttr(ev.name || id) + ' <b>' + (Number(r[id + ' Guests']) || 0) + '</b></span>';
+    }).join('') + '</div>' : '';
+  }
   var ids = String(g.events || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
   if (!ids.length) return '';
   return '<div class="msgx-chips">' + ids.map(function(id) {
@@ -6820,6 +6917,8 @@ function _msgxRenderSend() {
   if (!chase && sentAt && !_msgx.sent) status = '<div class="msgx-who" style="color:var(--green);">✓ Invite already sent ' + escapeAttr(formatSentAt(sentAt)) + '</div>';
   var remAt = chase ? _remindedAt(g) : '';
   if (chase && remAt && !_msgx.sent) status = '<div class="msgx-who" style="color:var(--green);">✓ Reminded ' + escapeAttr(formatSentAt(remAt)) + '</div>';
+  var detAt = msgMode === 'details' ? _detailsSentAt(g) : '';
+  if (detAt && !_msgx.sent) status = '<div class="msgx-who" style="color:var(--green);">✓ Details already sent ' + escapeAttr(formatSentAt(detAt)) + '</div>';
 
   var tplPicker = '';
   if (messageConfig && messageConfig.templates.length > 1 && !_msgx.sent) {
@@ -6838,7 +6937,7 @@ function _msgxRenderSend() {
   if (_msgx.sent) {
     var next = b.todo[0];
     actions =
-      '<div class="msgx-done">✓ ' + (chase ? 'Reminder sent to ' : 'Sent to ') + escapeAttr(name) + '</div>' +
+      '<div class="msgx-done">✓ ' + (chase ? 'Reminder sent to ' : msgMode === 'details' ? 'Details sent to ' : 'Sent to ') + escapeAttr(name) + '</div>' +
       (next
         ? '<button type="button" class="msgx-cta" id="msgx-primary" onclick="msgxNext()">Next: ' + escapeAttr(_msgxName(next)) + ' &#8594;</button>'
         : '<button type="button" class="msgx-cta" id="msgx-primary" onclick="msgxShowList()">✓ All done — back to the list</button>') +
@@ -6846,12 +6945,13 @@ function _msgxRenderSend() {
   } else if (phoneOk) {
     var waUrl = buildWhatsAppUrl(g.phone, body);
     actions =
-      '<a class="msgx-cta msgx-cta--wa" id="msgx-primary" href="' + escapeAttr(waUrl) + '" target="_blank" rel="noopener" onclick="msgxSent()">&#128172; ' + (!chase && sentAt ? 'Resend on WhatsApp' : chase && remAt ? 'Remind again on WhatsApp' : 'Open WhatsApp') + '</a>' +
+      '<a class="msgx-cta msgx-cta--wa" id="msgx-primary" href="' + escapeAttr(waUrl) + '" target="_blank" rel="noopener" onclick="msgxSent()">&#128172; ' + (detAt ? 'Send details again' : msgMode === 'details' ? 'Open WhatsApp' : !chase && sentAt ? 'Resend on WhatsApp' : chase && remAt ? 'Remind again on WhatsApp' : 'Open WhatsApp') + '</a>' +
       '<div class="msgx-sub-actions">' +
         '<button type="button" onclick="msgxSkip()">Skip for now</button>' +
         '<button type="button" onclick="msgxCopy()">Copy message</button>' +
       '</div>' +
-      (!chase && sentAt ? '<button type="button" class="msgx-undo" onclick="msgxUndoSent()">Mark as not sent</button>' : '');
+      (msgMode === 'details' ? (detAt ? '<button type="button" class="msgx-undo" onclick="msgxUndoSent()">Mark details as not sent</button>' : '')
+        : (!chase && sentAt ? '<button type="button" class="msgx-undo" onclick="msgxUndoSent()">Mark as not sent</button>' : ''));
   } else {
     actions =
       '<div class="msgx-warn">No WhatsApp number for this guest.</div>' +
@@ -6901,6 +7001,9 @@ function msgxSent() {
     g.invite_sent_at = new Date().toISOString();
     _rememberLastSent(id);
     queueInviteMark(id, false);
+  } else if (msgMode === 'details') {
+    g.details_sent_at = new Date().toISOString();
+    queueInviteMark(id, false, 'details');
   } else {
     var now = new Date().toISOString();
     g.reminder_sent_at = now;
@@ -6919,6 +7022,14 @@ function msgxSent() {
 function msgxUndoSent() {
   var g = _msgxFind(_msgx.current);
   if (!g) return;
+  if (msgMode === 'details') {
+    g.details_sent_at = '';
+    _msgx.sent = false;
+    _msgxRenderSend();
+    queueInviteMark(g.id, true, 'details');
+    showToast(_msgxName(g) + ' is back in the details queue.', 'info', 2200);
+    return;
+  }
   if (msgMode === 'chase') {
     g.reminder_sent_at = '';
     _setRemindedLocal(g.id, '');

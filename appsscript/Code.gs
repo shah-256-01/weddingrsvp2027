@@ -122,7 +122,7 @@ function doPost(e) {
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
-      'generateCode', 'markInviteSent', 'markReminderSent', 'updateRSVP', 'getBootstrap',
+      'generateCode', 'markInviteSent', 'markReminderSent', 'markDetailsSent', 'updateRSVP', 'getBootstrap',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
       'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'updateTravel',
     ];
@@ -195,6 +195,7 @@ function doPost(e) {
     else if (action === 'generateCode')     result = generateCode();
     else if (action === 'markInviteSent')   result = markInviteSent(payload.guestId, !!payload.clear);
     else if (action === 'markReminderSent') result = markInviteSent(payload.guestId, !!payload.clear, 'reminder_sent_at');
+    else if (action === 'markDetailsSent')  result = markInviteSent(payload.guestId, !!payload.clear, 'details_sent_at');
     else if (action === 'updateRSVP')       result = updateRSVP(payload);
     else if (action === 'getBootstrap')     result = getBootstrap();
     else if (action === 'getMessageConfig') result = getMessageConfig();
@@ -345,7 +346,7 @@ function bumpAdminCacheVersion() {
 //   _rev           — the hash itself
 //   invite_sent_at — stamped ~700× during a send session by markInviteSent
 //   *_table        — seating, edited via its own updateSeating flow
-const REV_EXCLUDE = new Set(['id', '_rev', 'invite_sent_at', 'reminder_sent_at']);
+const REV_EXCLUDE = new Set(['id', '_rev', 'invite_sent_at', 'reminder_sent_at', 'details_sent_at']);
 function _guestRev(obj) {
   // Empty values are skipped so that appending a new (blank) column to the
   // sheet — e.g. the {id}_names columns — doesn't change every guest's rev
@@ -518,7 +519,7 @@ function repairGuestSheet() {
     }
     const tidied = _canonGuestSheet(sheet, null);
     bumpAdminCacheVersion();
-    const known = new Set(guestHeaders().concat(TRAVEL_FIELDS, ['reminder_sent_at']));
+    const known = new Set(guestHeaders().concat(TRAVEL_FIELDS, ['reminder_sent_at', 'details_sent_at']));
     const unused = headers.filter(function(h) { return h && !known.has(h); });
     const msg = 'repairGuestSheet: added ' + missing.length + ' column(s)' +
       (missing.length ? ' [' + missing.join(', ') + ']' : '') +
@@ -1949,7 +1950,7 @@ function generateCode() {
 // WhatsApp reminder was opened, so the queue moves on and other devices see it.
 function markInviteSent(guestId, clear, column) {
   if (!guestId) throw new Error('guestId required');
-  const col = column === 'reminder_sent_at' ? 'reminder_sent_at' : 'invite_sent_at';
+  const col = (column === 'reminder_sent_at' || column === 'details_sent_at') ? column : 'invite_sent_at';
   const sheet = getSheet(TABS.guests);
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -3248,7 +3249,7 @@ function _withFreshInviteSent(list) {
   if (idI < 0) return list;
   const ids = sheet.getRange(2, idI + 1, n, 1).getValues();
   // Both "sent" columns change without bumping the cache version.
-  ['invite_sent_at', 'reminder_sent_at'].forEach(function(col) {
+  ['invite_sent_at', 'reminder_sent_at', 'details_sent_at'].forEach(function(col) {
     const ci = headers.indexOf(col);
     if (ci < 0) return;
     const vals = sheet.getRange(2, ci + 1, n, 1).getValues();
