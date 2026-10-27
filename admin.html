@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261027161038"/>
+<meta name="app-build" content="20261027172504"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -283,6 +283,9 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-grid>.sub{background:rgba(184,146,74,.06);font-size:.84rem;}
 .rsvp-grid>.c0.sub{padding-left:.6rem;color:var(--ink);}
 .rsvp-grid>.tot{font-weight:600;border-top:2px solid rgba(0,0,0,.12);}
+#travel-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
+#travel-filter-bar input{grid-column:1 / -1;}
+#travel-filter-bar>*{width:100%;min-width:0;margin:0;}
 #rsvp-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
 #rsvp-filter-bar input{grid-column:1 / -1;}
 #rsvp-filter-bar>*{width:100%;min-width:0;margin:0;}
@@ -790,6 +793,13 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <option value="">Both sides</option>
         <option value="Bride’s side">Bride’s side</option>
         <option value="Groom’s side">Groom’s side</option>
+      </select>
+      <select id="travel-rel" onchange="renderTravelTab()"><option value="">All relationships</option></select>
+      <select id="travel-group" onchange="renderTravelTab()"><option value="">All groups</option></select>
+      <select id="travel-rsvp" onchange="renderTravelTab()">
+        <option value="">Any RSVP</option>
+        <option value="coming">Coming</option>
+        <option value="waiting">Not replied yet</option>
       </select>
     </div>
     <div class="rsvp-overview" id="travel-overview"></div>
@@ -5346,12 +5356,36 @@ function _travelReplyComing(g) {
   ALL_EVENT_IDS.forEach(function(id) { if (r[id + ' Attending'] === 'Yes') most = Math.max(most, Number(r[id + ' Guests']) || 0); });
   return most;
 }
-function _travelGuests() {
-  var q = ((document.getElementById('travel-search') || {}).value || '').toLowerCase().trim();
-  var side = (document.getElementById('travel-side') || {}).value || '';
+// Fill the relationship / group dropdowns from the data, keeping the choice.
+function _travelFillFilters() {
+  var fill = function(id, allLabel, items) {
+    var sel = document.getElementById(id); if (!sel) return;
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">' + allLabel + '</option>' + items.map(function(it) {
+      return '<option value="' + escapeAttr(it[0]) + '">' + escapeAttr(it[1]) + '</option>'; }).join('');
+    if (cur && items.some(function(it) { return it[0] === cur; })) sel.value = cur;
+  };
+  var pool = allGuests.filter(function(g) { return _isOverseasGuest(g) || _hasTravel(g); });
+  var rels = {}, groups = {}, noGroup = false;
+  pool.forEach(function(g) { var r = canonRel(g.relationship || ''); if (r) rels[r] = 1; var gr = guestGroup(g); if (gr) groups[gr] = 1; else noGroup = true; });
+  fill('travel-rel', 'All relationships', Object.keys(rels).sort().map(function(r) { return [r, r]; }));
+  var gl = Object.keys(groups).sort().map(function(x) { return [x, x]; });
+  if (noGroup && gl.length) gl.push(['__none__', '(No group)']);
+  fill('travel-group', 'All groups', gl);
+}
+// Replied No to every event — nothing to book for them.
+function _travelCantCome(g) { return _travelReplyComing(g) === 0; }
+function _travelGuests(includeCantCome) {
+  var v = function(id) { return ((document.getElementById(id) || {}).value || ''); };
+  var q = v('travel-search').toLowerCase().trim();
+  var side = v('travel-side'), rel = v('travel-rel'), grp = v('travel-group'), rsvp = v('travel-rsvp');
   return allGuests.filter(function(g) {
     if (!_isOverseasGuest(g) && !_hasTravel(g)) return false;
+    if (!includeCantCome && _travelCantCome(g)) return false;
     if (side && _sideOf(g) !== side) return false;
+    if (rel && canonRel(g.relationship || '') !== rel) return false;
+    if (grp && (grp === '__none__' ? !!guestGroup(g) : guestGroup(g) !== grp)) return false;
+    if (rsvp) { var c = _travelReplyComing(g); if (rsvp === 'coming' ? !(c > 0) : c !== null) return false; }
     if (q && ([g.first_name, g.last_name, g.phone, guestGroup(g)].join(' ').toLowerCase().indexOf(q) < 0)) return false;
     return true;
   });
@@ -5371,6 +5405,13 @@ function _travelMatches(g, f) {
 function renderTravelTab() {
   var host = document.getElementById('travel-overview');
   if (!host) return;
+  _travelFillFilters();
+  // Can't come at all but travel details recorded → flag so bookings can be cancelled.
+  var cancel = _travelGuests(true).filter(function(g) {
+    var t = _tv(g, 'transfer');
+    return _travelCantCome(g) && (_tv(g, 'hotel') === 'Yes' || _tv(g, 'arr_date') || _tv(g, 'arr_flight') || _tv(g, 'dep_date') || _tv(g, 'dep_flight') || (t && t !== 'No'));
+  });
+  if (_travelFilter === 'cancel') { _renderTravelCancel(cancel); return; }
   var list = _travelGuests();
   var sum = function(f) { return list.filter(function(g) { return _travelMatches(g, f); }); };
   var hotel = sum('hotel'), pick = sum('pickup'), drop = sum('dropoff');
@@ -5389,6 +5430,9 @@ function renderTravelTab() {
     card('pickup', pick.length, 'Airport pickups', ppl(pick) + ' people') +
     card('dropoff', drop.length, 'Airport drop-offs', ppl(drop) + ' people') +
     card('noflight', sum('noflight').length, 'Hotel, no flight yet', 'arrival details missing') +
+    (cancel.length ? '<button type="button" class="rsvp-ov" onclick="travelFilter(\'cancel\')" style="border-color:var(--red);">' +
+      '<div class="rsvp-ov__num" style="color:var(--red);">' + cancel.length + '</div><div class="rsvp-ov__lbl">Can’t come — cancel travel</div>' +
+      '<div class="rsvp-ov__sub">replied No to everything but have hotel / flight details</div></button>' : '') +
     card('extra', sum('extra').length, 'Extra nights (guest pays)', sum('extra').reduce(function(t, g) { return t + _guestStay(g).extra.length * _travelPeople(g); }, 0) + ' person-nights outside 25–30 Dec');
   var titles = { '': 'Overseas guests', hotel: 'Need the hotel', nohotel: 'Don’t need the hotel', unanswered: 'Hotel: not answered yet',
     pickup: 'Airport pickups', dropoff: 'Airport drop-offs', noflight: 'Need the hotel · no flight details yet', extra: 'Extra nights — guest pays' };
@@ -5399,6 +5443,16 @@ function renderTravelTab() {
   document.getElementById('travel-list').innerHTML = shown.length ? shown.map(_travelRowHtml).join('')
     : '<div class="empty-state">' + (list.length ? 'Nobody here.' : 'No overseas guests yet. Mark guests as overseas (Edit guest), or use “Hotel & travel” on any guest.') + '</div>';
   _renderTravelSchedule(list);
+}
+function _renderTravelCancel(list) {
+  document.getElementById('travel-overview').innerHTML =
+    '<button type="button" class="rsvp-ov" onclick="travelFilter(\'\')" style="border-color:var(--gold);background:var(--gold-pale);">' +
+    '<div class="rsvp-ov__lbl">&#8592; Back to all overseas guests</div></button>';
+  document.getElementById('travel-list-title').textContent = 'Can’t come — cancel travel · ' + list.length;
+  document.getElementById('travel-list-clear').classList.remove('hidden');
+  document.getElementById('travel-list').innerHTML = '<div class="rsvp-hint" style="margin:.2rem 0 .6rem;">These guests replied that they can’t come to any event, but still have hotel or flight details saved. Cancel anything booked, then tap a guest and set the hotel to “No” (or clear their details).</div>' +
+    (list.length ? list.map(_travelRowHtml).join('') : '<div class="empty-state">Nobody here.</div>');
+  document.getElementById('travel-schedule').innerHTML = '<div class="empty-state">Showing guests who can’t come.</div>';
 }
 function _travelRowHtml(g) {
   var coming = _travelReplyComing(g);
