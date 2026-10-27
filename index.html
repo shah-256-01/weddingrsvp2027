@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261027174544"/>
+<meta name="app-build" content="20261027180311"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -969,7 +969,10 @@ var EVENT_EXTRAS = {
         grooms: { dress: 'Traditional Indian', note: 'Followed by brunch' } },
   Lu: {},
   MG: { dress: 'Smart casual / Indian', note: 'Followed by dinner' },
-  We: { dress: 'Traditional Indian', note: 'Jaan arrival 8:30 AM · Wedding ceremony 10:30 AM · Followed by lunch' },
+  // Groom's side travel with the Jaan: show when and where it leaves from.
+  We: { brides: { dress: 'Traditional Indian', note: 'Jaan arrival 8:30 AM · Wedding ceremony 10:30 AM · Followed by lunch' },
+        grooms: { dress: 'Traditional Indian', note: 'Wedding ceremony 10:30 AM · Followed by lunch', time: '7:15 AM',
+                  departTime: '7:15 AM', departFrom: 'Glam Hotel, Nairobi' } },
   BT: { dress: 'Black tie' },
 };
 // Everything a guest needs for one event (their side's time and venue).
@@ -985,7 +988,9 @@ function eventDetails(id) {
     v = evt[col];
     return (v != null && String(v).trim()) ? String(v).trim() : (fallback || '');
   };
-  return Object.assign({}, evt, { dress: pick('dress_code', xs.dress), note: pick('details', xs.note) });
+  var sideTime = evt['time_' + side] != null && String(evt['time_' + side]).trim() ? String(evt['time_' + side]).trim() : '';
+  return Object.assign({}, evt, { dress: pick('dress_code', xs.dress), note: pick('details', xs.note),
+    time: sideTime || xs.time || evt.time, departTime: xs.departTime || '', departFrom: xs.departFrom || '' });
 }
 function _mapsUrl(venue) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue); }
 // "Saturday 26 December 2026" → { dow: 'Sat', day: '26', mon: 'Dec' }
@@ -1014,6 +1019,8 @@ function renderItinerary(items, declined) {
       '<div class="it-body">' +
         '<h3 class="it-name">' + escapeHtml(e.name) + '</h3>' +
         row('🗓', 'When', escapeHtml(e.date || 'TBC') + (e.time && !/see invitation/i.test(e.time) ? ' · <strong>' + escapeHtml(e.time) + '</strong>' : '')) +
+        (e.departTime ? row('🚌', 'Jaan departs', '<strong>' + escapeHtml(e.departTime) + '</strong> from ' + escapeHtml(e.departFrom) +
+          ' <a class="it-link" href="' + escapeAttr(_mapsUrl(e.departFrom)) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>') : '') +
         (e.note ? row('✨', 'Details', escapeHtml(e.note)) : '') +
         row('📍', 'Where', escapeHtml(e.venue || 'TBC') + (e.venue && e.venue !== 'TBC' ? ' <a class="it-link" href="' + escapeAttr(_mapsUrl(e.venue)) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>' : '')) +
         row('👗', 'Dress code', e.dress ? '<strong>' + escapeHtml(e.dress) + '</strong>' : '') +
@@ -2556,7 +2563,7 @@ function makeICSBlob(evt) {
 }
 
 function downloadICS(evtId) {
-  var evt = eventFor(evtId);
+  var evt = eventDetails(evtId) || eventFor(evtId);
   if (!evt) return;
   var blob = makeICSBlob(evt);
   if (!blob) { alert('Could not generate calendar file for this event.'); return; }
