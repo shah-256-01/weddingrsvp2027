@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261015185845"/>
+<meta name="app-build" content="20261027161038"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -1070,7 +1070,7 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         </ol>
         <p><strong>Handing a group to family:</strong> open the group and tap <kbd>Share this list</kbd>. Opening that link lands them straight on that group.</p>
         <p><strong>Guests without a phone number</strong> are under the <em>No phone</em> tab. Tap <kbd>Add phone</kbd>, or <kbd>&#9993; Email</kbd> if we have their email.</p>
-        <p><strong>Chasing people who haven&rsquo;t replied:</strong> switch to <kbd>Reminders</kbd> at the top. Same flow, a reminder message, and only guests who haven&rsquo;t responded.</p>
+        <p><strong>Chasing people who haven&rsquo;t replied:</strong> switch to <kbd>Reminders</kbd> at the top. Same flow, a reminder message, and only guests who haven&rsquo;t responded. Opening WhatsApp records the reminder, so <kbd>Next</kbd> moves on and they appear under <em>Reminded</em> (on every phone). Anyone still not replied after 7 days comes back into the queue for another nudge. WhatsApp didn&rsquo;t send? Tap <kbd>Put back in the queue</kbd>.</p>
         <div class="tip">WhatsApp didn&rsquo;t actually send? Tap <kbd>Mark as not sent</kbd> under the Next button and they go back in the queue. Already-sent guests are under the <em>Sent</em> tab &mdash; tap one to resend.</div>
       </div>
     </details>
@@ -6043,9 +6043,10 @@ function _writePendingMarks(list) {
 }
 // clear=false marks sent, clear=true marks not sent. A newer action for the
 // same guest replaces any older queued one.
-function queueInviteMark(id, clear) {
-  var list = _readPendingMarks().filter(function(x) { return x.id !== id; });
-  list.push({ id: id, clear: !!clear, tries: 0 });
+function queueInviteMark(id, clear, kind) {
+  kind = kind === 'reminder' ? 'reminder' : 'invite';
+  var list = _readPendingMarks().filter(function(x) { return !(x.id === id && (x.kind || 'invite') === kind); });
+  list.push({ id: id, clear: !!clear, kind: kind, tries: 0 });
   _writePendingMarks(list);
   _scheduleMarkFlush(1200);
 }
@@ -6055,8 +6056,9 @@ function _applyPendingMarks() {
   _readPendingMarks().forEach(function(m) {
     var g = allGuests.find(function(x) { return x.id === m.id; });
     if (!g) return;
-    if (m.clear) g.invite_sent_at = '';
-    else if (!sanitiseValue(g.invite_sent_at)) g.invite_sent_at = new Date().toISOString();
+    var f = m.kind === 'reminder' ? 'reminder_sent_at' : 'invite_sent_at';
+    if (m.clear) g[f] = '';
+    else if (!sanitiseValue(g[f])) g[f] = new Date().toISOString();
   });
 }
 var _markFlushTimer = null, _markFlushing = false;
@@ -6071,18 +6073,29 @@ function _flushInviteMarks() {
   var m = _readPendingMarks()[0];
   if (!m) return;
   _markFlushing = true;
-  var same = function(x) { return x.id === m.id && x.clear === m.clear; };
+  var same = function(x) { return x.id === m.id && x.clear === m.clear && (x.kind || 'invite') === (m.kind || 'invite'); };
+  var isRem = m.kind === 'reminder';
   google.script.run
     .withSuccessHandler(function(res) {
       _markFlushing = false;
       _writePendingMarks(_readPendingMarks().filter(function(x) { return !same(x); }));
       var g = allGuests.find(function(x) { return x.id === m.id; });
       var stillQueued = _readPendingMarks().some(function(x) { return x.id === m.id; });
-      if (g && !m.clear && !stillQueued && res && res.invite_sent_at) g.invite_sent_at = res.invite_sent_at;
+      if (g && !m.clear && !stillQueued && res && res.invite_sent_at && !isRem) g.invite_sent_at = res.invite_sent_at;
+      if (g && !m.clear && !stillQueued && res && res.reminder_sent_at && isRem) g.reminder_sent_at = res.reminder_sent_at;
       _flushInviteMarks();
     })
     .withFailureHandler(function(err) {
       _markFlushing = false;
+      if (isRem && /unknown action/i.test(String(err && err.message))) {
+        // Apps Script not updated yet: the reminder stays recorded on this
+        // device only (see _remindedLocal) — say so once.
+        _writePendingMarks(_readPendingMarks().filter(function(x) { return !same(x); }));
+        if (!_ssGet('wa:remOldServer')) { _ssSet('wa:remOldServer', '1');
+          showToast('Reminders are saved on this phone only until Apps Script is updated (paste the latest Code.gs and redeploy).', 'info', 9000); }
+        _flushInviteMarks();
+        return;
+      }
       if (/not found/i.test(String(err && err.message))) {   // guest deleted meanwhile — nothing to save
         _writePendingMarks(_readPendingMarks().filter(function(x) { return !same(x); }));
         _flushInviteMarks();
@@ -6094,11 +6107,34 @@ function _flushInviteMarks() {
       _writePendingMarks(list);
       if (tries === 4) {
         var g = allGuests.find(function(x) { return x.id === m.id; });
-        showToast('Still saving “' + (m.clear ? 'not sent' : 'sent') + '” for ' + (g ? _msgxName(g) : 'a guest') + ' — it will keep retrying. Check your connection.', 'info', 5000);
+        showToast('Still saving “' + (isRem ? (m.clear ? 'not reminded' : 'reminded') : (m.clear ? 'not sent' : 'sent')) + '” for ' + (g ? _msgxName(g) : 'a guest') + ' — it will keep retrying. Check your connection.', 'info', 5000);
       }
       _scheduleMarkFlush(Math.min(30000, 2000 * Math.pow(2, Math.min(tries, 4))));
     })
-    .markInviteSent({ guestId: m.id, clear: m.clear });
+    [isRem ? 'markReminderSent' : 'markInviteSent']({ guestId: m.id, clear: m.clear });
+}
+
+// ── Reminders ──
+// Opening WhatsApp for a reminder records it (reminder_sent_at on the
+// guest, shared across devices; also kept on this device so it works even
+// before Apps Script is updated). A reminded guest leaves the "To remind"
+// queue and shows under "Reminded"; if they still haven't replied after
+// REMIND_AGAIN_DAYS they come back for another reminder.
+var REMIND_AGAIN_DAYS = 7;
+var _REMINDED_KEY = 'wa:reminded';
+function _remindedLocal() { try { return JSON.parse(localStorage.getItem(_REMINDED_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function _setRemindedLocal(id, iso) {
+  var m = _remindedLocal();
+  if (iso) m[id] = iso; else delete m[id];
+  try { localStorage.setItem(_REMINDED_KEY, JSON.stringify(m)); } catch (e) {}
+}
+function _remindedAt(g) {
+  var a = String(sanitiseValue(g.reminder_sent_at) || ''), b = _remindedLocal()[g.id] || '';
+  return a > b ? a : b;
+}
+function _recentlyReminded(g) {
+  var t = new Date(_remindedAt(g)).getTime();
+  return !!t && (Date.now() - t) < REMIND_AGAIN_DAYS * 864e5;
 }
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') _scheduleMarkFlush(800);
@@ -6208,11 +6244,14 @@ function _msgxBuckets(mode, rel) {
   b.scope.forEach(function(g) {
     if (!_msgxHasEvents(g)) return;
     if (mode === 'invite' && sanitiseValue(g.invite_sent_at)) { b.done.push(g); return; }
+    if (mode === 'chase' && _recentlyReminded(g)) { b.done.push(g); return; }
     if (!normalizePhoneForWhatsApp(g.phone)) { b.noPhone.push(g); return; }
     if (skips.has(g.id)) { b.skipped.push(g); return; }
     b.todo.push(g);
   });
-  b.done.sort(function(a, c) { return String(c.invite_sent_at).localeCompare(String(a.invite_sent_at)); });
+  b.done.sort(function(a, c) {
+    return mode === 'chase' ? _remindedAt(c).localeCompare(_remindedAt(a)) : String(c.invite_sent_at).localeCompare(String(a.invite_sent_at));
+  });
   return b;
 }
 
@@ -6311,9 +6350,12 @@ function _msgxGroupCard(rel, isAll) {
     pct = total ? Math.round(b.done.length / total * 100) : 0;
   } else {
     var replied = b.invitable.filter(_msgxReplied).length;
-    done = total > 0 && b.scope.filter(_msgxHasEvents).length === 0;
-    line = done ? (replied === total ? '✓ Everyone has replied' : '✓ Nobody to remind yet') : '<b>' + b.scope.filter(_msgxHasEvents).length + '</b> still to reply';
-    meta = replied + ' of ' + total + ' replied';
+    var toRemind = b.todo.length + b.skipped.length;
+    done = total > 0 && toRemind === 0;
+    line = toRemind ? '<b>' + toRemind + '</b> to remind'
+      : replied === total && total ? '✓ Everyone has replied'
+      : b.done.length ? '✓ All reminded' : '✓ Nobody to remind yet';
+    meta = replied + ' of ' + total + ' replied' + (b.done.length ? ' · ' + b.done.length + ' reminded' : '');
     pct = total ? Math.round(replied / total * 100) : 0;
   }
   return '<button type="button" class="msgx-group' + (done ? ' msgx-group--done' : '') + (isAll ? ' msgx-group--all' : '') + '" data-val="' + escapeAttr(rel) + '" onclick="msgxPickGroup(this.dataset.val)">' +
@@ -6388,7 +6430,7 @@ function _msgxRenderList() {
   _msgxRenderSubs(rel);
 
   var tabs = [{ id: 'todo', label: (chase ? 'To remind' : 'To send') + ' · ' + b.todo.length }];
-  if (!chase) tabs.push({ id: 'done', label: 'Sent · ' + b.done.length });
+  tabs.push({ id: 'done', label: (chase ? 'Reminded · ' : 'Sent · ') + b.done.length });
   if (b.skipped.length || _msgx.tab === 'skipped') tabs.push({ id: 'skipped', label: 'Skipped · ' + b.skipped.length });
   if (b.noPhone.length || _msgx.tab === 'noPhone') tabs.push({ id: 'noPhone', label: 'No phone · ' + b.noPhone.length });
   if (b.noEvents.length || _msgx.tab === 'noEvents') tabs.push({ id: 'noEvents', label: 'No events · ' + b.noEvents.length });
@@ -6404,7 +6446,7 @@ function _msgxRenderList() {
   if (!rows.length) {
     var empty = q ? 'No guests match “' + escapeAttr(_msgx.q) + '”.'
       : _msgx.tab === 'todo' ? (b.skipped.length ? 'Nothing left except the skipped guests.' : (chase ? 'Nobody left to remind. 🎉' : 'Everyone in this group has their invite. 🎉'))
-      : _msgx.tab === 'done' ? 'No invites sent yet.'
+      : _msgx.tab === 'done' ? (chase ? 'No reminders sent yet.' : 'No invites sent yet.')
       : _msgx.tab === 'noEvents' ? 'Everyone in this group has at least one event.' : 'Nobody here.';
     host.innerHTML = '<div class="msgx-empty">' + empty + '</div>';
     return;
@@ -6423,7 +6465,9 @@ function _msgxRow(g) {
   var code = g.invitation_code ? '<span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>' : '';
   var phone = escapeAttr(sanitiseValue(g.phone) || 'No phone');
   var aside = '';
-  if (_msgx.tab === 'done') aside = '<span class="ok">✓ Sent ' + escapeAttr(formatSentAt(sanitiseValue(g.invite_sent_at))) + '</span>';
+  if (_msgx.tab === 'done') aside = msgMode === 'chase'
+    ? '<span class="ok">✓ Reminded ' + escapeAttr(formatSentAt(_remindedAt(g))) + '</span>'
+    : '<span class="ok">✓ Sent ' + escapeAttr(formatSentAt(sanitiseValue(g.invite_sent_at))) + '</span>';
   if (_msgx.tab === 'skipped') {
     return '<div class="msgx-row" style="cursor:default;">' +
       '<div class="msgx-row__body"><div class="msgx-row__name">' + name + '</div><div class="msgx-row__meta">' + phone + ' ' + code + '</div></div>' +
@@ -6597,6 +6641,8 @@ function _msgxRenderSend() {
   if (g.invitation_code) who.push('Code <span class="code-pill">' + escapeAttr(g.invitation_code) + '</span>');
   var status = '';
   if (!chase && sentAt && !_msgx.sent) status = '<div class="msgx-who" style="color:var(--green);">✓ Invite already sent ' + escapeAttr(formatSentAt(sentAt)) + '</div>';
+  var remAt = chase ? _remindedAt(g) : '';
+  if (chase && remAt && !_msgx.sent) status = '<div class="msgx-who" style="color:var(--green);">✓ Reminded ' + escapeAttr(formatSentAt(remAt)) + '</div>';
 
   var tplPicker = '';
   if (messageConfig && messageConfig.templates.length > 1 && !_msgx.sent) {
@@ -6619,11 +6665,11 @@ function _msgxRenderSend() {
       (next
         ? '<button type="button" class="msgx-cta" id="msgx-primary" onclick="msgxNext()">Next: ' + escapeAttr(_msgxName(next)) + ' &#8594;</button>'
         : '<button type="button" class="msgx-cta" id="msgx-primary" onclick="msgxShowList()">✓ All done — back to the list</button>') +
-      (chase ? '' : '<button type="button" class="msgx-undo" onclick="msgxUndoSent()">WhatsApp didn’t send? Mark as not sent</button>');
+      '<button type="button" class="msgx-undo" onclick="msgxUndoSent()">' + (chase ? 'WhatsApp didn’t send? Put back in the queue' : 'WhatsApp didn’t send? Mark as not sent') + '</button>';
   } else if (phoneOk) {
     var waUrl = buildWhatsAppUrl(g.phone, body);
     actions =
-      '<a class="msgx-cta msgx-cta--wa" id="msgx-primary" href="' + escapeAttr(waUrl) + '" target="_blank" rel="noopener" onclick="msgxSent()">&#128172; ' + (!chase && sentAt ? 'Resend on WhatsApp' : 'Open WhatsApp') + '</a>' +
+      '<a class="msgx-cta msgx-cta--wa" id="msgx-primary" href="' + escapeAttr(waUrl) + '" target="_blank" rel="noopener" onclick="msgxSent()">&#128172; ' + (!chase && sentAt ? 'Resend on WhatsApp' : chase && remAt ? 'Remind again on WhatsApp' : 'Open WhatsApp') + '</a>' +
       '<div class="msgx-sub-actions">' +
         '<button type="button" onclick="msgxSkip()">Skip for now</button>' +
         '<button type="button" onclick="msgxCopy()">Copy message</button>' +
@@ -6678,6 +6724,11 @@ function msgxSent() {
     g.invite_sent_at = new Date().toISOString();
     _rememberLastSent(id);
     queueInviteMark(id, false);
+  } else {
+    var now = new Date().toISOString();
+    g.reminder_sent_at = now;
+    _setRemindedLocal(id, now);
+    queueInviteMark(id, false, 'reminder');
   }
   // Let the browser follow the link first, then swap the screen.
   setTimeout(function() {
@@ -6691,6 +6742,15 @@ function msgxSent() {
 function msgxUndoSent() {
   var g = _msgxFind(_msgx.current);
   if (!g) return;
+  if (msgMode === 'chase') {
+    g.reminder_sent_at = '';
+    _setRemindedLocal(g.id, '');
+    _msgx.sent = false;
+    _msgxRenderSend();
+    queueInviteMark(g.id, true, 'reminder');
+    showToast(_msgxName(g) + ' is back in the reminder queue.', 'info', 2200);
+    return;
+  }
   g.invite_sent_at = '';
   var v = _readSentToday();
   v.ids = v.ids.filter(function(x) { return x !== g.id; });

@@ -122,7 +122,7 @@ function doPost(e) {
       'bulkAddGuests', 'getGuests', 'getDeletedGuests', 'getStats',
       'getDuplicates', 'getSubmittedCodes', 'updateSeating',
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
-      'generateCode', 'markInviteSent', 'updateRSVP', 'getBootstrap',
+      'generateCode', 'markInviteSent', 'markReminderSent', 'updateRSVP', 'getBootstrap',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
       'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'updateTravel',
     ];
@@ -194,6 +194,7 @@ function doPost(e) {
     else if (action === 'getRSVPsByFamily') result = getRSVPsByFamily();
     else if (action === 'generateCode')     result = generateCode();
     else if (action === 'markInviteSent')   result = markInviteSent(payload.guestId, !!payload.clear);
+    else if (action === 'markReminderSent') result = markInviteSent(payload.guestId, !!payload.clear, 'reminder_sent_at');
     else if (action === 'updateRSVP')       result = updateRSVP(payload);
     else if (action === 'getBootstrap')     result = getBootstrap();
     else if (action === 'getMessageConfig') result = getMessageConfig();
@@ -344,7 +345,7 @@ function bumpAdminCacheVersion() {
 //   _rev           — the hash itself
 //   invite_sent_at — stamped ~700× during a send session by markInviteSent
 //   *_table        — seating, edited via its own updateSeating flow
-const REV_EXCLUDE = new Set(['id', '_rev', 'invite_sent_at']);
+const REV_EXCLUDE = new Set(['id', '_rev', 'invite_sent_at', 'reminder_sent_at']);
 function _guestRev(obj) {
   // Empty values are skipped so that appending a new (blank) column to the
   // sheet — e.g. the {id}_names columns — doesn't change every guest's rev
@@ -517,7 +518,7 @@ function repairGuestSheet() {
     }
     const tidied = _canonGuestSheet(sheet, null);
     bumpAdminCacheVersion();
-    const known = new Set(guestHeaders().concat(TRAVEL_FIELDS));
+    const known = new Set(guestHeaders().concat(TRAVEL_FIELDS, ['reminder_sent_at']));
     const unused = headers.filter(function(h) { return h && !known.has(h); });
     const msg = 'repairGuestSheet: added ' + missing.length + ' column(s)' +
       (missing.length ? ' [' + missing.join(', ') + ']' : '') +
@@ -1944,8 +1945,11 @@ function generateCode() {
 //     30s cache TTL may briefly show the pre-send timestamp for that guest.
 // Locked because bulkUpdate / bulkDelete write whole column slices and a
 // setValue landing between their read and write would be clobbered.
-function markInviteSent(guestId, clear) {
+// Also records reminders (column reminder_sent_at) — same idea: the date a
+// WhatsApp reminder was opened, so the queue moves on and other devices see it.
+function markInviteSent(guestId, clear, column) {
   if (!guestId) throw new Error('guestId required');
+  const col = column === 'reminder_sent_at' ? 'reminder_sent_at' : 'invite_sent_at';
   const sheet = getSheet(TABS.guests);
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -1954,13 +1958,15 @@ function markInviteSent(guestId, clear) {
     // Hand-built sheets may not have this column yet. Previously this threw,
     // and the admin's Send flow swallowed the error — so every WhatsApp send
     // silently failed to mark the guest as sent. Add the column instead.
-    const sentCol = _ensureGuestColumn(sheet, headers, 'invite_sent_at').idx;
+    const sentCol = _ensureGuestColumn(sheet, headers, col).idx;
     const rowNum = findRowById(sheet, guestId);
     if (rowNum === -1) throw new Error('Guest not found: ' + guestId);
     const ts = clear ? '' : new Date().toISOString();
     sheet.getRange(rowNum, sentCol + 1).setValue(ts);
-    _patchCachedBootstrapSent(guestId, ts);
-    return { ok: true, guestId, invite_sent_at: ts };
+    _patchCachedBootstrapSent(guestId, ts, col);
+    const out = { ok: true, guestId: guestId };
+    out[col] = ts;
+    return out;
   } finally {
     lock.releaseLock();
   }
@@ -3174,7 +3180,8 @@ function _buildBootstrap() {
   return data;
 }
 // Called by markInviteSent (inside its lock) after writing the cell.
-function _patchCachedBootstrapSent(guestId, value) {
+function _patchCachedBootstrapSent(guestId, value, column) {
+  const field = column || 'invite_sent_at';
   const cache = CacheService.getScriptCache();
   try { cache.put(SENT_MARK_AT_KEY, String(Date.now()), 21600); } catch (e) {}
   try {
@@ -3193,7 +3200,7 @@ function _patchCachedBootstrapSent(guestId, value) {
     const data = JSON.parse(joined);
     let hit = false;
     [data.guests || [], data.deletedGuests || []].forEach(function(list) {
-      list.forEach(function(g) { if (g && String(g.id) === String(guestId)) { g.invite_sent_at = value; hit = true; } });
+      list.forEach(function(g) { if (g && String(g.id) === String(guestId)) { g[field] = value; hit = true; } });
     });
     if (!hit) return;
     _putChunked(cache, base, data, BOOTSTRAP_TTL_SEC);
@@ -3237,17 +3244,22 @@ function _withFreshInviteSent(list) {
   const n = sheet.getLastRow() - 1;
   if (n < 1) return list;
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const idI = headers.indexOf('id'), sentI = headers.indexOf('invite_sent_at');
-  if (idI < 0 || sentI < 0) return list;
+  const idI = headers.indexOf('id');
+  if (idI < 0) return list;
   const ids = sheet.getRange(2, idI + 1, n, 1).getValues();
-  const sent = sheet.getRange(2, sentI + 1, n, 1).getValues();
-  const byId = {};
-  for (let i = 0; i < n; i++) byId[String(ids[i][0])] = sent[i][0];
-  list.forEach(function(g) {
-    if (g && Object.prototype.hasOwnProperty.call(byId, String(g.id))) {
-      const v = byId[String(g.id)];
-      g.invite_sent_at = v instanceof Date ? v.toISOString() : v;
-    }
+  // Both "sent" columns change without bumping the cache version.
+  ['invite_sent_at', 'reminder_sent_at'].forEach(function(col) {
+    const ci = headers.indexOf(col);
+    if (ci < 0) return;
+    const vals = sheet.getRange(2, ci + 1, n, 1).getValues();
+    const byId = {};
+    for (let i = 0; i < n; i++) byId[String(ids[i][0])] = vals[i][0];
+    list.forEach(function(g) {
+      if (g && Object.prototype.hasOwnProperty.call(byId, String(g.id))) {
+        const v = byId[String(g.id)];
+        g[col] = v instanceof Date ? v.toISOString() : v;
+      }
+    });
   });
   return list;
 }
