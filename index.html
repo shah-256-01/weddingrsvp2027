@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261027180311"/>
+<meta name="app-build" content="20261027181156"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -338,6 +338,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .it-ic{font-size:1rem;}
 .it-lbl{color:var(--muted);font-size:var(--ui-sm);}
 .it-val{color:var(--ink);min-width:0;overflow-wrap:anywhere;}
+.it-note{margin-top:.3rem;padding:.4rem .55rem;background:rgba(184,146,74,.12);border-left:2px solid var(--gold);font-size:var(--ui-sm);line-height:1.45;}
 .it-link{color:var(--wine);font-size:var(--ui-sm);white-space:nowrap;margin-left:.3rem;}
 .it-actions{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.75rem;}
 .it-btn{border:1px solid var(--rule);background:var(--cream,#fdf8f2);color:var(--wine);font-family:var(--sans);font-size:var(--ui-xs);padding:.5rem .75rem;cursor:pointer;text-decoration:none;min-height:38px;display:inline-flex;align-items:center;}
@@ -972,7 +973,8 @@ var EVENT_EXTRAS = {
   // Groom's side travel with the Jaan: show when and where it leaves from.
   We: { brides: { dress: 'Traditional Indian', note: 'Jaan arrival 8:30 AM · Wedding ceremony 10:30 AM · Followed by lunch' },
         grooms: { dress: 'Traditional Indian', note: 'Wedding ceremony 10:30 AM · Followed by lunch', time: '7:15 AM',
-                  departTime: '7:15 AM', departFrom: 'Glam Hotel, Nairobi' } },
+                  departTime: '7:15 AM', departFrom: 'Glam Hotel, Nairobi',
+                  ownTransport: 'Those using their own transport, please ensure you are there by 8:15 AM to join the Jaan entering the wedding venue.' } },
   BT: { dress: 'Black tie' },
 };
 // Everything a guest needs for one event (their side's time and venue).
@@ -990,7 +992,7 @@ function eventDetails(id) {
   };
   var sideTime = evt['time_' + side] != null && String(evt['time_' + side]).trim() ? String(evt['time_' + side]).trim() : '';
   return Object.assign({}, evt, { dress: pick('dress_code', xs.dress), note: pick('details', xs.note),
-    time: sideTime || xs.time || evt.time, departTime: xs.departTime || '', departFrom: xs.departFrom || '' });
+    time: sideTime || xs.time || evt.time, departTime: xs.departTime || '', departFrom: xs.departFrom || '', ownTransport: xs.ownTransport || '' });
 }
 function _mapsUrl(venue) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue); }
 // "Saturday 26 December 2026" → { dow: 'Sat', day: '26', mon: 'Dec' }
@@ -1020,7 +1022,8 @@ function renderItinerary(items, declined) {
         '<h3 class="it-name">' + escapeHtml(e.name) + '</h3>' +
         row('🗓', 'When', escapeHtml(e.date || 'TBC') + (e.time && !/see invitation/i.test(e.time) ? ' · <strong>' + escapeHtml(e.time) + '</strong>' : '')) +
         (e.departTime ? row('🚌', 'Jaan departs', '<strong>' + escapeHtml(e.departTime) + '</strong> from ' + escapeHtml(e.departFrom) +
-          ' <a class="it-link" href="' + escapeAttr(_mapsUrl(e.departFrom)) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>') : '') +
+          ' <a class="it-link" href="' + escapeAttr(_mapsUrl(e.departFrom)) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>' +
+          (e.ownTransport ? '<div class="it-note">🚗 ' + escapeHtml(e.ownTransport) + '</div>' : '')) : '') +
         (e.note ? row('✨', 'Details', escapeHtml(e.note)) : '') +
         row('📍', 'Where', escapeHtml(e.venue || 'TBC') + (e.venue && e.venue !== 'TBC' ? ' <a class="it-link" href="' + escapeAttr(_mapsUrl(e.venue)) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>' : '')) +
         row('👗', 'Dress code', e.dress ? '<strong>' + escapeHtml(e.dress) + '</strong>' : '') +

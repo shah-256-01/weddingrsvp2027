@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261027180311"/>
+<meta name="app-build" content="20261027181156"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -6171,7 +6171,8 @@ var EVENT_EXTRAS = {
   // Groom's side travels with the Jaan, so their message gives its departure.
   We: { brides: { dress: 'Traditional Indian', note: 'Jaan arrival 8:30 AM · Wedding ceremony 10:30 AM · Followed by lunch' },
         grooms: { dress: 'Traditional Indian', note: 'Wedding ceremony 10:30 AM · Followed by lunch', time: '7:15 AM',
-                  departTime: '7:15 AM', departFrom: 'Glam Hotel, Nairobi' } },
+                  departTime: '7:15 AM', departFrom: 'Glam Hotel, Nairobi',
+                  ownTransport: 'Those using their own transport, please ensure you are there by 8:15 AM to join the Jaan entering the wedding venue.' } },
   BT: { dress: 'Black tie' },
 };
 var DEFAULT_DETAILS_TEMPLATE = { id: 't_details', name: 'Event details',
@@ -6203,7 +6204,7 @@ function _eventInfoForGuest(g, id) {
   var time = sideTime || xs.time || pick('time');
   return { name: ev.name || id, date: pick('date'), time: /see invitation/i.test(time) ? '' : time,
     venue: pick('venue'), dress: pick('dress_code', xs.dress), note: pick('details', xs.note),
-    depart: xs.departTime ? xs.departTime + ' from ' + xs.departFrom : '' };
+    depart: xs.departTime ? xs.departTime + ' from ' + xs.departFrom : '', ownTransport: xs.ownTransport || '' };
 }
 // The {{events}} block: one short section per event they're coming to.
 function _guestEventsText(g) {
@@ -6216,7 +6217,7 @@ function _guestEventsText(g) {
     var names = _splitNames(String(r[id + ' Names'] || ''));
     return ['*' + e.name + '*',
       '🗓 ' + [e.date, e.time].filter(Boolean).join(' · '),
-      e.depart ? '🚌 Jaan departs ' + e.depart : '',
+      e.depart ? '🚌 Jaan departs ' + e.depart + (e.ownTransport ? '. ' + e.ownTransport : '') : '',
       e.note ? '✨ ' + e.note : '',
       e.venue ? '📍 ' + e.venue : '',
       e.dress ? '👗 Dress code: ' + e.dress : '',
