@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261027172504"/>
+<meta name="app-build" content="20261027173336"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -283,9 +283,6 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-grid>.sub{background:rgba(184,146,74,.06);font-size:.84rem;}
 .rsvp-grid>.c0.sub{padding-left:.6rem;color:var(--ink);}
 .rsvp-grid>.tot{font-weight:600;border-top:2px solid rgba(0,0,0,.12);}
-#travel-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
-#travel-filter-bar input{grid-column:1 / -1;}
-#travel-filter-bar>*{width:100%;min-width:0;margin:0;}
 #rsvp-filter-bar{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
 #rsvp-filter-bar input{grid-column:1 / -1;}
 #rsvp-filter-bar>*{width:100%;min-width:0;margin:0;}
@@ -305,6 +302,78 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 .rsvp-row__main{flex:1;min-width:0;}
 .rsvp-row__name{font-family:'Cormorant Garamond',serif;font-size:1.12rem;color:var(--wine);line-height:1.25;}
 .rsvp-row__meta{font-size:.74rem;color:var(--muted);margin-top:.1rem;}
+/* ── Travel tab ── */
+.tv-hero{display:flex;gap:1rem;align-items:center;background:var(--card-bg);border:1px solid rgba(0,0,0,.07);border-left:4px solid var(--gold);padding:1rem 1.2rem;margin-bottom:1rem;}
+.tv-hero__icon{font-size:2rem;line-height:1;}
+.tv-hero h3{font-family:'Cormorant Garamond',serif;color:var(--wine);font-size:1.45rem;font-weight:500;margin:0 0 .3rem;}
+.tv-hero__facts{display:flex;flex-wrap:wrap;gap:.3rem 1.2rem;font-size:.86rem;color:var(--muted);}
+.tv-hero__facts b{color:var(--ink);font-weight:600;}
+.tv-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:.5rem;margin-bottom:1rem;}
+.tv-filters>*{width:100%;min-width:0;margin:0;}
+.tv-filters input,.tv-filters select{border:1px solid rgba(0,0,0,.1);background:var(--card-bg);padding:.6rem .8rem;font-family:'Jost',sans-serif;font-size:var(--fs-md);color:var(--ink);outline:none;border-radius:2px;min-height:44px;}
+.tv-filters select{cursor:pointer;}
+.tv-filters input:focus,.tv-filters select:focus{border-color:var(--gold);}
+@media (max-width:860px){ .tv-filters input,.tv-filters select{font-size:16px;} }
+@media (max-width:860px){ .tv-filters{grid-template-columns:1fr 1fr;} .tv-filters input{grid-column:1 / -1;} }
+.tv-panels{display:grid;grid-template-columns:1.1fr 1fr 1.2fr;gap:.8rem;margin-bottom:1rem;}
+@media (max-width:860px){ .tv-panels{grid-template-columns:1fr;} }
+.tv-panel{background:var(--card-bg);border:1px solid rgba(0,0,0,.07);padding:.95rem 1.05rem;}
+.tv-panel h5{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin:0 0 .45rem;font-weight:600;}
+.tv-big{display:flex;gap:1.4rem;align-items:baseline;flex-wrap:wrap;}
+.tv-big div{font-family:'Cormorant Garamond',serif;font-size:2.1rem;color:var(--wine);line-height:1;}
+.tv-big small{display:block;font-family:inherit;font-size:.74rem;color:var(--muted);margin-top:.2rem;letter-spacing:0;}
+.tv-stats{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.75rem;}
+.tv-stat{display:inline-flex;gap:.4rem;align-items:baseline;border:1px solid #e3d9cd;background:#fff;padding:.4rem .65rem;font:inherit;font-size:.82rem;color:var(--ink);cursor:pointer;border-radius:2px;}
+.tv-stat b{font-size:1.02rem;}
+.tv-stat:hover{border-color:var(--gold);}
+.tv-stat.on{background:var(--gold-pale);border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);}
+.tv-stat.ok b{color:var(--green);} .tv-stat.warn b{color:#9a6b12;} .tv-stat.bad{border-color:rgba(139,32,32,.45);} .tv-stat.bad b{color:var(--red);}
+.tv-stat.zero{opacity:.55;}
+.tv-card{padding-top:1rem;}
+.tv-card .rsvp-hc-tabs{margin:0 0 .8rem;}
+.tv-toolbar{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem;}
+.tv-toolbar__title{font-size:.85rem;color:var(--muted);display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;}
+.tv-toolbar__title #travel-list-title{font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);}
+.tv-toolbar__actions{display:flex;gap:.3rem;flex-wrap:wrap;}
+.tv-clear{border:1px solid var(--gold);background:var(--gold-pale);color:var(--wine);font-size:.78rem;padding:.25rem .6rem;cursor:pointer;}
+.tv-head,.tv-row{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:1rem;padding:.75rem .5rem;border-bottom:1px solid rgba(0,0,0,.06);}
+.tv-head{font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:.2rem;border-bottom-width:2px;}
+.tv-row{cursor:pointer;align-items:start;}
+.tv-row:hover{background:rgba(184,146,74,.07);}
+.tv-name{font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:var(--wine);line-height:1.2;}
+.tv-sub{font-size:.76rem;color:var(--muted);margin-top:.15rem;line-height:1.45;}
+.tv-line{font-size:.84rem;color:var(--ink);margin-top:.3rem;line-height:1.45;}
+.tv-line.muted{color:var(--muted);}
+.tv-lbl{display:none;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;}
+.tv-chip{display:inline-block;padding:.14rem .5rem;font-size:.76rem;border-radius:2px;white-space:nowrap;margin:0 .25rem .2rem 0;}
+.tv-chip.yes{background:rgba(46,95,72,.13);color:var(--green);font-weight:600;}
+.tv-chip.no{background:rgba(0,0,0,.06);color:var(--muted);}
+.tv-chip.unk{background:rgba(184,146,74,.18);color:#7a5410;}
+.tv-chip.pay{background:rgba(139,32,32,.1);color:var(--red);font-weight:600;}
+.tv-chip.car{background:rgba(40,70,120,.1);color:#2b4d7a;}
+.tv-dash{color:#cfc6bc;}
+@media (max-width:760px){
+  .tv-head{display:none;}
+  .tv-row{grid-template-columns:1fr 1fr;gap:.6rem .9rem;padding:.9rem .3rem;}
+  .tv-row .tv-who{grid-column:1 / -1;}
+  .tv-row .tv-hotelcell{grid-column:1 / -1;}
+  .tv-lbl{display:block;}
+  .tv-noflights>div:nth-child(n+3){display:none;}
+}
+.tv-flights{display:grid;grid-template-columns:1fr 1fr;gap:1.4rem;}
+@media (max-width:760px){ .tv-flights{grid-template-columns:1fr;} }
+.tv-flights h4{font-family:'Cormorant Garamond',serif;color:var(--wine);font-size:1.35rem;font-weight:500;margin:0 0 .3rem;border-bottom:1px solid rgba(0,0,0,.08);padding-bottom:.3rem;}
+.tv-day{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:.9rem 0 .2rem;}
+.tv-fl{display:grid;grid-template-columns:3.6rem 1fr auto;gap:.7rem;align-items:center;padding:.55rem .3rem;border-bottom:1px solid rgba(0,0,0,.05);cursor:pointer;}
+.tv-fl:hover{background:rgba(184,146,74,.07);}
+.tv-fl__time{font-family:'Cormorant Garamond',serif;font-size:1.25rem;color:var(--ink);font-weight:600;}
+.tv-fl__who{font-size:.92rem;color:var(--wine);}
+.tv-fl__meta{font-size:.76rem;color:var(--muted);}
+.travel-form .tf-match{display:flex;gap:.6rem;align-items:center;margin:.9rem 0 0;padding:.6rem .75rem;border:1px dashed var(--gold);background:#fffaf2;font-size:.92rem;cursor:pointer;}
+.travel-form .tf-match span{font-weight:500;color:var(--ink);}
+.tf-match input{width:20px !important;height:20px;min-height:0 !important;margin:0;accent-color:var(--wine);flex-shrink:0;}
+.tf-match small{display:block;color:var(--muted);font-size:.78rem;}
+.travel-form input:disabled{background:#f4efe9;color:var(--ink);}
 .travel-day{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:1rem 0 .3rem;}
 .modal.modal--wide{max-width:980px;}
 .travel-form{font-size:1rem;}
@@ -786,9 +855,20 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
 
   <!-- ── TAB: TRAVEL ── -->
   <div class="admin-panel" id="tab-travel">
-    <div class="rsvp-hint" style="font-size:.85rem;">Hotel and airport details for overseas guests (Glam Hotel, Nairobi · covered stay 25&ndash;30 December, 5 nights; nights outside that are the guest&rsquo;s to pay). Tap a guest to record what they told you.</div>
-    <div class="filter-bar" id="travel-filter-bar">
-      <input type="text" id="travel-search" placeholder="Search name or phone..." oninput="renderTravelTab()"/>
+    <div class="tv-hero">
+      <div class="tv-hero__icon" aria-hidden="true">&#127976;</div>
+      <div class="tv-hero__body">
+        <h3>Glam Hotel, Nairobi</h3>
+        <div class="tv-hero__facts">
+          <span><b>We cover</b> Fri 25 &rarr; Wed 30 Dec &middot; 5 nights</span>
+          <span>Breakfast included</span>
+          <span>Nights outside that: <b>guest pays</b> (per person per night)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tv-filters" id="travel-filter-bar">
+      <input type="text" id="travel-search" placeholder="Search name or phone…" oninput="renderTravelTab()"/>
       <select id="travel-side" onchange="renderTravelTab()">
         <option value="">Both sides</option>
         <option value="Bride’s side">Bride’s side</option>
@@ -802,23 +882,32 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
         <option value="waiting">Not replied yet</option>
       </select>
     </div>
-    <div class="rsvp-overview" id="travel-overview"></div>
-    <div class="admin-card rsvp-card">
-      <div class="rsvp-card__head">
-        <div class="admin-card-title" style="margin-bottom:0;" id="travel-list-title">Overseas guests</div>
-        <button class="btn btn-secondary btn-sm hidden" id="travel-list-clear" onclick="travelFilter('')">&#10005; Show all</button>
+
+    <div class="tv-panels" id="travel-overview"></div>
+
+    <div class="admin-card tv-card">
+      <div class="msgx-seg rsvp-hc-tabs" role="tablist">
+        <button type="button" role="tab" id="tv-tab-guests" class="active" onclick="travelView('guests')">Guests</button>
+        <button type="button" role="tab" id="tv-tab-flights" onclick="travelView('flights')">Arrivals &amp; departures</button>
       </div>
-      <div class="rsvp-list-tools">
-        <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('hotel')">&#8595; Hotel list</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('transfers')">&#8595; Airport transfers</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('all')">&#8595; Everything</button>
+      <div id="tv-pane-guests">
+        <div class="tv-toolbar">
+          <div class="tv-toolbar__title"><span id="travel-list-title">Overseas guests</span>
+            <button class="tv-clear hidden" id="travel-list-clear" onclick="travelFilter('')">&#10005; Show everyone</button></div>
+          <div class="tv-toolbar__actions">
+            <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('hotel')">&#8595; Hotel list</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('all')">&#8595; Everything</button>
+          </div>
+        </div>
+        <div id="travel-list"></div>
       </div>
-      <div id="travel-list"></div>
-    </div>
-    <div class="admin-card rsvp-card">
-      <div class="admin-card-title">Arrivals &amp; departures</div>
-      <div class="rsvp-hint">For planning airport pickups and drop-offs. 🚗 = transfer requested.</div>
-      <div id="travel-schedule"></div>
+      <div id="tv-pane-flights" class="hidden">
+        <div class="tv-toolbar">
+          <div class="tv-toolbar__title">For planning drivers &middot; <span class="tv-chip car">&#128663; transfer</span> = pickup or drop-off requested</div>
+          <div class="tv-toolbar__actions"><button class="btn btn-ghost btn-sm" onclick="exportTravelCSV('transfers')">&#8595; Airport transfers</button></div>
+        </div>
+        <div id="travel-schedule"></div>
+      </div>
     </div>
   </div>
 
@@ -1117,7 +1206,8 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
           <li>The <kbd>&#127976; Travel</kbd> tab lists every overseas guest (and anyone else you've recorded travel for).</li>
           <li>Tap a guest to record what they told you: do they need the Glam Hotel, rooms, people staying, check-in/out if not the covered 25&ndash;30 December (any nights outside that are shown as <strong>guest pays</strong>), arrival and departure flights, and airport pickup / drop-off.</li>
           <li>The cards at the top count invites and <strong>people</strong>: need the hotel (with total rooms), don't need it, not answered yet, airport pickups and drop-offs, and hotel guests with no flight yet. Tap a card to list those guests.</li>
-          <li><strong>Arrivals &amp; departures</strong> lists flights by day and time for planning pickups.</li>
+          <li><strong>Arrivals &amp; departures</strong> (second tab) lists arrivals and departures side by side, by day and time, for planning drivers.</li>
+          <li>In a guest's form, tick <strong>Match hotel dates to flights</strong> to check in on the arrival date and check out on the departure date; it keeps up as you change the flights, and shows the nights we cover and any the guest pays for.</li>
           <li><kbd>&#8595; Hotel list</kbd> is ready to send to the hotel; <kbd>&#8595; Airport transfers</kbd> to the driver.</li>
           <li>For a guest who isn't marked overseas, open them on the Guests tab (<kbd>&#128065; View</kbd>) and tap <kbd>&#127976; Hotel &amp; travel</kbd>.</li>
         </ul>
@@ -5402,6 +5492,16 @@ function _travelMatches(g, f) {
   if (f === 'extra') { var st = _guestStay(g); return !!(st && st.extra.length); }
   return true;
 }
+function travelView(v) {
+  if (v !== 'flights') v = 'guests';
+  _ssSet('wa:travelView', v);
+  ['guests', 'flights'].forEach(function(w) {
+    var on = w === v;
+    var b = document.getElementById('tv-tab-' + w), pane = document.getElementById('tv-pane-' + w);
+    if (b) { b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); }
+    if (pane) pane.classList.toggle('hidden', !on);
+  });
+}
 function renderTravelTab() {
   var host = document.getElementById('travel-overview');
   if (!host) return;
@@ -5411,93 +5511,98 @@ function renderTravelTab() {
     var t = _tv(g, 'transfer');
     return _travelCantCome(g) && (_tv(g, 'hotel') === 'Yes' || _tv(g, 'arr_date') || _tv(g, 'arr_flight') || _tv(g, 'dep_date') || _tv(g, 'dep_flight') || (t && t !== 'No'));
   });
-  if (_travelFilter === 'cancel') { _renderTravelCancel(cancel); return; }
   var list = _travelGuests();
   var sum = function(f) { return list.filter(function(g) { return _travelMatches(g, f); }); };
-  var hotel = sum('hotel'), pick = sum('pickup'), drop = sum('dropoff');
-  var rooms = hotel.reduce(function(t, g) { return t + (Number(_tv(g, 'rooms')) || 0); }, 0);
   var ppl = function(arr) { return arr.reduce(function(t, g) { return t + _travelPeople(g); }, 0); };
-  var card = function(f, num, lbl, sub) {
-    return '<button type="button" class="rsvp-ov' + (_travelFilter === f ? ' on' : '') + '" onclick="travelFilter(\'' + f + '\')"' +
-      (_travelFilter === f ? ' style="border-color:var(--gold);background:var(--gold-pale);"' : '') + '>' +
-      '<div class="rsvp-ov__num">' + num + '</div><div class="rsvp-ov__lbl">' + lbl + '</div>' + (sub ? '<div class="rsvp-ov__sub">' + sub + '</div>' : '') + '</button>';
+  var hotel = sum('hotel'), pick = sum('pickup'), drop = sum('dropoff'), extra = sum('extra');
+  var rooms = hotel.reduce(function(t, g) { return t + (Number(_tv(g, 'rooms')) || 0); }, 0);
+  var personNights = extra.reduce(function(t, g) { return t + _guestStay(g).extra.length * _travelPeople(g); }, 0);
+  var stat = function(f, n, label, cls) {
+    return '<button type="button" class="tv-stat ' + (cls || '') + (n ? '' : ' zero') + (_travelFilter === f ? ' on' : '') + '" onclick="travelFilter(\'' + f + '\')"><b>' + n + '</b>' + label + '</button>';
   };
   host.innerHTML =
-    card('', list.length, 'Overseas invites', ppl(list) + ' people') +
-    card('hotel', hotel.length, 'Need the hotel', rooms + ' room' + (rooms === 1 ? '' : 's') + ' · ' + ppl(hotel) + ' people') +
-    card('nohotel', sum('nohotel').length, 'Don’t need it', ppl(sum('nohotel')) + ' people') +
-    card('unanswered', sum('unanswered').length, 'Not answered yet', 'hotel question') +
-    card('pickup', pick.length, 'Airport pickups', ppl(pick) + ' people') +
-    card('dropoff', drop.length, 'Airport drop-offs', ppl(drop) + ' people') +
-    card('noflight', sum('noflight').length, 'Hotel, no flight yet', 'arrival details missing') +
-    (cancel.length ? '<button type="button" class="rsvp-ov" onclick="travelFilter(\'cancel\')" style="border-color:var(--red);">' +
-      '<div class="rsvp-ov__num" style="color:var(--red);">' + cancel.length + '</div><div class="rsvp-ov__lbl">Can’t come — cancel travel</div>' +
-      '<div class="rsvp-ov__sub">replied No to everything but have hotel / flight details</div></button>' : '') +
-    card('extra', sum('extra').length, 'Extra nights (guest pays)', sum('extra').reduce(function(t, g) { return t + _guestStay(g).extra.length * _travelPeople(g); }, 0) + ' person-nights outside 25–30 Dec');
-  var titles = { '': 'Overseas guests', hotel: 'Need the hotel', nohotel: 'Don’t need the hotel', unanswered: 'Hotel: not answered yet',
-    pickup: 'Airport pickups', dropoff: 'Airport drop-offs', noflight: 'Need the hotel · no flight details yet', extra: 'Extra nights — guest pays' };
-  var shown = list.filter(function(g) { return _travelMatches(g, _travelFilter); })
+    '<div class="tv-panel"><h5>Hotel</h5>' +
+      '<div class="tv-big"><div>' + rooms + '<small>rooms</small></div><div>' + ppl(hotel) + '<small>people</small></div><div>' + hotel.length + '<small>invites</small></div></div>' +
+      '<div class="tv-stats">' + stat('hotel', hotel.length, 'need it', 'ok') + stat('nohotel', sum('nohotel').length, 'don’t') + stat('unanswered', sum('unanswered').length, 'not answered', 'warn') + '</div></div>' +
+    '<div class="tv-panel"><h5>Airport transfers</h5>' +
+      '<div class="tv-big"><div>' + ppl(pick) + '<small>pickups (people)</small></div><div>' + ppl(drop) + '<small>drop-offs (people)</small></div></div>' +
+      '<div class="tv-stats">' + stat('pickup', pick.length, 'invites to collect') + stat('dropoff', drop.length, 'to drop off') + '</div></div>' +
+    '<div class="tv-panel"><h5>Needs attention</h5>' +
+      '<div class="tv-stats" style="margin-top:.2rem;">' +
+        stat('unanswered', sum('unanswered').length, 'hotel not answered', 'warn') +
+        stat('noflight', sum('noflight').length, 'hotel, no flight yet', 'warn') +
+        stat('extra', extra.length, 'extra nights · ' + personNights + ' person-nights (guest pays)', 'bad') +
+        (cancel.length ? stat('cancel', cancel.length, 'can’t come — cancel travel', 'bad') : '') +
+      '</div></div>';
+  var titles = { '': 'Everyone', hotel: 'Need the hotel', nohotel: 'Don’t need the hotel', unanswered: 'Hotel not answered yet',
+    pickup: 'Airport pickups', dropoff: 'Airport drop-offs', noflight: 'Hotel, no flight details yet', extra: 'Extra nights — guest pays',
+    cancel: 'Can’t come — cancel travel' };
+  var shown = (_travelFilter === 'cancel' ? cancel : list.filter(function(g) { return _travelMatches(g, _travelFilter); }))
     .sort(function(a, b) { return _guestDisplayName(a).localeCompare(_guestDisplayName(b)); });
   document.getElementById('travel-list-title').textContent = titles[_travelFilter] + ' · ' + shown.length;
   document.getElementById('travel-list-clear').classList.toggle('hidden', !_travelFilter);
-  document.getElementById('travel-list').innerHTML = shown.length ? shown.map(_travelRowHtml).join('')
-    : '<div class="empty-state">' + (list.length ? 'Nobody here.' : 'No overseas guests yet. Mark guests as overseas (Edit guest), or use “Hotel & travel” on any guest.') + '</div>';
+  var note = _travelFilter === 'cancel'
+    ? '<div class="rsvp-hint" style="margin:.2rem 0 .6rem;">These guests replied that they can’t come to any event but still have hotel or flight details saved. Cancel anything booked, then open each one and set the hotel to “No”.</div>' : '';
+  document.getElementById('travel-list').innerHTML = note + (shown.length
+    ? '<div class="tv-head"><div>Guest</div><div>Hotel</div><div>Arrival</div><div>Departure</div></div>' + shown.map(_travelRowHtml).join('')
+    : '<div class="empty-state">' + (list.length ? 'Nobody here.' : 'No overseas guests yet. Mark guests as overseas (Edit guest), or use “Hotel & travel” on any guest.') + '</div>');
   _renderTravelSchedule(list);
+  travelView(_ssGet('wa:travelView') || 'guests');
 }
-function _renderTravelCancel(list) {
-  document.getElementById('travel-overview').innerHTML =
-    '<button type="button" class="rsvp-ov" onclick="travelFilter(\'\')" style="border-color:var(--gold);background:var(--gold-pale);">' +
-    '<div class="rsvp-ov__lbl">&#8592; Back to all overseas guests</div></button>';
-  document.getElementById('travel-list-title').textContent = 'Can’t come — cancel travel · ' + list.length;
-  document.getElementById('travel-list-clear').classList.remove('hidden');
-  document.getElementById('travel-list').innerHTML = '<div class="rsvp-hint" style="margin:.2rem 0 .6rem;">These guests replied that they can’t come to any event, but still have hotel or flight details saved. Cancel anything booked, then tap a guest and set the hotel to “No” (or clear their details).</div>' +
-    (list.length ? list.map(_travelRowHtml).join('') : '<div class="empty-state">Nobody here.</div>');
-  document.getElementById('travel-schedule').innerHTML = '<div class="empty-state">Showing guests who can’t come.</div>';
+function _tvFlightCell(g, which) {
+  var d = _tv(g, which + '_date'), t = _tv(g, which + '_time'), f = _tv(g, which + '_flight');
+  var tr = _tv(g, 'transfer');
+  var car = which === 'arr' ? (tr === 'Both' || tr === 'Arrival') : (tr === 'Both' || tr === 'Departure');
+  if (!d && !f) return '<span class="tv-dash">—</span>' + (car ? '<div class="tv-line"><span class="tv-chip car">🚗 ' + (which === 'arr' ? 'pickup' : 'drop-off') + ' wanted</span></div>' : '');
+  return '<div class="tv-line"><b>' + escapeAttr(_fmtDay(d) || 'Date?') + '</b>' + (t ? ' · ' + escapeAttr(t) : '') + '</div>' +
+    (f ? '<div class="tv-sub">✈ ' + escapeAttr(f) + '</div>' : '') +
+    (car ? '<div style="margin-top:.25rem;"><span class="tv-chip car">🚗 ' + (which === 'arr' ? 'pickup' : 'drop-off') + '</span></div>' : '');
 }
 function _travelRowHtml(g) {
   var coming = _travelReplyComing(g);
-  var rsvp = coming == null ? 'RSVP: not replied' : coming ? 'RSVP: ' + coming + ' coming' : 'RSVP: can’t come';
-  var meta = [_sideOf(g), guestGroup(g), rsvp].filter(Boolean).map(escapeAttr).join(' · ');
-  var h = _tv(g, 'hotel');
-  var tags = (h === 'Yes' ? '<span class="rsvp-tag coming">🏨 ' + (_tv(g, 'rooms') || '?') + ' room' + (_tv(g, 'rooms') === '1' ? '' : 's') + ' · ' + _travelPeople(g) + ' ppl</span>' +
-      (stay && stay.extra.length ? '<br><span class="rsvp-tag declined" style="margin-top:.25rem;">+' + _nightsLabel(stay.extra) + ' · ' + (stay.extra.length * _travelPeople(g)) + ' person-nights · guest pays</span>' : '')
-    : h === 'No' ? '<span class="rsvp-tag declined">No hotel</span>' : '<span class="rsvp-tag waiting">Hotel: ?</span>');
-  var lines = [];
-  var stay = _guestStay(g);
-  if (stay && !stay.bad) {
-    lines.push('Stay ' + _fmtDay(stay.cin) + ' → ' + _fmtDay(stay.cout) + ' · ' + _nightsLabel(stay.covered) + ' covered' +
-      (stay.extra.length ? ' + ' + _nightsLabel(stay.extra) + ' guest pays (' + stay.extra.map(_fmtDay).join(', ') + ')' : ''));
-  }
-  if (_tv(g, 'arr_date') || _tv(g, 'arr_flight')) lines.push('✈ In ' + [_fmtDay(_tv(g, 'arr_date')), _tv(g, 'arr_time'), _tv(g, 'arr_flight')].filter(Boolean).join(' '));
-  if (_tv(g, 'dep_date') || _tv(g, 'dep_flight')) lines.push('✈ Out ' + [_fmtDay(_tv(g, 'dep_date')), _tv(g, 'dep_time'), _tv(g, 'dep_flight')].filter(Boolean).join(' '));
-  var t = _tv(g, 'transfer');
-  if (t && t !== 'No') lines.push('🚗 ' + (t === 'Both' ? 'Pickup & drop-off' : t === 'Arrival' ? 'Pickup only' : 'Drop-off only'));
-  if (_tv(g, 'notes')) lines.push('📝 ' + _tv(g, 'notes'));
-  return '<div class="rsvp-row" role="button" tabindex="0" onclick="openTravelForm(\'' + escapeAttr(g.id) + '\')">' +
-    '<div class="rsvp-row__main"><div class="rsvp-row__name">' + escapeAttr(_guestDisplayName(g)) + '</div>' +
-      '<div class="rsvp-row__meta">' + meta + '</div>' +
-      (lines.length ? '<div class="rsvp-row__meta" style="color:var(--ink);">' + lines.map(escapeAttr).join('<br>') + '</div>' : '') +
-    '</div><div class="rsvp-row__aside">' + tags + '</div></div>';
+  var rsvp = coming == null ? 'Not replied' : coming ? coming + ' coming' : 'Can’t come';
+  var meta = [_sideOf(g), guestGroup(g)].filter(Boolean).map(escapeAttr).join(' · ');
+  var h = _tv(g, 'hotel'), stay = _guestStay(g), hotelCell;
+  if (h === 'Yes') {
+    var rooms = _tv(g, 'rooms') || '?';
+    hotelCell = '<span class="tv-chip yes">✓ Hotel</span><span class="tv-chip no">' + escapeAttr(rooms) + ' room' + (rooms === '1' ? '' : 's') + ' · ' + _travelPeople(g) + ' people</span>' +
+      (stay && !stay.bad ? '<div class="tv-line">' + escapeAttr(_fmtDay(stay.cin) + ' → ' + _fmtDay(stay.cout)) + ' <span class="tv-sub" style="display:inline;">· ' + _nightsLabel(stay.covered.concat(stay.extra)) + '</span></div>' : '') +
+      (stay && stay.extra.length ? '<div style="margin-top:.2rem;"><span class="tv-chip pay">+' + _nightsLabel(stay.extra) + ' guest pays (' + escapeAttr(stay.extra.map(_fmtDay).join(', ')) + ')</span></div>' : '');
+  } else if (h === 'No') hotelCell = '<span class="tv-chip no">No hotel</span>';
+  else hotelCell = '<span class="tv-chip unk">Hotel: not answered</span>';
+  if (_tv(g, 'notes')) hotelCell += '<div class="tv-sub">📝 ' + escapeAttr(_tv(g, 'notes')) + '</div>';
+  var noFlights = !_tv(g, 'arr_date') && !_tv(g, 'arr_flight') && !_tv(g, 'dep_date') && !_tv(g, 'dep_flight') && !(_tv(g, 'transfer') && _tv(g, 'transfer') !== 'No');
+  return '<div class="tv-row' + (noFlights ? ' tv-noflights' : '') + '" role="button" tabindex="0" onclick="openTravelForm(\'' + escapeAttr(g.id) + '\')">' +
+    '<div class="tv-who"><div class="tv-name">' + escapeAttr(_guestDisplayName(g)) + '</div>' +
+      '<div class="tv-sub">' + meta + (meta ? ' · ' : '') + '<span style="color:' + (coming ? 'var(--green)' : coming === 0 ? 'var(--red)' : 'inherit') + ';">' + escapeAttr(rsvp) + '</span></div></div>' +
+    '<div class="tv-hotelcell"><div class="tv-lbl">Hotel</div>' + hotelCell + '</div>' +
+    '<div><div class="tv-lbl">Arrival</div>' + _tvFlightCell(g, 'arr') + '</div>' +
+    '<div><div class="tv-lbl">Departure</div>' + _tvFlightCell(g, 'dep') + '</div>' +
+  '</div>';
 }
 function _renderTravelSchedule(list) {
   var host = document.getElementById('travel-schedule');
-  var items = [];
-  list.forEach(function(g) {
-    var t = _tv(g, 'transfer');
-    if (_tv(g, 'arr_date')) items.push({ g: g, kind: 'Arrives', date: _tv(g, 'arr_date'), time: _tv(g, 'arr_time'), flight: _tv(g, 'arr_flight'), car: t === 'Both' || t === 'Arrival' });
-    if (_tv(g, 'dep_date')) items.push({ g: g, kind: 'Leaves', date: _tv(g, 'dep_date'), time: _tv(g, 'dep_time'), flight: _tv(g, 'dep_flight'), car: t === 'Both' || t === 'Departure' });
-  });
-  if (!items.length) { host.innerHTML = '<div class="empty-state">No flight dates recorded yet.</div>'; return; }
-  items.sort(function(a, b) { return (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')); });
-  var html = '', day = '';
-  items.forEach(function(it) {
-    if (it.date !== day) { day = it.date; html += '<div class="travel-day">' + escapeAttr(_fmtDay(day)) + '</div>'; }
-    html += '<div class="rsvp-row" onclick="openTravelForm(\'' + escapeAttr(it.g.id) + '\')">' +
-      '<div class="rsvp-row__main"><div class="rsvp-row__name" style="font-size:1rem;">' + escapeAttr((it.time || '--:--') + ' · ' + _guestDisplayName(it.g)) + '</div>' +
-      '<div class="rsvp-row__meta">' + escapeAttr(it.kind + (it.flight ? ' · ' + it.flight : '') + ' · ' + _travelPeople(it.g) + ' people') + '</div></div>' +
-      '<div class="rsvp-row__aside">' + (it.car ? '<span class="rsvp-tag coming">🚗 ' + (it.kind === 'Arrives' ? 'Pickup' : 'Drop-off') + '</span>' : '') + '</div></div>';
-  });
-  host.innerHTML = html;
+  var col = function(kind) {
+    var items = list.filter(function(g) { return _tv(g, kind + '_date'); }).map(function(g) {
+      var t = _tv(g, 'transfer');
+      return { g: g, date: _tv(g, kind + '_date'), time: _tv(g, kind + '_time'), flight: _tv(g, kind + '_flight'),
+        car: kind === 'arr' ? (t === 'Both' || t === 'Arrival') : (t === 'Both' || t === 'Departure') };
+    }).sort(function(a, b) { return (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')); });
+    var people = items.reduce(function(n, it) { return n + _travelPeople(it.g); }, 0);
+    var cars = items.filter(function(it) { return it.car; }).reduce(function(n, it) { return n + _travelPeople(it.g); }, 0);
+    var html = '<h4>' + (kind === 'arr' ? 'Arrivals' : 'Departures') + '</h4><div class="tv-sub">' + items.length + ' invites · ' + people + ' people · ' + cars + ' need a ' + (kind === 'arr' ? 'pickup' : 'drop-off') + '</div>';
+    if (!items.length) return html + '<div class="empty-state" style="padding:1rem;">No ' + (kind === 'arr' ? 'arrival' : 'departure') + ' dates yet.</div>';
+    var day = '';
+    items.forEach(function(it) {
+      if (it.date !== day) { day = it.date; html += '<div class="tv-day">' + escapeAttr(_fmtDay(day)) + '</div>'; }
+      html += '<div class="tv-fl" onclick="openTravelForm(\'' + escapeAttr(it.g.id) + '\')">' +
+        '<div class="tv-fl__time">' + escapeAttr(it.time || '--:--') + '</div>' +
+        '<div><div class="tv-fl__who">' + escapeAttr(_guestDisplayName(it.g)) + '</div><div class="tv-fl__meta">' + escapeAttr([it.flight, _travelPeople(it.g) + ' people', _sideOf(it.g)].filter(Boolean).join(' · ')) + '</div></div>' +
+        '<div>' + (it.car ? '<span class="tv-chip car">🚗 ' + (kind === 'arr' ? 'Pickup' : 'Drop-off') + '</span>' : '') + '</div></div>';
+    });
+    return html;
+  };
+  host.innerHTML = '<div class="tv-flights"><div>' + col('arr') + '</div><div>' + col('dep') + '</div></div>';
 }
 
 var _travelEditId = null;
@@ -5525,6 +5630,9 @@ function openTravelForm(guestId) {
         '<div><label>People staying</label>' + inp('people', 'number', String(_invitePeople(g) || '')) + '</div></div>' +
       '<div class="tf-row2"><div><label>Check-in <span>(blank = 25 Dec)</span></label>' + inp('checkin', 'date', '') + '</div>' +
         '<div><label>Check-out <span>(blank = 30 Dec)</span></label>' + inp('checkout', 'date', '') + '</div></div>' +
+      '<label class="tf-match"><input type="checkbox" id="tf-match" onchange="_tfMatch()"' +
+        (_tv(g, 'arr_date') && _tv(g, 'checkin') === _tv(g, 'arr_date') && (!_tv(g, 'dep_date') || _tv(g, 'checkout') === _tv(g, 'dep_date')) ? ' checked' : '') + '/>' +
+        '<span>Match hotel dates to flights<small>Check in on the arrival date and check out on the departure date (updates as you change the flights)</small></span></label>' +
       '<div id="tf-stay" class="tf-stay"></div>' +
       '</section><section>' +
       '<h4>Flights</h4>' +
@@ -5550,7 +5658,21 @@ function _tfPick(btn) {
 }
 // Live: nights we cover vs nights the guest pays, and a nudge when the
 // flight dates don't fit the stay.
+// "Match hotel dates to flights": check-in = arrival date, check-out =
+// departure date, kept in step while ticked (the date boxes lock).
+function _tfMatch() { _tfStay(); }
+function _tfSyncMatch() {
+  var m = document.getElementById('tf-match');
+  var cin = document.getElementById('tf-checkin'), cout = document.getElementById('tf-checkout');
+  if (!m || !cin || !cout) return;
+  var on = m.checked;
+  cin.disabled = on; cout.disabled = on;
+  if (!on) return;
+  var arr = (document.getElementById('tf-arr_date') || {}).value || '', dep = (document.getElementById('tf-dep_date') || {}).value || '';
+  cin.value = arr; cout.value = dep;   // blank = the standard 25 / 30 Dec
+}
 function _tfStay() {
+  _tfSyncMatch();
   var box = document.getElementById('tf-stay');
   if (!box) return;
   var on = document.querySelector('.tf-opts[data-name="hotel"] button.on');
@@ -5567,6 +5689,7 @@ function _tfStay() {
       (st.extra.length ? '<div class="pay">Guest pays ' + _nightsLabel(st.extra) + ': ' + st.extra.map(_fmtDay).join(', ') +
         ' · ' + (st.extra.length * people) + ' person-night' + (st.extra.length * people === 1 ? '' : 's') + ' (' + people + ' ' + (people === 1 ? 'person' : 'people') + ', breakfast included)</div>' : '');
     var arr = v('tf-arr_date'), dep = v('tf-dep_date');
+    if ((document.getElementById('tf-match') || {}).checked) { arr = ''; dep = ''; }
     if (arr && arr < st.cin) html += '<div class="warn">✈ Arrives ' + _fmtDay(arr) + ', before check-in. <button type="button" onclick="document.getElementById(\'tf-checkin\').value=\'' + arr + '\';_tfStay()">Check in ' + _fmtDay(arr) + '</button></div>';
     if (dep && dep > st.cout) html += '<div class="warn">✈ Leaves ' + _fmtDay(dep) + ', after check-out. <button type="button" onclick="document.getElementById(\'tf-checkout\').value=\'' + dep + '\';_tfStay()">Check out ' + _fmtDay(dep) + '</button></div>';
   }
