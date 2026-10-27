@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261027181156"/>
+<meta name="app-build" content="20261027182007"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -6204,8 +6204,12 @@ function _eventInfoForGuest(g, id) {
   var time = sideTime || xs.time || pick('time');
   return { name: ev.name || id, date: pick('date'), time: /see invitation/i.test(time) ? '' : time,
     venue: pick('venue'), dress: pick('dress_code', xs.dress), note: pick('details', xs.note),
-    depart: xs.departTime ? xs.departTime + ' from ' + xs.departFrom : '', ownTransport: xs.ownTransport || '' };
+    depart: xs.departTime ? xs.departTime + ' from ' + xs.departFrom : '', ownTransport: xs.ownTransport || '',
+    // An exact Google Maps link in the Events tab (map / map_brides / map_grooms) wins over a search.
+    map: (function() { var m = pick('map'); var v = pick('venue'); return /^https?:\/\//i.test(m) ? m : (v && v !== 'TBC' ? _mapLink(v) : ''); })(),
+    departFrom: xs.departFrom || '', departMap: xs.departFrom ? _mapLink(xs.departFrom) : '' };
 }
+function _mapLink(place) { return 'https://maps.google.com/?q=' + encodeURIComponent(place).replace(/%20/g, '+').replace(/%2C/gi, ','); }
 // The {{events}} block: one short section per event they're coming to.
 function _guestEventsText(g) {
   var r = _latestReplyByCode()[String(g.invitation_code || '').toUpperCase().trim()];
@@ -6218,8 +6222,10 @@ function _guestEventsText(g) {
     return ['*' + e.name + '*',
       '🗓 ' + [e.date, e.time].filter(Boolean).join(' · '),
       e.depart ? '🚌 Jaan departs ' + e.depart + (e.ownTransport ? '. ' + e.ownTransport : '') : '',
+      e.departMap ? '🗺 ' + e.departFrom.split(',')[0] + ': ' + e.departMap : '',
       e.note ? '✨ ' + e.note : '',
       e.venue ? '📍 ' + e.venue : '',
+      e.map ? '🗺 ' + e.map : '',
       e.dress ? '👗 Dress code: ' + e.dress : '',
       '👥 ' + n + ' ' + (n === 1 ? 'person' : 'people') + (names.length ? ' (' + names.join(', ') + ')' : '')
     ].filter(Boolean).join('\n');

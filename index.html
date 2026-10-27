@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="app-build" content="20261027181156"/>
+<meta name="app-build" content="20261027182007"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -343,6 +343,8 @@ body{background:var(--cream);color:var(--ink);font-family:var(--sans);font-weigh
 .it-actions{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.75rem;}
 .it-btn{border:1px solid var(--rule);background:var(--cream,#fdf8f2);color:var(--wine);font-family:var(--sans);font-size:var(--ui-xs);padding:.5rem .75rem;cursor:pointer;text-decoration:none;min-height:38px;display:inline-flex;align-items:center;}
 .it-btn:hover{border-color:var(--gold);}
+.it-btn--map{background:var(--wine);color:#fff;border-color:var(--wine);font-weight:600;}
+.it-btn--map:hover{color:#fff;opacity:.92;}
 .it-declined{font-size:var(--ui-sm);color:var(--muted);text-align:center;margin-top:.4rem;}
 @media (max-width:480px){
   .it-card{padding:.9rem .8rem;gap:.7rem;}
@@ -992,7 +994,10 @@ function eventDetails(id) {
   };
   var sideTime = evt['time_' + side] != null && String(evt['time_' + side]).trim() ? String(evt['time_' + side]).trim() : '';
   return Object.assign({}, evt, { dress: pick('dress_code', xs.dress), note: pick('details', xs.note),
-    time: sideTime || xs.time || evt.time, departTime: xs.departTime || '', departFrom: xs.departFrom || '', ownTransport: xs.ownTransport || '' });
+    time: sideTime || xs.time || evt.time, departTime: xs.departTime || '', departFrom: xs.departFrom || '', ownTransport: xs.ownTransport || '',
+    // An exact Google Maps link in the Events tab (map / map_brides / map_grooms) wins over a search.
+    mapUrl: (function() { var m = pick('map', ''); var v = pick('venue', evt.venue); return /^https?:\/\//i.test(m) ? m : (v && v !== 'TBC' ? _mapsUrl(v) : ''); })(),
+    departMap: xs.departFrom ? _mapsUrl(xs.departFrom) : '' });
 }
 function _mapsUrl(venue) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue); }
 // "Saturday 26 December 2026" → { dow: 'Sat', day: '26', mon: 'Dec' }
@@ -1022,13 +1027,14 @@ function renderItinerary(items, declined) {
         '<h3 class="it-name">' + escapeHtml(e.name) + '</h3>' +
         row('🗓', 'When', escapeHtml(e.date || 'TBC') + (e.time && !/see invitation/i.test(e.time) ? ' · <strong>' + escapeHtml(e.time) + '</strong>' : '')) +
         (e.departTime ? row('🚌', 'Jaan departs', '<strong>' + escapeHtml(e.departTime) + '</strong> from ' + escapeHtml(e.departFrom) +
-          ' <a class="it-link" href="' + escapeAttr(_mapsUrl(e.departFrom)) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>' +
+          ' <a class="it-link" href="' + escapeAttr(e.departMap) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>' +
           (e.ownTransport ? '<div class="it-note">🚗 ' + escapeHtml(e.ownTransport) + '</div>' : '')) : '') +
         (e.note ? row('✨', 'Details', escapeHtml(e.note)) : '') +
-        row('📍', 'Where', escapeHtml(e.venue || 'TBC') + (e.venue && e.venue !== 'TBC' ? ' <a class="it-link" href="' + escapeAttr(_mapsUrl(e.venue)) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>' : '')) +
+        row('📍', 'Where', escapeHtml(e.venue || 'TBC') + (e.mapUrl ? ' <a class="it-link" href="' + escapeAttr(e.mapUrl) + '" target="_blank" rel="noopener">Map&nbsp;↗</a>' : '')) +
         row('👗', 'Dress code', e.dress ? '<strong>' + escapeHtml(e.dress) + '</strong>' : '') +
         row('👥', 'Coming', who) +
         '<div class="it-actions">' +
+          (e.mapUrl ? '<a class="it-btn it-btn--map" href="' + escapeAttr(e.mapUrl) + '" target="_blank" rel="noopener">📍 Directions</a>' : '') +
           (gcal ? '<a class="it-btn" href="' + escapeAttr(gcal) + '" target="_blank" rel="noopener">+ Google Calendar</a>' : '') +
           '<button type="button" class="it-btn" onclick="downloadICS(\'' + escapeAttr(it.id) + '\')">+ Apple / Outlook</button>' +
           (img ? '<button type="button" class="it-btn" onclick="openInviteLightbox(\'' + escapeAttr(img) + '\', \'' + escapeAttr('Invitation to ' + e.name) + '\')">View invitation</button>' : '') +
