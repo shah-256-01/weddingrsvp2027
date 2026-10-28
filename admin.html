@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta name="app-build" content="20261027182007"/>
+<meta name="app-build" content="20261028051422"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin"/>
@@ -755,6 +755,20 @@ body{background:var(--admin-bg);color:var(--ink);font-family:'Jost',sans-serif;f
       <div id="csv-results"></div>
     </div>
     <div class="admin-card" style="margin-top:1.2rem;">
+      <div class="admin-card-title">Import Replies</div>
+      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;line-height:1.55;">For replies that came in outside the app (e.g. card invites). Upload the guests first, then a CSV with <code>invitation_code</code>, <code>answer</code> (YES / NO / blank) and one column per event with how many people are coming. Guests who already replied are left alone, every matched guest is marked as invite sent, and no emails go out.</p>
+      <div class="csv-drop-zone" onclick="document.getElementById('replies-file-input').click()">
+        <p style="font-size:.84rem;color:var(--muted);">Click to select the replies CSV</p>
+        <input type="file" id="replies-file-input" accept=".csv" class="hidden" onchange="handleRepliesFile(this.files[0]); this.value='';"/>
+      </div>
+      <div id="replies-preview" style="margin-top:1rem;"></div>
+      <div style="margin-top:1rem;text-align:center;" id="replies-actions" class="hidden">
+        <button class="btn btn-primary btn-sm" id="replies-import-btn" onclick="importReplies()">Record replies</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearReplies()">Clear</button>
+      </div>
+      <div id="replies-results"></div>
+    </div>
+    <div class="admin-card" style="margin-top:1.2rem;">
       <div class="admin-card-title">Generate Invitation Code</div>
       <p style="font-size:.76rem;color:var(--muted);margin-bottom:.85rem;">Codes are unique per guest. Click Generate for a fresh one, then copy it onto a physical invite or into your message template.</p>
       <div style="background:var(--gold-pale);border:1px solid rgba(184,146,74,.3);padding:1rem;text-align:center;border-radius:2px;margin:.7rem 0;">
@@ -1413,7 +1427,7 @@ function _isRemembered() { return !!_rememberedPin(); }
   var ADMIN_FETCH_TIMEOUT_MS = 30000;
   // Bulk writes can wait behind other changes and take longer; Apps Script
   // itself allows up to 6 minutes.
-  var LONG_CALL_TIMEOUT_MS = { bulkAddGuests: 150000, bulkUpdate: 90000, bulkDelete: 90000, bulkMarkInviteSent: 90000, adminRecordRSVP: 90000, updateTravel: 60000 };
+  var LONG_CALL_TIMEOUT_MS = { bulkAddGuests: 150000, bulkUpdate: 90000, bulkDelete: 90000, bulkMarkInviteSent: 90000, adminRecordRSVP: 90000, adminImportReplies: 150000, updateTravel: 60000 };
   function invoke(method, arg, state) {
     var body;
     if (method === 'checkPin') {
@@ -4508,6 +4522,142 @@ function renderCSVTab() {
       if (e.dataTransfer.files.length) handleCSVFile(e.dataTransfer.files[0]);
     });
   }
+}
+
+// ── Import replies ───────────────────────────────────────
+// Replies recorded outside the app, matched by invitation code. Server:
+// adminImportReplies (no emails, skips guests who already replied).
+var _replyRows = [];
+
+function handleRepliesFile(file) {
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = String(e.target.result || '');
+    if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
+    var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    var res = document.getElementById('replies-results');
+    res.innerHTML = '';
+    if (lines.length < 2) { _replyRows = []; renderRepliesPreview(); return; }
+    var norm = function(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+    var headers = parseCSVLine(lines[0]).map(norm);
+    var codeIdx = headers.indexOf('invitationcode');
+    if (codeIdx < 0) codeIdx = headers.indexOf('code');
+    var ansIdx = headers.indexOf('answer');
+    if (codeIdx < 0 || ansIdx < 0) {
+      _replyRows = [];
+      renderRepliesPreview();
+      res.innerHTML = '<div class="upload-results upload-error">The file needs an <code>invitation_code</code> column and an <code>answer</code> column.</div>';
+      return;
+    }
+    // Event columns may use the event name ("Mehendi & Sangeet") or its id ("MS").
+    var evCols = {};
+    (allEvents || []).forEach(function(ev) {
+      var i = headers.indexOf(norm(ev.name));
+      if (i < 0) i = headers.indexOf(norm(ev.id));
+      if (i > -1) evCols[ev.id] = i;
+    });
+    _replyRows = lines.slice(1).map(function(line) {
+      var v = parseCSVLine(line);
+      var counts = {};
+      Object.keys(evCols).forEach(function(id) { counts[id] = Number(String(v[evCols[id]] || '').trim()) || 0; });
+      return { code: String(v[codeIdx] || '').toUpperCase().trim(), answer: String(v[ansIdx] || '').toUpperCase().trim(), events: counts };
+    }).filter(function(r) { return r.code; });
+    renderRepliesPreview();
+  };
+  reader.readAsText(file);
+}
+
+function _replyPreviewStatus(r) {
+  var g = allGuests.find(function(x) {
+    return String(x.status || '').toUpperCase() !== 'DELETED' &&
+      String(x.invitation_code || '').toUpperCase().trim() === r.code;
+  });
+  if (!g) return { key: 'not_found', label: 'Code not found', guest: null };
+  var replied = activeRSVPs().some(function(x) { return String(x.invitation_code || '').toUpperCase().trim() === r.code; });
+  if (replied) return { key: 'already', label: 'Already replied — left alone', guest: g };
+  if (r.answer === 'YES') return { key: 'yes', label: 'Yes', guest: g };
+  if (r.answer === 'NO') return { key: 'no', label: 'No', guest: g };
+  return { key: 'blank', label: 'No reply yet — marked sent only', guest: g };
+}
+
+function renderRepliesPreview() {
+  var box = document.getElementById('replies-preview');
+  var actions = document.getElementById('replies-actions');
+  if (!_replyRows.length) { box.innerHTML = ''; actions.classList.add('hidden'); return; }
+  var tally = { yes: 0, no: 0, blank: 0, already: 0, not_found: 0 };
+  var rowsHtml = _replyRows.map(function(r) {
+    var st = _replyPreviewStatus(r);
+    tally[st.key]++;
+    var people = r.answer === 'YES' ? Object.keys(r.events).map(function(id) { return r.events[id] ? id + ' ' + r.events[id] : ''; }).filter(Boolean).join(' · ') : '';
+    var colour = st.key === 'not_found' ? 'var(--wine)' : st.key === 'already' ? 'var(--muted)' : 'var(--ink)';
+    return '<tr><td style="padding:.3rem .5rem;font-family:monospace;">' + escapeAttr(r.code) + '</td>' +
+      '<td style="padding:.3rem .5rem;">' + escapeAttr(st.guest ? _guestDisplayName(st.guest) : '—') + '</td>' +
+      '<td style="padding:.3rem .5rem;color:' + colour + ';">' + escapeAttr(st.label) + '</td>' +
+      '<td style="padding:.3rem .5rem;color:var(--muted);">' + escapeAttr(people) + '</td></tr>';
+  }).join('');
+  var parts = [];
+  if (tally.yes) parts.push(tally.yes + ' Yes');
+  if (tally.no) parts.push(tally.no + ' No');
+  if (tally.blank) parts.push(tally.blank + ' no reply yet');
+  if (tally.already) parts.push(tally.already + ' already replied');
+  if (tally.not_found) parts.push('<strong style="color:var(--wine);">' + tally.not_found + ' code' + (tally.not_found === 1 ? '' : 's') + ' not found</strong>');
+  box.innerHTML =
+    '<p style="font-size:.8rem;margin-bottom:.5rem;"><strong>' + _replyRows.length + ' rows:</strong> ' + parts.join(' · ') + '</p>' +
+    (tally.not_found ? '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem;">Codes not found are skipped — upload the guests file first, or check the code.</p>' : '') +
+    '<div style="max-height:320px;overflow:auto;border:1px solid rgba(0,0,0,.08);border-radius:2px;">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.74rem;"><thead><tr style="background:var(--gold-pale);text-align:left;">' +
+    '<th style="padding:.35rem .5rem;">Code</th><th style="padding:.35rem .5rem;">Guest</th><th style="padding:.35rem .5rem;">Will record</th><th style="padding:.35rem .5rem;">People</th>' +
+    '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+  actions.classList.remove('hidden');
+}
+
+function clearReplies() {
+  _replyRows = [];
+  renderRepliesPreview();
+  document.getElementById('replies-results').innerHTML = '';
+}
+
+function importReplies() {
+  if (!_replyRows.length) return;
+  var btn = document.getElementById('replies-import-btn');
+  var res = document.getElementById('replies-results');
+  btn.disabled = true;
+  var rows = _replyRows.slice();
+  var CHUNK = 10, done = 0, all = [], marked = 0;
+  function finish(errMsg) {
+    btn.disabled = false; btn.textContent = 'Record replies';
+    var count = function(s) { return all.filter(function(x) { return x.status === s; }).length; };
+    var failed = all.filter(function(x) { return x.status === 'error' || x.status === 'no_events'; });
+    var lines = [count('recorded') + ' replies recorded', marked + ' marked as invite sent'];
+    if (count('already')) lines.push(count('already') + ' already had a reply (left alone)');
+    if (count('no_reply')) lines.push(count('no_reply') + ' with no reply yet');
+    if (count('not_found')) lines.push(count('not_found') + ' code' + (count('not_found') === 1 ? '' : 's') + ' not found (skipped)');
+    var html = '<div class="upload-results' + (errMsg || failed.length ? ' upload-error' : '') + '" style="margin-top:1rem;font-size:.82rem;line-height:1.6;">' + lines.join('<br>');
+    if (failed.length) {
+      html += '<br><br><strong>Not recorded:</strong><br>' + failed.map(function(x) {
+        return escapeAttr(x.code + ' ' + (x.name || '') + ' — ' + (x.status === 'no_events' ? 'not invited to any event' : x.error));
+      }).join('<br>');
+    }
+    if (errMsg) html += '<br><br><strong>Stopped:</strong> ' + escapeAttr(errMsg) + '<br>Upload the same file again to carry on — replies already recorded are skipped.';
+    res.innerHTML = html + '</div>';
+    loadGuests({ silent: true });
+  }
+  function next() {
+    if (done >= rows.length) { finish(''); return; }
+    var chunk = rows.slice(done, done + CHUNK);
+    btn.textContent = 'Recording ' + Math.min(done + CHUNK, rows.length) + ' of ' + rows.length + '…';
+    google.script.run
+      .withSuccessHandler(function(out) {
+        all = all.concat((out && out.results) || []);
+        marked += (out && out.marked) || 0;
+        done += chunk.length;
+        next();
+      })
+      .withFailureHandler(function(e) { finish((e && e.message) || 'The server didn’t respond.'); })
+      .adminImportReplies({ rows: chunk });
+  }
+  next();
 }
 
 // Fetch a fresh unique code for the standalone generator panel.

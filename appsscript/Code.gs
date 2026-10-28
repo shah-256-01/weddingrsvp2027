@@ -124,7 +124,7 @@ function doPost(e) {
       'getRSVPsByFamily', 'getMessageConfig', 'saveMessageConfig',
       'generateCode', 'markInviteSent', 'markReminderSent', 'markDetailsSent', 'updateRSVP', 'getBootstrap',
       'bulkDelete', 'bulkUpdate', 'bulkMarkInviteSent',
-      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'updateTravel',
+      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'adminImportReplies', 'updateTravel',
     ];
     const pinActions = [...ADMIN_ACTIONS, 'checkPin'];
     isAdminAction = pinActions.indexOf(action) > -1;
@@ -206,6 +206,7 @@ function doPost(e) {
     else if (action === 'deleteRSVPSubmission') result = deleteRSVPSubmission(payload);
     else if (action === 'resetGuestRSVP')   result = resetGuestRSVP(payload);
     else if (action === 'adminRecordRSVP')  result = adminRecordRSVP(payload);
+    else if (action === 'adminImportReplies') result = adminImportReplies(payload);
     else if (action === 'updateTravel')     result = updateTravel(payload);
     else if (action === 'checkPin')         result = { ok: true };
     else if (action === 'validate') {
@@ -251,7 +252,7 @@ function doPost(e) {
       // invites go out, and throwing away the saved guest list each time
       // would slow guest sign-ins. Admin loads read the sent column fresh
       // instead (see _withFreshInviteSent).
-      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'updateTravel',
+      'deleteRSVPSubmission', 'resetGuestRSVP', 'adminRecordRSVP', 'adminImportReplies', 'updateTravel',
     ];
     if (MUTATING_ACTIONS.indexOf(action) > -1) {
       try { bumpAdminCacheVersion(); } catch (e) { /* best-effort */ }
@@ -1556,6 +1557,68 @@ function adminRecordRSVP(payload) {
     events: events, adminEntry: true,
   }, true);
   return { recorded: true, code: code, name: name };
+}
+
+// ── adminImportReplies ───────────────────────────────────
+// Records replies that came in outside the app (e.g. card invites), matched
+// by invitation code. Each row: { code, answer: 'YES'|'NO'|'', events:
+// { Lg: n, ... } } where n is how many people are coming. YES → each event
+// they're invited to is Yes with n people (0 → No); NO → every event No;
+// blank → no reply. Guests who already have a reply are left alone, so the
+// same file can be uploaded twice safely. Every matched guest is marked as
+// invite sent. No emails go out. The admin page sends a few rows at a time.
+function adminImportReplies(payload) {
+  const rows = (payload && payload.rows) || [];
+  _guestsCache = null;
+  const active = (getGuestsCached() || []).filter(g => String(g.status || '').toUpperCase() !== 'DELETED');
+  const byCode = {};
+  active.forEach(g => {
+    const c = String(g.invitation_code || '').toUpperCase().trim();
+    if (c && !byCode[c]) byCode[c] = g;
+  });
+  const replied = new Set(_getSubmittedCodes());
+  const eventNames = {};
+  (getEvents() || []).forEach(e => { eventNames[e.id] = e.name; });
+  const results = [];
+  const markIds = [];
+  rows.forEach(r => {
+    const code = String((r && r.code) || '').toUpperCase().trim();
+    const answer = String((r && r.answer) || '').toUpperCase().trim();
+    const out = { code: code, answer: answer };
+    results.push(out);
+    const guest = byCode[code];
+    if (!guest) { out.status = 'not_found'; return; }
+    out.name = (String(guest.first_name || '') + ' ' + String(guest.last_name || '')).trim();
+    if (!String(guest.invite_sent_at || '').trim()) markIds.push(String(guest.id));
+    if (replied.has(code)) { out.status = 'already'; return; }
+    if (answer !== 'YES' && answer !== 'NO') { out.status = 'no_reply'; return; }
+    const invited = EVENT_IDS.filter(id => _eventAllocation(guest, id).invited);
+    if (!invited.length) { out.status = 'no_events'; return; }
+    const counts = (r && r.events) || {};
+    const events = invited.map(id => {
+      const n = answer === 'YES' ? Math.max(0, Number(counts[id]) || 0) : 0;
+      return { id: id, name: eventNames[id] || id, attending: n > 0, guests: n, names: [], notes: '' };
+    });
+    try {
+      _checkRSVPEvents(JSON.parse(JSON.stringify(events)), guest);
+      _clearPendingRSVPs(code);
+      _commitRSVP({
+        submissionName: out.name, invitationCode: code, submittedAt: new Date().toISOString(),
+        events: events, adminEntry: true,
+      }, true);
+      replied.add(code);
+      out.status = 'recorded';
+      out.people = events.reduce((m, ev) => Math.max(m, ev.attending ? ev.guests : 0), 0);
+    } catch (err) {
+      out.status = 'error';
+      out.error = (err && err.message) || 'Could not record';
+    }
+  });
+  let marked = 0;
+  if (markIds.length) {
+    try { marked = bulkMarkInviteSent({ ids: markIds }).updated; } catch (e) {}
+  }
+  return { results: results, marked: marked };
 }
 
 function resetGuestRSVP(payload) {
