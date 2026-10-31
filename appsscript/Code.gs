@@ -49,7 +49,9 @@ const WEDDING_SITE_URL      = 'https://jainishanay.com/';
 // Uses explicit midnight IST (UTC+05:30) so deadline is timezone-consistent
 // RSVP deadline is 30 Oct 2026 (inclusive): replies close at midnight
 // starting 31 Oct, Kenya time (EAT).
-const RSVP_DEADLINE = '2026-10-31T00:00:00+03:00';
+// Blank = no deadline (re-opened after 30 Oct). To close replies again, set
+// e.g. '2026-11-16T00:00:00+03:00' (replies close at that moment).
+const RSVP_DEADLINE = '';
 
 const TABS = {
   events:       'Events',
